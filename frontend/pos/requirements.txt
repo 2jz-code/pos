@@ -1,0 +1,5 @@
+tailwindcss 
+@headlessui/react
+react-icons 
+axios 
+react-toastify
