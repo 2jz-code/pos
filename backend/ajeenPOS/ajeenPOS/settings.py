@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "users.middleware.JWTMiddleware",
 ]
 
 ROOT_URLCONF = 'ajeenPOS.urls'
@@ -83,11 +84,13 @@ WSGI_APPLICATION = 'ajeenPOS.wsgi.application'
 AUTH_USER_MODEL = 'users.CustomUser'
 CORS_ALLOW_ALL_ORIGINS = True  # Enable for development only
 CORS_ALLOW_CREDENTIALS = True
+CSRF_COOKIE_HTTPONLY = False
 
 from datetime import timedelta
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework.authentication.SessionAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
 }

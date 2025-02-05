@@ -17,6 +17,7 @@ const Login = () => {
 
 			navigate("/dashboard"); // Redirect user to dashboard on success
 		} catch (error) {
+			console.error("Error logging in:", error);
 			setError("Invalid username or password");
 		}
 	};

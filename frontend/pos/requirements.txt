@@ -3,3 +3,4 @@ tailwindcss
 react-icons 
 axios 
 react-toastify
+framer-motion

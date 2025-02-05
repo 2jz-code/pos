@@ -6,7 +6,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework import status, generics
 from django.contrib.auth import get_user_model, authenticate
 from .serializers import UserSerializer
-from .permissions import IsInGroup  # Import custom permission
+from .permissions import IsAdminGroup  # Import custom permission
 
 User = get_user_model()
 
@@ -119,10 +119,10 @@ class LogoutView(APIView):
 class RegisterUserView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsInGroup("Admin") or IsInGroup("Manager")]
+    permission_classes = [IsAdminGroup() or IsAdminGroup()]
 
 # Get All Users (Only Admins can view users)
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsInGroup("Admin")]
+    permission_classes = [IsAdminGroup()]

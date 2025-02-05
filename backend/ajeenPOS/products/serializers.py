@@ -7,6 +7,9 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class ProductSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)  # ✅ Extract category name
+
     class Meta:
         model = Product
-        fields = "__all__"
+        fields = ["id", "name", "price", "image", "category_name", "description"]  # ✅ Include category_name
+
