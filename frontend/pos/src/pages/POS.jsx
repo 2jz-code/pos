@@ -3,48 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useCartStore } from "../store/cartStore";
 import Cart from "../components/Cart";
 import axiosInstance from "../api/api";
-import PaymentFlow from "../components/PaymentFlow";
 
 export default function POS() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState({});
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [showPayment, setShowPayment] = useState(false); // ✅ Control overlay
-  const { cart, addToCart, clearCart } = useCartStore(); // ✅ Fix: Use cart instead of cartItems
   const navigate = useNavigate();
 
-  useEffect(() => {
-    console.log("Cart State:", cart); // ✅ Debugging Zustand state
-  }, [cart]);
-
-  const totalAmount = cart.reduce(
-    (acc, item) => acc + item.quantity * item.price,
-    0
-  );
-  // Handle payment completion
-  const handlePaymentComplete = async (paymentMethod, amountPaid) => {
-    try {
-      const orderData = {
-        status: "completed",
-        items: cart.map((item) => ({
-          product_id: item.id,
-          quantity: item.quantity,
-        })),
-        payment_method: paymentMethod,
-        amount_paid: amountPaid,
-      };
-
-      await axiosInstance.post("orders/", orderData);
-      alert("Order completed successfully!");
-      clearCart();
-      setShowPayment(false);
-      navigate("/orders");
-    } catch (error) {
-      console.error("Failed to complete order:", error);
-      alert("Error processing payment.");
-    }
-  };
-  // ✅ Fetch categories and products
   useEffect(() => {
     axiosInstance.get("products/categories/").then((response) => {
       setCategories(response.data);
@@ -62,73 +27,38 @@ export default function POS() {
     });
   }, []);
 
-  // ✅ Save Order to Backend
-  const saveOrder = async () => {
-    try {
-      const { cart, orderId } = useCartStore.getState(); // ✅ Get stored orderId
-
-      if (!cart || cart.length === 0) {
-        alert("Cart is empty. Add items before saving.");
-        return;
-      }
-
-      const orderData = {
-        status: "saved",
-        items: cart.map((item) => ({
-          product_id: item.id,
-          quantity: item.quantity,
-        })),
-      };
-
-      console.log("Saving Order Data:", orderData); // Debugging
-
-      if (orderId) {
-        // ✅ If orderId exists, update the existing order
-        await axiosInstance.patch(`orders/${orderId}/`, orderData);
-        alert("Order updated successfully!");
-      } else {
-        // ✅ Otherwise, create a new order
-        const response = await axiosInstance.post("orders/", orderData);
-        useCartStore.setState({ orderId: response.data.id }); // ✅ Store new order ID
-        alert("New order saved successfully!");
-      }
-
-      clearCart();
-      navigate("/orders"); // Redirect to orders page
-    } catch (error) {
-      console.error("Failed to save order:", error);
-      alert("Error saving order.");
-    }
-  };
-
   return (
-    <div className="w-screen h-screen flex flex-col bg-gray-800 text-white">
-      {/* Back Button */}
-      <div className="p-4">
+    <div className="w-screen h-screen flex flex-col bg-gray-100 text-black p-6">
+      {/* Search & Back Button */}
+      <div className="flex items-center justify-between mb-4">
+        <input
+          type="text"
+          placeholder="Search products..."
+          className="px-4 py-2 bg-gray-300 rounded-lg w-1/3"
+        />
         <button
-          className="px-4 py-2 bg-gray-600 text-black rounded-lg hover:bg-gray-700"
+          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
           onClick={() => navigate("/dashboard")}
         >
-          ← Back to Dashboard
+          Back to Dashboard
         </button>
       </div>
 
-      <div className="flex flex-grow">
-        {/* Left: Cart Component */}
-        <Cart />
-
-        {/* Right: Product Categories & Items */}
-        <div className="w-2/3 p-4 flex flex-col">
-          {/* Category Tabs */}
-          <div className="flex space-x-2">
+      {/* Main Layout */}
+      <div className="flex flex-grow space-x-6">
+        {/* Left: Product Selection */}
+        <div className="w-2/3 flex flex-col">
+          {/* ✅ Category Button Layout */}
+          <div className="flex flex-wrap gap-4 mb-4">
             {categories.map((category) => (
               <button
                 key={category.id}
-                className={`px-4 py-2 border text-black bg-white rounded-lg ${
-                  selectedCategory === category.name
-                    ? "font-bold"
-                    : "opacity-70"
-                }`}
+                className={`px-6 py-3 text-sm font-medium rounded-lg shadow-md border transition-all duration-200
+        ${
+          selectedCategory === category.name
+            ? "bg-gray-300 text-black border-gray-300 shadow-lg"
+            : "bg-white text-gray-900 border-gray-300 hover:bg-gray-100 hover:shadow-md"
+        }`}
                 onClick={() => setSelectedCategory(category.name)}
               >
                 {category.name}
@@ -137,42 +67,32 @@ export default function POS() {
           </div>
 
           {/* Product Grid */}
-          <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="grid grid-cols-3 gap-4 mt-4">
             {products[selectedCategory]?.map((product) => (
               <button
                 key={product.id}
-                className="p-3 bg-gray-300 text-black font-bold rounded-lg shadow-md hover:brightness-90"
-                onClick={() => addToCart(product)}
+                className="p-4 bg-white shadow-lg rounded-lg flex flex-col items-center hover:shadow-xl transition"
+                onClick={() => useCartStore.getState().addToCart(product)}
               >
-                {product.name} - ${product.price}
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-24 h-24 object-cover rounded-lg mb-2"
+                />
+                <span className="font-medium">{product.name}</span>
+                <span className="text-gray-600">
+                  ${Number(product.price).toFixed(2)}
+                </span>
               </button>
-            )) || <p className="text-center mt-4">No products available</p>}
+            )) || (
+              <p className="text-center col-span-3">No products available</p>
+            )}
           </div>
-
-          {/* ✅ Save Order Button */}
-          <button
-            className="mt-6 px-4 py-2 bg-yellow-500 text-black rounded-lg"
-            onClick={saveOrder}
-          >
-            Save Order
-          </button>
-          {/* Open Payment Overlay */}
-          <button
-            className="mt-6 px-4 py-2 bg-yellow-500 text-black rounded-lg"
-            onClick={() => setShowPayment(true)}
-          >
-            Complete Order
-          </button>
         </div>
+
+        {/* ✅ Right: Cart Summary */}
+        <Cart />
       </div>
-      {/* Payment Overlay */}
-      {showPayment && (
-        <PaymentFlow
-          totalAmount={totalAmount}
-          onClose={() => setShowPayment(false)}
-          onComplete={handlePaymentComplete}
-        />
-      )}
     </div>
   );
 }

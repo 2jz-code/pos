@@ -4,3 +4,4 @@ react-icons
 axios 
 react-toastify
 framer-motion
+@heroicons/react
