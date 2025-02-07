@@ -37,13 +37,13 @@ export default function Orders() {
   const filteredOrders = orders.filter((order) => order.status === activeTab);
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-gray-800 text-white p-6">
-      <h1 className="text-2xl font-bold mb-4">Orders</h1>
+    <div className="w-screen h-screen flex flex-col bg-gray-50 text-black p-6">
+      <h1 className="text-4xl font-bold text-gray-800 mb-6">Orders</h1>
 
-      {/* Back Button */}
+      {/* ✅ Back Button */}
       <div className="pb-4">
         <button
-          className="px-4 py-2 bg-gray-600 text-black rounded-lg hover:bg-gray-700"
+          className="px-5 py-3 bg-gray-600 text-white rounded-lg shadow-md hover:bg-gray-700 transition-all"
           onClick={() => navigate("/dashboard")}
         >
           ← Back to Dashboard
@@ -55,9 +55,11 @@ export default function Orders() {
         {["saved", "completed", "voided"].map((tab) => (
           <button
             key={tab}
-            className={`px-4 py-2 rounded-lg ${
-              activeTab === tab ? "bg-yellow-500" : "bg-gray-600"
-            }`}
+            className={`px-5 py-3 rounded-lg font-semibold ${
+              activeTab === tab
+                ? "bg-yellow-500 text-black"
+                : "bg-gray-300 text-gray-800"
+            } transition-all hover:bg-gray-400`}
             onClick={() => setActiveTab(tab)}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)} Orders
@@ -66,21 +68,25 @@ export default function Orders() {
       </div>
 
       {/* ✅ Orders List */}
-      <div className="bg-gray-700 p-4 rounded-lg shadow-md">
+      <div className="bg-gray-200 p-6 rounded-lg shadow-md">
         {filteredOrders.length > 0 ? (
           filteredOrders.map((order) => (
             <div
               key={order.id}
-              className="flex justify-between items-center bg-gray-600 p-3 rounded-lg mb-3 shadow cursor-pointer hover:bg-gray-800"
+              className="flex justify-between items-center bg-gray-100 p-4 rounded-lg mb-3 shadow cursor-pointer hover:bg-gray-300 transition-all"
               onClick={() => navigate(`/orders/${order.id}`)}
             >
               <div>
-                <p className="text-lg font-bold">Order #{order.id}</p>
-                <p className="text-sm">Total: ${order.total_price}</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-lg font-bold text-gray-900">
+                  Order #{order.id}
+                </p>
+                <p className="text-sm text-gray-700">
+                  Total: ${order.total_price}
+                </p>
+                <p className="text-xs text-gray-600">
                   Created: {formatDate(order.created_at)}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-600">
                   Last Updated: {formatDate(order.updated_at)}
                 </p>
               </div>
@@ -89,7 +95,7 @@ export default function Orders() {
                 {/* ✅ Resume Button (Only for Saved Orders) */}
                 {order.status === "saved" && (
                   <button
-                    className="px-4 py-2 bg-blue-500 rounded-lg"
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 transition-all"
                     onClick={() => resumeOrder(order.id, navigate)}
                   >
                     Resume
@@ -99,7 +105,7 @@ export default function Orders() {
                 {/* ✅ Void Button (Only for Admins) */}
                 {isAdmin && order.status !== "voided" && (
                   <button
-                    className="px-4 py-2 bg-red-500 rounded-lg"
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg shadow-md hover:bg-red-600 transition-all"
                     onClick={() => voidOrder(order.id, navigate)}
                   >
                     Void
@@ -109,7 +115,7 @@ export default function Orders() {
             </div>
           ))
         ) : (
-          <p className="text-center text-gray-400">No orders available.</p>
+          <p className="text-center text-gray-500">No orders available.</p>
         )}
       </div>
     </div>

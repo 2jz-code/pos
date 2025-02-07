@@ -5,3 +5,4 @@ axios
 react-toastify
 framer-motion
 @heroicons/react
+react-qr-code
