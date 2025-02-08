@@ -80,7 +80,7 @@ export default function Orders() {
 						<div
 							key={order.id}
 							className="flex justify-between items-center bg-gray-100 p-4 rounded-lg mb-3 shadow cursor-pointer hover:bg-gray-300 transition-all"
-							onClick={() => navigate(`/orders/${order.id}`)}
+							onClick={() => navigate(`${order.id}`)}
 						>
 							<div>
 								<p className="text-lg font-bold text-gray-900">

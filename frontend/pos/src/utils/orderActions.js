@@ -8,17 +8,22 @@ import { useCartStore } from "../store/cartStore";
  */
 export const resumeOrder = async (orderId, navigate) => {
 	try {
-		useCartStore.setState({ orderId: orderId });
+		useCartStore.setState({ orderId });
 
 		// ✅ Fetch order details
-		const orderResponse = await axiosInstance.get(`orders/${orderId}/`);
-		if (!orderResponse.data.items) {
-			throw new Error("Order data is missing 'items'.");
+		const orderResponse = await axiosInstance.post(`orders/${orderId}/resume/`);
+		const { items = [] } = orderResponse.data; // ✅ Default to empty array if missing
+
+		// ✅ Ensure items exist before updating state
+		if (!Array.isArray(items) || items.length === 0) {
+			console.warn(`Warning: Order ${orderId} has no items.`);
+			alert("This order has no items, please check the backend.");
+			return;
 		}
 
 		// ✅ Update Zustand store
 		useCartStore.setState({
-			cart: orderResponse.data.items.map((item) => ({
+			cart: items.map((item) => ({
 				id: item.product.id,
 				name: item.product.name,
 				price: item.product.price,

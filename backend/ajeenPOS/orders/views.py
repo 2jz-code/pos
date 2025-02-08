@@ -8,6 +8,9 @@ from products.models import Product
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from datetime import timedelta
+import json
+from django.http import JsonResponse
+
 
 # ✅ List Orders (Now Updates Instead of Duplicating)
 class OrderList(generics.ListCreateAPIView):
@@ -125,16 +128,19 @@ class ResumeOrder(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk, *args, **kwargs):
-        """
-        Moves an order from 'saved' to 'in_progress' if it's currently 'saved'.
-        """
-        order = get_object_or_404(Order, id=pk, user=request.user, status__in=["saved", "in_progress"])
-        
+        order = get_object_or_404(
+            Order.objects.prefetch_related("items__product"),
+            id=pk, user=request.user, status__in=["saved", "in_progress"]
+        )
+
         if order.status == "saved":
             order.status = "in_progress"
             order.save()
+
+        # ✅ Debugging: Print serialized order before returning response
+        serialized_order = OrderSerializer(order).data
         
-        return Response({"message": "Order resumed successfully", "order": OrderSerializer(order).data})
+        return JsonResponse(serialized_order, safe=False)
 
 
 

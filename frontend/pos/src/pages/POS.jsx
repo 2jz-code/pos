@@ -8,7 +8,9 @@ export default function POS() {
 	const [categories, setCategories] = useState([]);
 	const [products, setProducts] = useState({});
 	const [selectedCategory, setSelectedCategory] = useState("");
+	const [searchQuery, setSearchQuery] = useState(""); // ✅ New state for search query
 	const navigate = useNavigate();
+	const { showOverlay } = useCartStore();
 
 	useEffect(() => {
 		axiosInstance.get("products/categories/").then((response) => {
@@ -27,6 +29,12 @@ export default function POS() {
 		});
 	}, []);
 
+	// ✅ Filter products based on search query
+	const filteredProducts =
+		products[selectedCategory]?.filter((product) =>
+			product.name.toLowerCase().includes(searchQuery.toLowerCase())
+		) || [];
+
 	return (
 		<div className="w-screen h-screen flex flex-col bg-gray-100 text-black p-6">
 			{/* Search & Back Button */}
@@ -35,6 +43,8 @@ export default function POS() {
 					type="text"
 					placeholder="Search products..."
 					className="px-4 py-2 bg-gray-300 rounded-lg w-1/3"
+					value={searchQuery}
+					onChange={(e) => setSearchQuery(e.target.value)} // ✅ Updates search query
 				/>
 				<button
 					className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
@@ -54,11 +64,11 @@ export default function POS() {
 							<button
 								key={category.id}
 								className={`px-6 py-3 text-sm font-medium rounded-lg shadow-md border transition-all duration-200
-        ${
-					selectedCategory === category.name
-						? "bg-gray-300 text-black border-gray-300 shadow-lg"
-						: "bg-white text-gray-900 border-gray-300 hover:bg-gray-100 hover:shadow-md"
-				}`}
+								${
+									selectedCategory === category.name
+										? "bg-gray-300 text-black border-gray-300 shadow-lg"
+										: "bg-white text-gray-900 border-gray-300 hover:bg-gray-100 hover:shadow-md"
+								}`}
 								onClick={() => setSelectedCategory(category.name)}
 							>
 								{category.name}
@@ -68,24 +78,33 @@ export default function POS() {
 
 					{/* Product Grid */}
 					<div className="grid grid-cols-3 gap-4 mt-4">
-						{products[selectedCategory]?.map((product) => (
-							<button
-								key={product.id}
-								className="p-4 bg-white shadow-lg rounded-lg flex flex-col items-center hover:shadow-xl transition"
-								onClick={() => useCartStore.getState().addToCart(product)}
-							>
-								<img
-									src={product.image}
-									alt={product.name}
-									className="w-24 h-24 object-cover rounded-lg mb-2"
-								/>
-								<span className="font-medium">{product.name}</span>
-								<span className="text-gray-600">
-									${Number(product.price).toFixed(2)}
-								</span>
-							</button>
-						)) || (
-							<p className="text-center col-span-3">No products available</p>
+						{filteredProducts.length > 0 ? (
+							filteredProducts.map((product) => (
+								<button
+									key={product.id}
+									className={`p-4 bg-white shadow-lg rounded-lg flex flex-col items-center transition ${
+										showOverlay
+											? "opacity-50 pointer-events-none"
+											: "hover:shadow-xl"
+									}`}
+									onClick={() =>
+										!showOverlay && useCartStore.getState().addToCart(product)
+									}
+									disabled={showOverlay}
+								>
+									<img
+										src={product.image}
+										alt={product.name}
+										className="w-24 h-24 object-cover rounded-lg mb-2"
+									/>
+									<span className="font-medium">{product.name}</span>
+									<span className="text-gray-600">
+										${Number(product.price).toFixed(2)}
+									</span>
+								</button>
+							))
+						) : (
+							<p className="text-center col-span-3">No products found</p>
 						)}
 					</div>
 				</div>
