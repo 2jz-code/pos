@@ -45,85 +45,104 @@ export default function Orders() {
 	};
 
 	return (
-		<div className="w-screen h-screen flex flex-col bg-gray-50 text-black p-6">
-			<h1 className="text-4xl font-bold text-gray-800 mb-6">Orders</h1>
+		<div className="w-screen h-screen flex flex-col bg-gray-100 text-black p-6">
+			{/* Header Section */}
+			<div className="flex justify-between items-center mb-6">
+				<div className="flex items-center space-x-4">
+					<h1 className="text-2xl font-bold text-gray-800">Order Management</h1>
+					<span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+						● Online
+					</span>
+				</div>
+				<button
+					className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+					onClick={() => navigate("/dashboard")}
+				>
+					Dashboard
+				</button>
+			</div>
 
-			{/* ✅ Back Button */}
-			<button
-				className="px-5 py-3 bg-gray-600 text-white rounded-lg shadow-md hover:bg-gray-700 transition-all mb-4"
-				onClick={() => navigate("/dashboard")}
-			>
-				← Back to Dashboard
-			</button>
-
-			{/* ✅ Tab Navigation */}
-			<div className="flex space-x-4 mb-6">
+			{/* Tab Navigation */}
+			<div className="flex flex-wrap gap-2 mb-6">
 				{["in_progress", "saved", "completed", "voided"].map((tab) => (
 					<button
 						key={tab}
-						className={`px-5 py-3 rounded-lg font-semibold ${
+						className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
 							activeTab === tab
-								? "bg-yellow-500 text-black"
-								: "bg-gray-300 text-gray-800"
-						} transition-all hover:bg-gray-400`}
+								? "bg-blue-600 text-white"
+								: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50"
+						}`}
 						onClick={() => setActiveTab(tab)}
 					>
-						{tab.replace("_", " ").toUpperCase()} Orders
+						{tab.replace("_", " ").toUpperCase()}
 					</button>
 				))}
 			</div>
 
-			{/* ✅ Orders List */}
-			<div className="bg-gray-200 p-6 rounded-lg shadow-md">
+			{/* Orders List */}
+			<div className="flex-1 overflow-y-auto bg-white rounded-lg shadow-sm">
 				{filteredOrders.length > 0 ? (
 					filteredOrders.map((order) => (
 						<div
 							key={order.id}
-							className="flex justify-between items-center bg-gray-100 p-4 rounded-lg mb-3 shadow cursor-pointer hover:bg-gray-300 transition-all"
+							className="p-4 border-b last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer"
 							onClick={() => navigate(`${order.id}`)}
 						>
-							<div>
-								<p className="text-lg font-bold text-gray-900">
-									Order #{order.id}
-								</p>
-								<p className="text-sm text-gray-700">
-									Total: ${order.total_price}
-								</p>
-								<p className="text-xs text-gray-600">
-									Created: {formatDate(order.created_at)}
-								</p>
-								<p className="text-xs text-gray-600">
-									Last Updated: {formatDate(order.updated_at)}
-								</p>
-							</div>
+							<div className="flex justify-between items-start">
+								{/* Order Info */}
+								<div className="space-y-1">
+									<div className="flex items-center gap-3">
+										<span className="font-medium text-gray-900">
+											Order #{order.id}
+										</span>
+										<span className="text-sm px-2 py-1 bg-gray-100 rounded-md">
+											${order.total_price}
+										</span>
+									</div>
+									<div className="text-sm text-gray-500 space-x-4">
+										<span>Created: {formatDate(order.created_at)}</span>
+										<span>Updated: {formatDate(order.updated_at)}</span>
+									</div>
+								</div>
 
-							<div className="flex space-x-2">
-								{/* ✅ Resume Button (For "In Progress" & "Saved" Orders) */}
-								{(order.status === "in_progress" ||
-									order.status === "saved") && (
-									<button
-										className="px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 transition-all"
-										onClick={() => handleResumeOrder(order.id)}
-									>
-										Resume
-									</button>
-								)}
-
-								{/* ✅ Void Button (Only for Admins) */}
-								{isAdmin && order.status !== "voided" && (
-									<button
-										className="px-4 py-2 bg-red-500 text-white rounded-lg shadow-md hover:bg-red-600 transition-all"
-										onClick={() => voidOrder(order.id, navigate)}
-									>
-										Void
-									</button>
-								)}
+								{/* Order Actions */}
+								<div
+									className="flex gap-2"
+									onClick={(e) => e.stopPropagation()}
+								>
+									{(order.status === "in_progress" ||
+										order.status === "saved") && (
+										<button
+											className="px-3 py-1.5 bg-blue-100 text-blue-600 rounded-md text-sm hover:bg-blue-200 transition-colors"
+											onClick={() => handleResumeOrder(order.id)}
+										>
+											Resume
+										</button>
+									)}
+									{isAdmin && order.status !== "voided" && (
+										<button
+											className="px-3 py-1.5 bg-red-100 text-red-600 rounded-md text-sm hover:bg-red-200 transition-colors"
+											onClick={() => voidOrder(order.id, navigate)}
+										>
+											Void
+										</button>
+									)}
+								</div>
 							</div>
 						</div>
 					))
 				) : (
-					<p className="text-center text-gray-500">No orders available.</p>
+					<div className="p-8 text-center text-gray-500">
+						No orders in this category
+					</div>
 				)}
+			</div>
+
+			{/* Status Bar */}
+			<div className="bg-gray-800 text-white px-4 py-2 rounded-lg flex justify-between text-sm mt-4">
+				<span>System Status: Operational</span>
+				<span>Total Orders: {orders.length}</span>
+				<span>User: {isAdmin ? "Admin" : "Staff"}</span>
 			</div>
 		</div>
 	);
