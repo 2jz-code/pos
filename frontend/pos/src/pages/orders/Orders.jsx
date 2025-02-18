@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import axiosInstance from "../../api/api";
+import { useState, useEffect, useMemo } from "react";
+import axiosInstance from "../../api/config/axiosConfig";
 import { useNavigate } from "react-router-dom";
-import { checkAuthStatus } from "../../api/auth";
+import { authService } from "../../api/services/authService";
 import { resumeOrder, voidOrder } from "../../utils/orderActions";
 
 export default function Orders() {
@@ -10,13 +10,18 @@ export default function Orders() {
 	const [isAdmin, setIsAdmin] = useState(false);
 	const navigate = useNavigate();
 
+	const totalOpenOrders = useMemo(() => {
+		return orders.filter(
+			(order) => order.status === "in_progress" || order.status === "saved"
+		).length;
+	}, [orders]); // Only recalculate when orders array changes
 	// ✅ Fetch orders from backend
 	useEffect(() => {
 		const fetchOrdersAndUser = async () => {
 			try {
 				const [ordersResponse, authResponse] = await Promise.all([
-					axiosInstance.get("orders/"), // Fetch all orders
-					checkAuthStatus(), // Fetch user authentication details
+					axiosInstance.get("orders/"),
+					authService.checkStatus(), // Changed to use checkStatus method
 				]);
 
 				setOrders(ordersResponse.data);
@@ -141,7 +146,7 @@ export default function Orders() {
 			{/* Status Bar */}
 			<div className="bg-gray-800 text-white px-4 py-2 rounded-lg flex justify-between text-sm mt-4">
 				<span>System Status: Operational</span>
-				<span>Total Orders: {orders.length}</span>
+				<span>Total Open Orders: {totalOpenOrders}</span>
 				<span>User: {isAdmin ? "Admin" : "Staff"}</span>
 			</div>
 		</div>

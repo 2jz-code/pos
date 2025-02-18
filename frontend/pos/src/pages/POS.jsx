@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCartStore } from "../store/cartStore";
-import Cart from "../components/Cart";
-import axiosInstance from "../api/api";
+import Cart from "../features/cart/components/Cart";
+import axiosInstance from "../api/config/axiosConfig";
 
 export default function POS() {
 	const [categories, setCategories] = useState([]);
@@ -11,6 +11,7 @@ export default function POS() {
 	const [searchQuery, setSearchQuery] = useState(""); // ✅ New state for search query
 	const navigate = useNavigate();
 	const { showOverlay } = useCartStore();
+	const orderId = useCartStore((state) => state.orderId);
 
 	useEffect(() => {
 		axiosInstance.get("products/categories/").then((response) => {
@@ -124,7 +125,7 @@ export default function POS() {
 
 			{/* Bottom Status Bar */}
 			<div className="bg-gray-800 text-white px-4 py-2 flex justify-between text-sm">
-				<span>Order #: {"New"}</span>
+				<span>Order #: {orderId || "New"}</span>
 				<span>Items: {useCartStore.getState().cart.length}</span>
 				<span>User: Admin</span>
 			</div>

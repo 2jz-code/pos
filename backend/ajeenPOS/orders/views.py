@@ -61,7 +61,7 @@ class OrderDetail(generics.RetrieveUpdateDestroyAPIView):
             order.items.all().delete()  # Clear existing items
 
             for item in data["items"]:
-                product = get_object_or_404(Product, id=item["product_id"])
+                product = get_object_or_404(Product, id=item["id"])
                 OrderItem.objects.create(order=order, product=product, quantity=item["quantity"])
 
         # ✅ Update status if provided (e.g., 'saved', 'completed')

@@ -6,3 +6,4 @@ react-toastify
 framer-motion
 @heroicons/react
 react-qr-code
+react-toastify

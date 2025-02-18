@@ -46,9 +46,12 @@ INSTALLED_APPS = [
     "products",
     "orders",
     "reports",
+    'channels',
+    'hardware.apps.HardwareConfig',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -58,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     "users.middleware.JWTMiddleware",
+    'hardware.middleware.HardwareDebugMiddleware',
 ]
 
 ROOT_URLCONF = 'ajeenPOS.urls'
@@ -78,8 +82,19 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'ajeenPOS.wsgi.application'
+# Hardware configurations
+# HARDWARE_CONFIG = {
+#     'CASH_DRAWER_PORT': '/dev/ttyUSB0',  # or COM3 on Windows
+#     'CARD_TERMINAL_IP': '192.168.1.100',
+#     'CARD_TERMINAL_PORT': 8000,
+#     'RECEIPT_PRINTERS': [
+#         {'ip': '192.168.1.201', 'port': 9100},
+#         {'ip': '192.168.1.202', 'port': 9100},
+#     ],
+# }
 
+WSGI_APPLICATION = 'ajeenPOS.wsgi.application'
+ASGI_APPLICATION = 'ajeenPOS.asgi.application'
 
 AUTH_USER_MODEL = 'users.CustomUser'
 CORS_ALLOW_ALL_ORIGINS = True  # Enable for development only

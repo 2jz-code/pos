@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axiosInstance from "../../api/api";
-import { checkAuthStatus } from "../../api/auth";
+import axiosInstance from "../../api/config/axiosConfig";
+import { authService } from "../../api/services/authService";
 import { resumeOrder, voidOrder } from "../../utils/orderActions";
 
 export default function OrderDetails() {
@@ -14,12 +14,12 @@ export default function OrderDetails() {
 		const fetchOrderDetails = async () => {
 			try {
 				const [orderResponse, authResponse] = await Promise.all([
-					axiosInstance.get(`orders/${orderId}/`), // Fetch order details
-					checkAuthStatus(), // Check if user is admin
+					axiosInstance.get(`orders/${orderId}/`),
+					authService.checkStatus(), // Changed to use checkStatus method
 				]);
 
 				setOrder(orderResponse.data);
-				setIsAdmin(authResponse.is_admin); // ✅ Set admin status
+				setIsAdmin(authResponse.is_admin);
 			} catch (error) {
 				console.error("Error fetching order details:", error);
 			}

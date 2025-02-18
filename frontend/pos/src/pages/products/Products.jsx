@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axiosInstance from "../../api/api";
-import { checkAuthStatus } from "../../api/auth";
+import axiosInstance from "../../api/config/axiosConfig";
+import { authService } from "../../api/services/authService";
 import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/solid";
+import CategoryModal from "../../components/CategoryModal";
+// import { PlusIcon } from "@heroicons/react/24/solid";
+import { GoPlusCircle } from "react-icons/go";
 
 export default function Products() {
 	const [categories, setCategories] = useState([]);
@@ -10,23 +13,34 @@ export default function Products() {
 	const [selectedCategory, setSelectedCategory] = useState("");
 	const [isAdmin, setIsAdmin] = useState(false);
 	const navigate = useNavigate();
+	const [isAddingCategory, setIsAddingCategory] = useState(false);
+
+	const handleCategorySubmit = (newCategory) => {
+		setCategories([...categories, newCategory]);
+	};
 
 	useEffect(() => {
-		axiosInstance
-			.get("products/categories/")
-			.then((response) => {
-				setCategories(response.data);
-				if (response.data.length > 0)
-					setSelectedCategory(response.data[0].name);
-			})
-			.catch((error) => console.error("Error fetching categories:", error));
+		const fetchData = async () => {
+			try {
+				const [categoriesRes, productsRes, authRes] = await Promise.all([
+					axiosInstance.get("products/categories/"),
+					axiosInstance.get("products/"),
+					authService.checkStatus(), // Changed to use checkStatus method
+				]);
 
-		axiosInstance
-			.get("products/")
-			.then((response) => setProducts(response.data))
-			.catch((error) => console.error("Error fetching products:", error));
+				setCategories(categoriesRes.data);
+				if (categoriesRes.data.length > 0) {
+					setSelectedCategory(categoriesRes.data[0].name);
+				}
 
-		checkAuthStatus().then((data) => setIsAdmin(data.is_admin));
+				setProducts(productsRes.data);
+				setIsAdmin(authRes.is_admin);
+			} catch (error) {
+				console.error("Error fetching data:", error);
+			}
+		};
+
+		fetchData();
 	}, []);
 
 	const handleDelete = async (productName) => {
@@ -65,22 +79,48 @@ export default function Products() {
 				</div>
 			</div>
 
-			{/* Category Tabs */}
-			<div className="flex flex-wrap gap-2 mb-6">
+			{/* Category Tabs with All button and Add Category button */}
+			<div className="flex items-center flex-wrap gap-2 mb-6">
+				{/* All Categories Button */}
+				<button
+					className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors
+            ${
+							!selectedCategory
+								? "bg-blue-600 text-white"
+								: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50"
+						}`}
+					onClick={() => setSelectedCategory("")}
+				>
+					All Products
+				</button>
+
+				{/* Existing Category Buttons */}
 				{categories.map((category) => (
 					<button
 						key={category.id}
 						className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors
-              ${
-								selectedCategory === category.name
-									? "bg-blue-600 text-white"
-									: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50"
-							}`}
+                ${
+									selectedCategory === category.name
+										? "bg-blue-600 text-white"
+										: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50"
+								}`}
 						onClick={() => setSelectedCategory(category.name)}
 					>
 						{category.name}
 					</button>
 				))}
+
+				{/* Add Category Button - Only visible for admin */}
+				{isAdmin && (
+					<button
+						onClick={() => setIsAddingCategory(true)}
+						className="px-4 py-2 text-sm font-medium rounded-lg transition-colors
+                bg-green-500 text-white hover:bg-green-600
+                flex items-center gap-1 whitespace-nowrap"
+					>
+						<GoPlusCircle className="h-5 w-5" />
+					</button>
+				)}
 			</div>
 
 			{/* Product Grid */}
@@ -92,7 +132,7 @@ export default function Products() {
 					.map((product) => (
 						<div
 							key={product.name}
-							className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-3 max-h-96"
+							className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-3 max-h-72"
 						>
 							<div className="flex flex-col h-full">
 								{/* Product Image */}
@@ -155,6 +195,12 @@ export default function Products() {
 				<span>Total Products: {products.length}</span>
 				<span>User: {isAdmin ? "Admin" : "Staff"}</span>
 			</div>
+			<CategoryModal
+				isOpen={isAddingCategory}
+				onClose={() => setIsAddingCategory(false)}
+				onSubmit={handleCategorySubmit}
+				axiosInstance={axiosInstance}
+			/>
 		</div>
 	);
 }

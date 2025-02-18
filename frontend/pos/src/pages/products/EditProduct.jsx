@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axiosInstance from "../../api/api";
+import axiosInstance from "../../api/config/axiosConfig";
 
 const EditProduct = () => {
 	const { name } = useParams(); // ✅ Get product name from URL

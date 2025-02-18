@@ -1,4 +1,4 @@
-import axiosInstance from "../api/api";
+import axiosInstance from "../api/config/axiosConfig";
 import { useCartStore } from "../store/cartStore";
 
 /**
