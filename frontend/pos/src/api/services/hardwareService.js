@@ -17,56 +17,60 @@ class HardwareService {
 
 	static async openDrawer() {
 		try {
-		  const response = await axiosInstance.post(ENDPOINTS.HARDWARE.CASH_DRAWER.OPEN);
-		  
-		  if (response.data.status === "success") {
-			return {
-			  status: "success",
-			  state: "open",
-			  message: "Cash drawer opened successfully"
-			};
-		  }
-		  
-		  throw new Error(response.data.message || "Failed to open drawer");
-		} catch (error) {
-		  throw this.handleError(error, "Failed to open cash drawer");
-		}
-	  }
+			const response = await axiosInstance.post(
+				ENDPOINTS.HARDWARE.CASH_DRAWER.OPEN
+			);
 
-	  static async closeDrawer() {
-		try {
-		  // Add proper JSON body with action
-		  const response = await axiosInstance.post(
-			ENDPOINTS.HARDWARE.CASH_DRAWER.STATE, 
-			{
-			  action: 'close'
+			if (response.data.status === "success") {
+				return {
+					status: "success",
+					state: "open",
+					message: "Cash drawer opened successfully",
+				};
 			}
-		  );
-		  
-		  console.log('Hardware Service - Close Drawer Response:', response);
-	  
-		  return {
-			status: response.data?.status || response.status,
-			state: 'closed',
-			message: response.data?.message || 'Drawer closed successfully'
-		  };
+
+			throw new Error(response.data.message || "Failed to open drawer");
 		} catch (error) {
-		  console.error('Hardware Service - Close Drawer Error:', {
-			message: error.message,
-			response: error.response
-		  });
-		  throw this.handleError(error, "Failed to close cash drawer");
+			throw this.handleError(error, "Failed to open cash drawer");
 		}
-	  }
+	}
+
+	static async closeDrawer() {
+		try {
+			// Add proper JSON body with action
+			const response = await axiosInstance.post(
+				ENDPOINTS.HARDWARE.CASH_DRAWER.STATE,
+				{
+					action: "close",
+				}
+			);
+
+			console.log("Hardware Service - Close Drawer Response:", response);
+
+			return {
+				status: response.data?.status || response.status,
+				state: "closed",
+				message: response.data?.message || "Drawer closed successfully",
+			};
+		} catch (error) {
+			console.error("Hardware Service - Close Drawer Error:", {
+				message: error.message,
+				response: error.response,
+			});
+			throw this.handleError(error, "Failed to close cash drawer");
+		}
+	}
 
 	static async getDrawerState() {
 		try {
-		  const response = await axiosInstance.get(ENDPOINTS.HARDWARE.CASH_DRAWER.STATE);
-		  return response.data;
+			const response = await axiosInstance.get(
+				ENDPOINTS.HARDWARE.CASH_DRAWER.STATE
+			);
+			return response.data;
 		} catch (error) {
-		  throw this.handleError(error, "Failed to get drawer state");
+			throw this.handleError(error, "Failed to get drawer state");
 		}
-	  }
+	}
 
 	static async printReceipt(receiptData) {
 		try {

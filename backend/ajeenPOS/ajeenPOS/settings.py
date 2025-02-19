@@ -95,7 +95,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ajeenPOS.wsgi.application'
 ASGI_APPLICATION = 'ajeenPOS.asgi.application'
-
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vite dev server
+    "http://127.0.0.1:5173",
+]
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 AUTH_USER_MODEL = 'users.CustomUser'
 CORS_ALLOW_ALL_ORIGINS = True  # Enable for development only
 CORS_ALLOW_CREDENTIALS = True
