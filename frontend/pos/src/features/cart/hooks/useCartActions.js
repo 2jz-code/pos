@@ -41,11 +41,37 @@ export const useCartActions = () => {
 			toast.error("Failed to hold order");
 		}
 	}, []);
-
-	return {
+	
+	const completeOrder = useCallback(async (orderId, paymentDetails) => {
+		try {
+		  console.log('Starting order completion');
+		  const response = await axiosInstance.post(`orders/${orderId}/complete/`, {
+			payment_details: {
+			  ...paymentDetails,
+			  completed_at: new Date().toISOString(),
+			}
+		  });
+	
+		  console.log('Order completion response:', response);
+	
+		  if (response.data.message === "Order completed successfully") {
+			// Don't clear cart or show overlay yet
+			console.log('Order completed successfully');
+			return true;
+		  }
+		  return false;
+		} catch (error) {
+		  console.error('Failed to complete order:', error);
+		  toast.error(error.message || 'Failed to complete order');
+		  return false;
+		}
+	  }, []);
+	
+	  return {
 		startOrder,
 		holdOrder,
-		updateItemQuantity, // Add this to the returned object
+		completeOrder, // Add to returned object
+		updateItemQuantity,
 		...useCartStore.getState(),
+	  };
 	};
-};

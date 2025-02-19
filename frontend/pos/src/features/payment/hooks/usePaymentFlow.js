@@ -2,16 +2,16 @@
 import { useState, useCallback } from "react";
 import { hardwareService } from "../../../api/services/hardwareService";
 
-export const usePaymentFlow = ({ totalAmount, onComplete }) => {
+export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => { // Add onNewOrder prop
 	const [state, setState] = useState({
-		currentView: "InitialOptions",
-		previousViews: [], // Add this to track navigation history
-		paymentMethod: null,
-		splitMode: false,
-		amountPaid: 0,
-		transactions: [],
-		customAmount: "",
-		direction: 1,
+	  currentView: "InitialOptions",
+	  previousViews: [],
+	  paymentMethod: null,
+	  splitMode: false,
+	  amountPaid: 0,
+	  transactions: [],
+	  customAmount: "",
+	  direction: 1,
 	});
 	const [error, setError] = useState(null);
 	const [isProcessing, setIsProcessing] = useState(false);
@@ -49,50 +49,125 @@ export const usePaymentFlow = ({ totalAmount, onComplete }) => {
 		return true; // Indicate we handled the back navigation
 	}, [state.currentView, handleNavigation]);
 
-	const processPayment = async (amount, paymentDetails = {}) => {
-		setIsProcessing(true);
-		setError(null);
+const processPayment = async (amount, paymentDetails = {}) => {
+	setIsProcessing(true);
+	setError(null);
+  
+	try {
+	  if (paymentDetails.method === "cash") {
+		await hardwareService.openDrawer();
+	  }
+  
+	  setState((prev) => ({
+		...prev,
+		amountPaid: prev.amountPaid + amount,
+		transactions: [
+		  ...prev.transactions,
+		  {
+			method: paymentDetails.method || state.paymentMethod,
+			amount,
+			...paymentDetails,
+		  },
+		],
+	  }));
+  
+	  return true;
+	} catch (error) {
+	  setError(error.message);
+	  return false;
+	} finally {
+	  setIsProcessing(false);
+	}
+  };
 
-		try {
-			if (paymentDetails.method === "cash") {
-				await hardwareService.openDrawer();
-			}
+  const completePaymentFlow = useCallback(async () => {
+    try {
+      console.log('Starting payment completion flow');
+      const paymentDetails = {
+        totalPaid: state.amountPaid,
+        transactions: state.transactions,
+      };
+      
+      const success = await onComplete?.(paymentDetails);
+      console.log('Payment completion result:', success);
+      
+      if (success) {
+        console.log('Setting view to Completion');
+        // Use immediate state update
+        setState((prev) => {
+          const newState = {
+            ...prev,
+            currentView: 'Completion',
+            previousViews: [...prev.previousViews, prev.currentView],
+          };
+          console.log('New state:', newState);
+          return newState;
+        });
+        
+        // Add verification
+        setTimeout(() => {
+          console.log('Current view after update:', state.currentView);
+        }, 0);
+        
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Payment completion error:', error);
+      setError(error.message);
+      return false;
+    }
+  }, [state.amountPaid, state.transactions, onComplete, state.currentView]);
 
-			setState((prev) => ({
-				...prev,
-				amountPaid: prev.amountPaid + amount,
-				transactions: [
-					...prev.transactions,
-					{
-						method: paymentDetails.method || state.paymentMethod,
-						amount,
-						...paymentDetails,
-					},
-				],
-			}));
+  // Add explicit navigation function
+  const navigateToView = useCallback((viewName) => {
+    console.log(`Explicitly navigating to: ${viewName}`);
+    setState(prev => ({
+      ...prev,
+      currentView: viewName,
+      previousViews: [...prev.previousViews, prev.currentView],
+    }));
+  }, []);
 
-			// If payment is complete, call onComplete
-			const newAmountPaid = state.amountPaid + amount;
-			if (newAmountPaid >= totalAmount) {
-				onComplete?.();
-			}
+  // Add function to handle starting new order
+  const handleStartNewOrder = useCallback(async () => {
+    try {
+      console.log("Starting new order from payment flow");
+      
+      // First call the parent's onNewOrder callback
+      await onNewOrder?.();
+      
+      // Then reset payment flow state
+      setState({
+        currentView: "InitialOptions",
+        previousViews: [],
+        paymentMethod: null,
+        splitMode: false,
+        amountPaid: 0,
+        transactions: [],
+        customAmount: "",
+        direction: 1,
+      });
+    } catch (error) {
+      console.error("Error starting new order:", error);
+    }
+  }, [onNewOrder]);
 
-			return true;
-		} catch (error) {
-			setError(error.message);
-			return false;
-		} finally {
-			setIsProcessing(false);
-		}
-	};
-
-	return {
-		state,
-		setState,
-		error,
-		isProcessing,
-		handleNavigation,
-		handleBack,
-		processPayment,
-	};
+  const isPaymentComplete = useCallback(() => {
+	return state.amountPaid >= totalAmount;
+  }, [state.amountPaid, totalAmount]);
+  
+  return {
+    state,
+    setState,
+    error,
+    isProcessing,
+    handleNavigation,
+    handleBack,
+    processPayment,
+    completePaymentFlow,
+    isPaymentComplete,
+    navigateToView,
+	handleStartNewOrder
+  };
 };

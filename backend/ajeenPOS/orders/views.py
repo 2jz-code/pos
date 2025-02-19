@@ -169,8 +169,20 @@ class CompleteOrder(APIView):
         """
         Completes an order by setting the status to "completed".
         """
-        order = get_object_or_404(Order, id=pk, user=request.user, status="in_progress")
-        order.status = "completed"
-        order.payment_status = request.data.get("payment_status", "paid")
-        order.save()
-        return Response({"message": "Order completed successfully", "order": OrderSerializer(order).data})
+        try:
+            order = get_object_or_404(Order, id=pk, user=request.user, status="in_progress")
+            order.status = "completed"
+            order.payment_status = request.data.get("payment_status", "paid")
+            order.save()
+            
+            return Response({
+                "status": "success",  # Add this explicit status field
+                "message": "Order completed successfully",
+                "order": OrderSerializer(order).data
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=500)
