@@ -1,0 +1,2 @@
+[2025-02-20 16:40:11,217] INFO django.utils.autoreload Watching for file changes with StatReloader
+[2025-02-20 16:40:17,957] INFO django.utils.autoreload C:\Users\nadir\code\pos\pos\backend\ajeenPOS\ajeenPOS\settings.py changed, reloading.

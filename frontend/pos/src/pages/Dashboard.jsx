@@ -3,124 +3,126 @@ import { useState, useEffect } from "react";
 import LogoutButton from "../components/LogoutButton";
 import { authService } from "../api/services/authService";
 import {
-  CurrencyDollarIcon,
-  ClipboardDocumentListIcon,
-  ClockIcon,
-  ChartBarIcon,
+	CurrencyDollarIcon,
+	ClipboardDocumentListIcon,
+	ClockIcon,
+	ChartBarIcon,
 } from "@heroicons/react/24/outline";
+import { HardwareStatus } from "../components/HardwareStatus";
 
 export default function Dashboard() {
-  const [userStatus, setUserStatus] = useState({
-    authenticated: false,
-    username: "",
-    is_admin: false,
-  });
+	const [userStatus, setUserStatus] = useState({
+		authenticated: false,
+		username: "",
+		is_admin: false,
+	});
 
-  useEffect(() => {
-    const fetchUserStatus = async () => {
-      const status = await authService.checkStatus();
-      setUserStatus(status);
-    };
-    fetchUserStatus();
-  }, []);
+	useEffect(() => {
+		const fetchUserStatus = async () => {
+			const status = await authService.checkStatus();
+			setUserStatus(status);
+		};
+		fetchUserStatus();
+	}, []);
 
-  const getUserRole = (isAdmin) => {
-    return isAdmin ? "Admin" : "Staff";
-  };
+	const getUserRole = (isAdmin) => {
+		return isAdmin ? "Admin" : "Staff";
+	};
 
-  return (
-    <div className="w-screen h-screen flex flex-col bg-gray-100 text-black p-6">
-      {/* Header Section */}
-      <header className="bg-white shadow-sm p-4 flex justify-between items-center mb-8 rounded-lg">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold">Ajeen Bakery POS</h1>
-          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-            ● Online
-          </span>
-        </div>
-        <div className="flex items-center space-x-4">
-          <LogoutButton />
-        </div>
-      </header>
+	return (
+		<div className="w-screen h-screen flex flex-col bg-gray-100 text-black p-6">
+			<HardwareStatus />
+			{/* Header Section */}
+			<header className="bg-white shadow-sm p-4 flex justify-between items-center mb-8 rounded-lg">
+				<div className="flex items-center space-x-4">
+					<h1 className="text-xl font-bold">Ajeen Bakery POS</h1>
+					<span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+						● Online
+					</span>
+				</div>
+				<div className="flex items-center space-x-4">
+					<LogoutButton />
+				</div>
+			</header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-4xl">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-            Quick Access
-          </h2>
+			{/* Main Content */}
+			<div className="flex-1 flex items-center justify-center">
+				<div className="w-full max-w-4xl">
+					<h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
+						Quick Access
+					</h2>
 
-          {/* Navigation Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link
-              to="/pos"
-              className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
-            >
-              <div className="mb-3">
-                <CurrencyDollarIcon className="w-12 h-12" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-800">
-                Point of Sale
-              </h3>
-              <p className="text-sm text-gray-600 text-center mt-2">
-                Access the POS interface for daily transactions
-              </p>
-            </Link>
+					{/* Navigation Grid */}
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<Link
+							to="/pos"
+							className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
+						>
+							<div className="mb-3">
+								<CurrencyDollarIcon className="w-12 h-12" />
+							</div>
+							<h3 className="text-lg font-medium text-gray-800">
+								Point of Sale
+							</h3>
+							<p className="text-sm text-gray-600 text-center mt-2">
+								Access the POS interface for daily transactions
+							</p>
+						</Link>
 
-            <Link
-              to="/products"
-              className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
-            >
-              <div className="mb-3">
-                <ClipboardDocumentListIcon className="w-12 h-12" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-800">
-                Product Management
-              </h3>
-              <p className="text-sm text-gray-600 text-center mt-2">
-                Manage products, categories, and inventory
-              </p>
-            </Link>
+						<Link
+							to="/products"
+							className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
+						>
+							<div className="mb-3">
+								<ClipboardDocumentListIcon className="w-12 h-12" />
+							</div>
+							<h3 className="text-lg font-medium text-gray-800">
+								Product Management
+							</h3>
+							<p className="text-sm text-gray-600 text-center mt-2">
+								Manage products, categories, and inventory
+							</p>
+						</Link>
 
-            <Link
-              to="/orders"
-              className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
-            >
-              <div className="mb-3">
-                <ClockIcon className="w-12 h-12" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-800">
-                Order History
-              </h3>
-              <p className="text-sm text-gray-600 text-center mt-2">
-                View and manage order history and receipts
-              </p>
-            </Link>
+						<Link
+							to="/orders"
+							className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
+						>
+							<div className="mb-3">
+								<ClockIcon className="w-12 h-12" />
+							</div>
+							<h3 className="text-lg font-medium text-gray-800">
+								Order History
+							</h3>
+							<p className="text-sm text-gray-600 text-center mt-2">
+								View and manage order history and receipts
+							</p>
+						</Link>
 
-            <Link
-              to="/reports"
-              className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
-            >
-              <div className="mb-3">
-                <ChartBarIcon className="w-12 h-12" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-800">Reports</h3>
-              <p className="text-sm text-gray-600 text-center mt-2">
-                Generate sales reports and analytics
-              </p>
-            </Link>
-          </div>
-        </div>
-      </div>
+						<Link
+							to="/reports"
+							className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col items-center"
+						>
+							<div className="mb-3">
+								<ChartBarIcon className="w-12 h-12" />
+							</div>
+							<h3 className="text-lg font-medium text-gray-800">Reports</h3>
+							<p className="text-sm text-gray-600 text-center mt-2">
+								Generate sales reports and analytics
+							</p>
+						</Link>
+					</div>
+				</div>
+			</div>
 
-      {/* Status Bar */}
-      <div className="bg-gray-800 text-white px-4 py-2 rounded-lg flex justify-between text-sm">
-        <span>System Status: Operational</span>
-        <span>Version: 1.0.0</span>
-        <span>
-          User: {userStatus.username} ({getUserRole(userStatus.is_admin)})
-        </span>
-      </div>
-    </div>
-  );
+			{/* Status Bar */}
+			<div className="bg-gray-800 text-white px-4 py-2 rounded-lg flex justify-between text-sm">
+				<span>System Status: Operational</span>
+				<span>Version: 1.0.0</span>
+				<span>
+					User: {userStatus.username} ({getUserRole(userStatus.is_admin)})
+				</span>
+			</div>
+		</div>
+	);
 }
