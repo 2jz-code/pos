@@ -28,23 +28,23 @@ export const CartItem = memo(
 		};
 
 		return (
-			<div className="bg-white border border-gray-300 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+			<div className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
 				<div
 					className="p-3 flex justify-between items-center cursor-pointer group"
 					onClick={onExpand}
 				>
 					<div className="flex items-center gap-3">
 						<ChevronRightIcon
-							className={`h-5 w-5 text-gray-400 transition-transform ${
+							className={`h-5 w-5 text-slate-400 transition-transform ${
 								isExpanded ? "rotate-90" : ""
 							}`}
 						/>
-						<span className="text-gray-800 font-medium">
+						<span className="text-slate-800 font-medium">
 							{item.quantity} × {item.name}
 						</span>
 					</div>
 					<div className="flex items-center gap-3">
-						<span className="text-gray-700 font-medium">
+						<span className="text-slate-700 font-medium">
 							${calculateItemTotal()}
 						</span>
 						<button
@@ -60,10 +60,10 @@ export const CartItem = memo(
 				</div>
 
 				{isExpanded && (
-					<div className="p-3 border-t border-gray-300">
+					<div className="p-3 border-t border-slate-200 bg-slate-50 rounded-b-lg">
 						<div className="flex gap-4">
 							<div className="flex-1">
-								<label className="text-sm font-medium text-gray-600 mb-1 block">
+								<label className="text-sm font-medium text-slate-600 mb-1 block">
 									Quantity
 								</label>
 								<div className="flex items-center gap-2">
@@ -76,13 +76,13 @@ export const CartItem = memo(
 											}
 										}}
 										disabled={item.quantity <= 1}
-										className="px-3 py-1 bg-gray-100 rounded-md hover:bg-gray-200 
-                         transition-colors disabled:opacity-50 
-                         disabled:cursor-not-allowed"
+										className="px-3 py-1 bg-white rounded-md border border-slate-200 hover:bg-slate-50 
+						   transition-colors disabled:opacity-50 
+						   disabled:cursor-not-allowed"
 									>
 										-
 									</button>
-									<span className="px-3 py-1 min-w-[40px] text-center">
+									<span className="px-3 py-1 min-w-[40px] text-center bg-white border border-slate-200 rounded-md">
 										{parseInt(item.quantity, 10)}
 									</span>
 									<button
@@ -91,8 +91,8 @@ export const CartItem = memo(
 											const currentQuantity = parseInt(item.quantity, 10);
 											handleQuantityUpdate(currentQuantity + 1);
 										}}
-										className="px-3 py-1 bg-gray-100 rounded-md hover:bg-gray-200 
-                         transition-colors"
+										className="px-3 py-1 bg-white border border-slate-200 rounded-md hover:bg-slate-50 
+						   transition-colors"
 									>
 										+
 									</button>
@@ -100,15 +100,15 @@ export const CartItem = memo(
 							</div>
 
 							<div className="flex-1">
-								<label className="text-sm font-medium text-gray-600 mb-1 block">
+								<label className="text-sm font-medium text-slate-600 mb-1 block">
 									Discount (%)
 								</label>
 								<input
 									type="number"
 									min="0"
 									max="100"
-									className="w-full px-3 py-2 border border-gray-300 rounded-md 
-                                             focus:ring-2 focus:ring-blue-500"
+									className="w-full px-3 py-2 border border-slate-200 rounded-md 
+								 focus:ring-2 focus:ring-blue-500"
 									value={item.discount || ""}
 									onClick={(e) => e.stopPropagation()}
 									onChange={(e) => {

@@ -224,16 +224,34 @@ export const CashPaymentView = ({
 			<ScrollableViewWrapper>
 				{displayError && (
 					<motion.div
-						className="p-3 bg-red-50 text-red-600 rounded-lg"
+						className="p-4 bg-red-50 text-red-600 rounded-lg flex items-center"
 						initial={{ opacity: 0, y: -10 }}
 						animate={{ opacity: 1, y: 0 }}
 					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-5 w-5 mr-2"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+						>
+							<path
+								fillRule="evenodd"
+								d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+								clipRule="evenodd"
+							/>
+						</svg>
 						{displayError}
 					</motion.div>
 				)}
 
-				{/* Rest of the JSX remains the same, but update the disabled states */}
-				<div className="grid grid-cols-2 gap-3">
+				<div className="p-4 bg-blue-50 text-blue-700 rounded-lg mb-4">
+					<div className="font-medium mb-1">Amount Due</div>
+					<div className="text-2xl font-bold">
+						${remainingAmount.toFixed(2)}
+					</div>
+				</div>
+
+				<div className="grid grid-cols-2 gap-3 mb-4">
 					{[5, 10, 20, 50].map((amount) => (
 						<PaymentButton
 							key={amount}
@@ -247,34 +265,35 @@ export const CashPaymentView = ({
 									? "opacity-50 cursor-not-allowed"
 									: ""
 							}
-						>
-							{isProcessing || paymentInProgress
-								? "Processing..."
-								: `$${amount}`}
-						</PaymentButton>
+						/>
 					))}
 				</div>
 
-				<div className="flex gap-2">
-					<input
-						type="number"
-						className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-						placeholder="Enter custom amount"
-						min={remainingAmount} // Changed from 0.01 to remainingAmount
-						step="0.01" // Add step for precise decimal input
-						value={state.customAmount}
-						onChange={(e) =>
-							setState((prev) => ({ ...prev, customAmount: e.target.value }))
-						}
-						disabled={
-							isProcessing || paymentInProgress || remainingAmount === 0
-						}
-						onKeyPress={(e) => {
-							if (e.key === "Enter" && !isProcessing && !paymentInProgress) {
-								handleCustomAmount();
+				<div className="flex gap-2 mb-4">
+					<div className="relative flex-1">
+						<span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+							$
+						</span>
+						<input
+							type="number"
+							className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+							placeholder="Custom amount"
+							min={remainingAmount}
+							step="0.01"
+							value={state.customAmount}
+							onChange={(e) =>
+								setState((prev) => ({ ...prev, customAmount: e.target.value }))
 							}
-						}}
-					/>
+							disabled={
+								isProcessing || paymentInProgress || remainingAmount === 0
+							}
+							onKeyPress={(e) => {
+								if (e.key === "Enter" && !isProcessing && !paymentInProgress) {
+									handleCustomAmount();
+								}
+							}}
+						/>
+					</div>
 					<PaymentButton
 						label={isProcessing || paymentInProgress ? "Processing..." : "Pay"}
 						variant="primary"
@@ -290,7 +309,7 @@ export const CashPaymentView = ({
 
 				{shouldShowChangeCalculation() && (
 					<motion.div
-						className="p-3 bg-green-50 text-green-700 rounded-lg space-y-2"
+						className="p-4 bg-emerald-50 text-emerald-700 rounded-lg space-y-2"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 					>
@@ -306,12 +325,13 @@ export const CashPaymentView = ({
 								${getTransactionTotals()?.totalChange.toFixed(2)}
 							</span>
 						</div>
-						<div className="flex justify-between items-center text-sm text-green-600">
+						<div className="flex justify-between items-center text-sm text-emerald-600">
 							<span>Remaining Balance:</span>
 							<span>${remainingAmount.toFixed(2)}</span>
 						</div>
 					</motion.div>
 				)}
+
 				<PaymentButton
 					label="Close Drawer"
 					variant="primary"
@@ -320,9 +340,7 @@ export const CashPaymentView = ({
 					className={`w-full mt-4 ${
 						!canCloseDrawer() ? "opacity-50 cursor-not-allowed" : ""
 					}`}
-				>
-					{isProcessing ? "Processing..." : "Close Drawer"}
-				</PaymentButton>
+				/>
 			</ScrollableViewWrapper>
 		</motion.div>
 	);

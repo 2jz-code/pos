@@ -34,11 +34,11 @@ const OrderCancellation = ({
 		<>
 			<button
 				className={`
-                    px-3 py-1.5 bg-gray-100 text-gray-700 
-                    rounded-md text-sm hover:bg-gray-200 
-                    transition-colors disabled:opacity-50 
-                    disabled:cursor-not-allowed
-                `}
+			px-3 py-1.5 bg-slate-100 text-slate-700 
+			rounded-lg text-sm hover:bg-slate-200 
+			transition-colors disabled:opacity-50 
+			disabled:cursor-not-allowed flex items-center gap-1
+		  `}
 				onClick={handleCancelClick}
 				disabled={isLoading || !activeOrderId}
 			>
@@ -66,7 +66,23 @@ const OrderCancellation = ({
 						Cancelling...
 					</span>
 				) : (
-					"No Sale"
+					<>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						</svg>
+						No Sale
+					</>
 				)}
 			</button>
 

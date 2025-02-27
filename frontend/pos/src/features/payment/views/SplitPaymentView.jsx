@@ -60,25 +60,36 @@ export const SplitPaymentView = ({
 			{...commonMotionProps}
 		>
 			<ScrollableViewWrapper>
+				<div className="text-center mb-6">
+					<h3 className="text-lg font-medium text-slate-800 mb-2">
+						Split Payment
+					</h3>
+					<p className="text-slate-500 text-sm">
+						Choose payment method for each portion
+					</p>
+				</div>
+
 				<motion.div
-					className="p-3 bg-blue-50 text-blue-700 rounded-lg space-y-1"
+					className="p-4 bg-blue-50 text-blue-700 rounded-lg space-y-2 mb-6"
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
 				>
 					<div className="flex justify-between">
-						<span>Remaining Balance:</span>
-						<span>${remainingAmount.toFixed(2)}</span>
+						<span className="font-medium">Remaining Balance:</span>
+						<span className="font-bold">${remainingAmount.toFixed(2)}</span>
 					</div>
 					{state.amountPaid > 0 && (
-						<div className="flex justify-between text-green-600">
+						<div className="flex justify-between text-emerald-600">
 							<span>Amount Paid:</span>
-							<span>${state.amountPaid.toFixed(2)}</span>
+							<span className="font-medium">
+								${state.amountPaid.toFixed(2)}
+							</span>
 						</div>
 					)}
 				</motion.div>
 
-				<div className="space-y-3">
-					<h3 className="text-sm font-medium text-gray-600">
+				<div className="space-y-4">
+					<h3 className="text-sm font-medium text-slate-600 mb-2">
 						Select payment method for {state.transactions.length + 1}
 						{getOrdinalSuffix(state.transactions.length + 1)} payment
 					</h3>
@@ -99,18 +110,23 @@ export const SplitPaymentView = ({
 
 					{state.transactions.length > 0 && (
 						<div className="mt-6 space-y-2">
-							<h4 className="text-sm font-medium text-gray-600">
+							<h4 className="text-sm font-medium text-slate-600 mb-2">
 								Payment History
 							</h4>
 							{state.transactions.map((transaction, index) => (
 								<div
 									key={index}
-									className="p-2 bg-gray-50 rounded-lg flex justify-between text-sm"
+									className="p-3 bg-slate-50 rounded-lg flex justify-between text-sm border border-slate-200"
 								>
-									<span className="text-gray-600">
+									<span className="text-slate-600 flex items-center">
+										{transaction.method === "cash" ? (
+											<BanknotesIcon className="h-4 w-4 mr-2 text-slate-500" />
+										) : (
+											<CreditCardIcon className="h-4 w-4 mr-2 text-slate-500" />
+										)}
 										{transaction.method === "cash" ? "Cash" : "Credit Card"}
 									</span>
-									<span className="font-medium">
+									<span className="font-medium text-slate-800">
 										${transaction.amount.toFixed(2)}
 									</span>
 								</div>
@@ -122,6 +138,7 @@ export const SplitPaymentView = ({
 		</motion.div>
 	);
 };
+
 SplitPaymentView.propTypes = {
 	...commonPropTypes,
 	remainingAmount: PropTypes.number.isRequired,

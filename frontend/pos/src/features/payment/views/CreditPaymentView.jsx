@@ -124,38 +124,56 @@ export const CreditPaymentView = ({
 			<ScrollableViewWrapper>
 				{displayError && (
 					<motion.div
-						className="p-3 bg-red-50 text-red-600 rounded-lg"
+						className="p-4 bg-red-50 text-red-600 rounded-lg flex items-center"
 						initial={{ opacity: 0, y: -10 }}
 						animate={{ opacity: 1, y: 0 }}
 					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-5 w-5 mr-2"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+						>
+							<path
+								fillRule="evenodd"
+								d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+								clipRule="evenodd"
+							/>
+						</svg>
 						{displayError}
 					</motion.div>
 				)}
 
 				<motion.div
-					className="p-3 bg-blue-50 text-blue-700 rounded-lg"
+					className="p-4 bg-blue-50 text-blue-700 rounded-lg mb-4"
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
 				>
-					Amount to Pay: ${remainingAmount.toFixed(2)}
+					<div className="font-medium mb-1">Amount to Pay</div>
+					<div className="text-2xl font-bold">
+						${remainingAmount.toFixed(2)}
+					</div>
 				</motion.div>
 
 				{cardData && (
 					<motion.div
-						className="p-3 bg-green-50 text-green-700 rounded-lg space-y-1"
+						className="p-4 bg-emerald-50 text-emerald-700 rounded-lg space-y-2"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 					>
-						<div className="font-medium">
-							{cardData.cardType} ending in {cardData.lastFour}
+						<div className="flex items-center">
+							<CreditCardIcon className="h-5 w-5 mr-2" />
+							<span className="font-medium">
+								{cardData.cardType} ending in {cardData.lastFour}
+							</span>
 						</div>
-						<div className="text-xs text-green-600">
+						<div className="text-xs text-emerald-600">
 							Transaction ID: {cardData.transactionId}
 						</div>
 					</motion.div>
 				)}
 
-				<div className="space-y-4">
+				<div className="space-y-4 mt-4">
 					<PaymentButton
 						icon={CreditCardIcon}
 						label={isProcessing ? "Processing..." : "Pay Full Amount"}
@@ -167,16 +185,35 @@ export const CreditPaymentView = ({
 					{isProcessing && (
 						<PaymentButton
 							label="Cancel Payment"
-							variant="default" // Using existing default variant
+							variant="danger"
 							onClick={cancelPayment}
 							disabled={status !== "waiting_for_card"}
-							className="w-full text-gray-700 border border-gray-300"
 						/>
 					)}
 
-					<div className="p-3 bg-gray-50 rounded-lg space-y-2">
-						<p className="text-sm text-gray-600">{getStatusMessage()}</p>
-						<p className="text-xs text-gray-500">{getStatusSubMessage()}</p>
+					<div className="p-4 bg-slate-50 rounded-lg space-y-2 border border-slate-200">
+						<div className="flex items-center">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className="h-5 w-5 mr-2 text-slate-500"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
+							</svg>
+							<p className="text-sm font-medium text-slate-700">
+								{getStatusMessage()}
+							</p>
+						</div>
+						<p className="text-xs text-slate-500 ml-7">
+							{getStatusSubMessage()}
+						</p>
 					</div>
 				</div>
 			</ScrollableViewWrapper>

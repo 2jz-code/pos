@@ -38,38 +38,44 @@ const CategoryModal = ({ isOpen, onClose, onSubmit, axiosInstance }) => {
 	if (!isOpen) return null;
 
 	return (
-		<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+		<div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
 			<div
-				className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl"
+				className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl"
 				onClick={(e) => e.stopPropagation()}
 			>
-				<h3 className="text-lg font-semibold text-gray-900 mb-4">
+				<h3 className="text-lg font-semibold text-slate-800 mb-4">
 					Add New Category
 				</h3>
-				<input
-					type="text"
-					value={newCategoryName}
-					onChange={(e) => setNewCategoryName(e.target.value)}
-					placeholder="Category name"
-					className="w-full px-3 py-2 border border-gray-300 rounded-md 
-                             focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
-					autoFocus
-					disabled={isSubmitting}
-				/>
+
+				<div className="mb-4">
+					<label className="block text-sm font-medium text-slate-700 mb-1">
+						Category Name
+					</label>
+					<input
+						type="text"
+						value={newCategoryName}
+						onChange={(e) => setNewCategoryName(e.target.value)}
+						placeholder="Enter category name"
+						className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+						autoFocus
+						disabled={isSubmitting}
+					/>
+				</div>
+
 				<div className="flex justify-end gap-3">
 					<button
 						onClick={handleClose}
-						className="px-4 py-2 text-gray-600 hover:bg-gray-100 
-                                 rounded-lg transition-colors disabled:opacity-50"
+						className="px-4 py-2 text-slate-600 hover:bg-slate-100 
+							 rounded-lg transition-colors disabled:opacity-50"
 						disabled={isSubmitting}
 					>
 						Cancel
 					</button>
 					<button
 						onClick={handleSubmit}
-						className="px-4 py-2 bg-green-600 text-white rounded-lg 
-                                 hover:bg-green-700 transition-colors disabled:opacity-50
-                                 flex items-center gap-2"
+						className="px-4 py-2 bg-emerald-600 text-white rounded-lg 
+							 hover:bg-emerald-700 transition-colors disabled:opacity-50
+							 flex items-center gap-2"
 						disabled={isSubmitting}
 					>
 						{isSubmitting ? (

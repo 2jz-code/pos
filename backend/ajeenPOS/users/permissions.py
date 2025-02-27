@@ -9,3 +9,17 @@ class IsAdminGroup(BasePermission):
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.groups.filter(name="Admin").exists()
+
+class IsWebsiteUser(BasePermission):
+    """
+    Allows access only to website users.
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_website_user)
+
+class IsPOSUser(BasePermission):
+    """
+    Allows access only to POS users (admin, cashier, manager).
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_pos_user)

@@ -40,19 +40,30 @@ const commonMotionProps = {
 export const InitialOptionsView = ({ handleNavigation }) => (
 	<motion.div
 		key="initial-options"
-		className="absolute inset-0 p-4 space-y-3"
+		className="absolute inset-0 p-4 space-y-4"
 		{...commonMotionProps}
 	>
 		<ScrollableViewWrapper>
+			<div className="text-center mb-6">
+				<h3 className="text-lg font-medium text-slate-800 mb-2">
+					Select Payment Method
+				</h3>
+				<p className="text-slate-500 text-sm">
+					Choose how you would like to complete this transaction
+				</p>
+			</div>
+
 			<PaymentButton
 				icon={BanknotesIcon}
 				label="Pay with Cash"
 				onClick={() => handleNavigation("Cash", 1)}
+				className="mb-3"
 			/>
 			<PaymentButton
 				icon={CreditCardIcon}
 				label="Pay with Credit Card"
 				onClick={() => handleNavigation("Credit", 1)}
+				className="mb-3"
 			/>
 			<PaymentButton
 				icon={ArrowsRightLeftIcon}

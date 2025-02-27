@@ -7,10 +7,10 @@ export const CartHeader = ({
 	clearCart,
 	setShowOverlay,
 	startNewOrder,
-	axiosInstance, // Add this prop
+	axiosInstance,
 }) => (
-	<div className="p-4 border-b border-gray-300 flex items-center justify-between">
-		<h2 className="text-xl font-semibold text-gray-800">Order Summary</h2>
+	<div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
+		<h2 className="text-xl font-semibold text-slate-800">Order Summary</h2>
 		<div className="flex gap-2">
 			{activeOrderId && (
 				<>
@@ -19,12 +19,26 @@ export const CartHeader = ({
 						setActiveOrderId={setActiveOrderId}
 						clearCart={clearCart}
 						setShowOverlay={setShowOverlay}
-						axiosInstance={axiosInstance} // Pass it to OrderCancellation
+						axiosInstance={axiosInstance}
 					/>
 					<button
-						className="px-3 py-1.5 bg-blue-100 text-blue-600 rounded-md text-sm hover:bg-blue-200 transition-colors"
+						className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100 transition-colors flex items-center gap-1"
 						onClick={startNewOrder}
 					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M12 4v16m8-8H4"
+							/>
+						</svg>
 						New Order
 					</button>
 				</>

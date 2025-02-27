@@ -1,8 +1,42 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
+/* Add a modern font family */
+
 body {
-	background-color: #ffffff;
+	background-color: #f8fafc;
+	font-family: "Inter", sans-serif;
+	color: #334155;
 }
+
 html {
 	scroll-behavior: smooth;
+}
+
+/* Add subtle animations for better user experience */
+.transition-scale {
+	transition: transform 0.2s ease;
+}
+
+.transition-scale:hover {
+	transform: scale(1.02);
+}
+
+/* Modern scrollbar */
+::-webkit-scrollbar {
+	width: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: #f1f1f1;
+	border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #cbd5e1;
+	border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #94a3b8;
 }

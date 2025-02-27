@@ -19,12 +19,13 @@ export const PaymentButton = ({
 }) => {
 	const getButtonStyles = () => {
 		const baseStyles =
-			"w-full px-4 py-3 rounded-lg transition-colors flex items-center gap-3";
+			"w-full px-4 py-3 rounded-lg transition-all flex items-center justify-center gap-3 font-medium";
 
 		const variants = {
-			default: "bg-white border border-gray-300 hover:bg-gray-50",
-			primary: "bg-blue-600 text-white hover:bg-blue-700",
-			danger: "bg-red-600 text-white hover:bg-red-700",
+			default:
+				"bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm",
+			primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
+			danger: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
 		};
 
 		return `${baseStyles} ${variants[variant]} ${className}`;
@@ -43,11 +44,11 @@ export const PaymentButton = ({
 			{Icon && (
 				<Icon
 					className={`h-5 w-5 ${
-						variant === "default" ? "text-gray-600" : "text-current"
+						variant === "default" ? "text-slate-500" : "text-current"
 					}`}
 				/>
 			)}
-			<span className="font-medium">{label}</span>
+			<span>{label}</span>
 		</motion.button>
 	);
 };

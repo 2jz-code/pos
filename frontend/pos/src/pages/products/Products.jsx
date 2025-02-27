@@ -57,38 +57,68 @@ export default function Products() {
 	};
 
 	return (
-		<div className="w-screen h-screen flex flex-col bg-gray-100 text-black p-6">
+		<div className="w-screen h-screen flex flex-col bg-slate-50 text-slate-800 p-6">
 			{/* Header Section */}
 			<div className="flex justify-between items-center mb-6">
-				<h1 className="text-2xl font-bold text-gray-800">Product Management</h1>
+				<h1 className="text-2xl font-bold text-slate-800">
+					Product Management
+				</h1>
 				<div className="flex items-center gap-4">
 					<button
-						className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+						className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5"
 						onClick={() => navigate("/dashboard")}
 					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-5 w-5"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M4 6h16M4 12h16M4 18h7"
+							/>
+						</svg>
 						Dashboard
 					</button>
 					{isAdmin && (
 						<button
 							onClick={() => navigate("/products/add")}
-							className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+							className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
 						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className="h-5 w-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M12 4v16m8-8H4"
+								/>
+							</svg>
 							Add Product
 						</button>
 					)}
 				</div>
 			</div>
 
-			{/* Category Tabs with All button and Add Category button */}
-			<div className="flex items-center flex-wrap gap-2 mb-6">
+			{/* Category Tabs */}
+			<div className="flex items-center flex-wrap gap-2 mb-6 bg-white p-2 rounded-xl shadow-sm">
 				{/* All Categories Button */}
 				<button
 					className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors
-            ${
-							!selectedCategory
-								? "bg-blue-600 text-white"
-								: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50"
-						}`}
+				${
+					!selectedCategory
+						? "bg-blue-600 text-white"
+						: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+				}`}
 					onClick={() => setSelectedCategory("")}
 				>
 					All Products
@@ -99,11 +129,11 @@ export default function Products() {
 					<button
 						key={category.id}
 						className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors
-                ${
-									selectedCategory === category.name
-										? "bg-blue-600 text-white"
-										: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50"
-								}`}
+					${
+						selectedCategory === category.name
+							? "bg-blue-600 text-white"
+							: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+					}`}
 						onClick={() => setSelectedCategory(category.name)}
 					>
 						{category.name}
@@ -114,17 +144,18 @@ export default function Products() {
 				{isAdmin && (
 					<button
 						onClick={() => setIsAddingCategory(true)}
-						className="px-4 py-2 text-sm font-medium rounded-lg transition-colors
-                bg-green-500 text-white hover:bg-green-600
-                flex items-center gap-1 whitespace-nowrap"
+						className="px-3 py-2 text-sm font-medium rounded-lg transition-colors
+					bg-emerald-500 text-white hover:bg-emerald-600
+					flex items-center gap-1 whitespace-nowrap ml-auto"
 					>
 						<GoPlusCircle className="h-5 w-5" />
+						<span className="hidden sm:inline">Add Category</span>
 					</button>
 				)}
 			</div>
 
 			{/* Product Grid */}
-			<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 flex-1 overflow-y-auto">
+			<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 flex-1 overflow-y-auto">
 				{products
 					.filter((product) =>
 						selectedCategory ? product.category_name === selectedCategory : true
@@ -132,35 +163,35 @@ export default function Products() {
 					.map((product) => (
 						<div
 							key={product.name}
-							className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-3 max-h-72"
+							className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all overflow-hidden border border-slate-100"
 						>
 							<div className="flex flex-col h-full">
 								{/* Product Image */}
-								<div className="aspect-square bg-gray-100 rounded-lg overflow-hidden mb-2">
+								<div className="aspect-square bg-slate-50 overflow-hidden">
 									<img
 										src={product.image || "/fallback-image.jpg"}
 										alt={product.name}
-										className="w-full h-full object-cover"
+										className="w-full h-full object-cover transition-transform hover:scale-105"
 									/>
 								</div>
 
 								{/* Product Info */}
-								<div className="flex-1 flex flex-col justify-between">
+								<div className="flex-1 flex flex-col justify-between p-3">
 									<div>
-										<h3 className="text-sm font-medium text-gray-800 truncate">
+										<h3 className="text-sm font-medium text-slate-800 truncate">
 											{product.name}
 										</h3>
-										<p className="text-xs text-gray-500 mb-1">
+										<p className="text-xs text-slate-500 mb-1">
 											{product.category_name}
 										</p>
-										<p className="text-gray-900 font-medium text-sm">
+										<p className="text-slate-800 font-medium text-sm">
 											${Number(product.price).toFixed(2)}
 										</p>
 									</div>
 
 									{/* Admin Actions */}
 									{isAdmin && (
-										<div className="flex gap-2 mt-2">
+										<div className="flex gap-2 mt-3">
 											<button
 												onClick={(e) => {
 													e.preventDefault();
@@ -168,9 +199,9 @@ export default function Products() {
 														`/products/edit/${encodeURIComponent(product.name)}`
 													);
 												}}
-												className="px-2 py-1 bg-blue-100 text-blue-600 rounded-md text-xs hover:bg-blue-200 transition-colors flex items-center gap-1"
+												className="px-2 py-1.5 bg-blue-50 text-blue-600 rounded-md text-xs hover:bg-blue-100 transition-colors flex items-center gap-1 flex-1 justify-center"
 											>
-												<PencilSquareIcon className="h-3 w-3" />
+												<PencilSquareIcon className="h-3.5 w-3.5" />
 												<span className="hidden sm:inline">Edit</span>
 											</button>
 											<button
@@ -178,9 +209,9 @@ export default function Products() {
 													e.preventDefault();
 													handleDelete(product.name);
 												}}
-												className="px-2 py-1 bg-red-100 text-red-600 rounded-md text-xs hover:bg-red-200 transition-colors flex items-center gap-1"
+												className="px-2 py-1.5 bg-red-50 text-red-600 rounded-md text-xs hover:bg-red-100 transition-colors flex items-center gap-1 flex-1 justify-center"
 											>
-												<TrashIcon className="h-3 w-3" />
+												<TrashIcon className="h-3.5 w-3.5" />
 												<span className="hidden sm:inline">Delete</span>
 											</button>
 										</div>
@@ -190,11 +221,18 @@ export default function Products() {
 						</div>
 					))}
 			</div>
-			<div className="bg-gray-800 text-white px-4 py-2 rounded-lg flex justify-between text-sm">
-				<span>System Status: Operational</span>
+
+			{/* Status Bar */}
+			<div className="bg-slate-800 text-white px-5 py-2.5 rounded-xl flex justify-between text-xs mt-4">
+				<span className="flex items-center">
+					<span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
+					System Operational
+				</span>
 				<span>Total Products: {products.length}</span>
 				<span>User: {isAdmin ? "Admin" : "Staff"}</span>
 			</div>
+
+			{/* Category Modal */}
 			<CategoryModal
 				isOpen={isAddingCategory}
 				onClose={() => setIsAddingCategory(false)}

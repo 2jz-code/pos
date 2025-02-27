@@ -14,7 +14,7 @@ export const ScrollableViewWrapper = ({ children }) => (
 		exit="exit"
 		transition={pageTransition}
 	>
-		<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+		<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
 			{children}
 		</div>
 	</motion.div>
