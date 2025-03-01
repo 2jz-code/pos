@@ -2,50 +2,84 @@ import { useState, useEffect, useMemo } from "react";
 import axiosInstance from "../../api/config/axiosConfig";
 import { useNavigate } from "react-router-dom";
 import { authService } from "../../api/services/authService";
-import { resumeOrder, voidOrder } from "../../utils/orderActions";
+import { resumeOrder, updateOnlineOrderStatus } from "../../utils/orderActions";
 
 export default function Orders() {
 	const [orders, setOrders] = useState([]);
-	const [activeTab, setActiveTab] = useState("in_progress"); // Default tab now includes in-progress
+	const [activeTab, setActiveTab] = useState("in_progress"); // Default tab
+	const [orderSource, setOrderSource] = useState("pos"); // Default source is POS
 	const [isAdmin, setIsAdmin] = useState(false);
+	const [userName, setUserName] = useState("");
 	const navigate = useNavigate();
+
+	const handleStatusUpdate = (orderId, newStatus) => {
+		updateOnlineOrderStatus(orderId, newStatus, (updatedOrder) => {
+			// Update the orders array by replacing the updated order
+			setOrders(
+				orders.map((order) => (order.id === orderId ? updatedOrder : order))
+			);
+		});
+	};
 
 	const totalOpenOrders = useMemo(() => {
 		return orders.filter(
-			(order) => order.status === "in_progress" || order.status === "saved"
+			(order) =>
+				(order.status === "in_progress" || order.status === "saved") &&
+				order.source === orderSource
 		).length;
-	}, [orders]); // Only recalculate when orders array changes
-	// ✅ Fetch orders from backend
+	}, [orders, orderSource]);
+
+	// Fetch orders from backend
 	useEffect(() => {
 		const fetchOrdersAndUser = async () => {
 			try {
 				const [ordersResponse, authResponse] = await Promise.all([
-					axiosInstance.get("orders/"),
-					authService.checkStatus(), // Changed to use checkStatus method
+					axiosInstance.get(`orders/?source=${orderSource}`),
+					authService.checkStatus(),
 				]);
 
 				setOrders(ordersResponse.data);
 				setIsAdmin(authResponse.is_admin);
+				setUserName(authResponse.username);
 			} catch (error) {
 				console.error("Error fetching data:", error);
 			}
 		};
 
 		fetchOrdersAndUser();
-	}, []);
+	}, [orderSource]); // Re-fetch when order source changes
 
 	const formatDate = (timestamp) => new Date(timestamp).toLocaleString();
 
-	// ✅ Categorize Orders
-	const filteredOrders = orders.filter((order) => order.status === activeTab);
+	// Categorize Orders based on source and status
+	const filteredOrders = useMemo(() => {
+		return orders.filter((order) => {
+			// Filter by source
+			const sourceMatch = order.source === orderSource;
 
-	// ✅ Handle Resuming "In Progress" and "Saved" Orders
+			// Filter by status (if not "all")
+			const statusMatch = activeTab === "all" || order.status === activeTab;
+
+			return sourceMatch && statusMatch;
+		});
+	}, [orders, orderSource, activeTab]);
+
+	// Handle Resuming "In Progress" and "Saved" Orders
 	const handleResumeOrder = async (orderId) => {
 		try {
 			await resumeOrder(orderId, navigate);
 		} catch (error) {
 			console.error("Error resuming order:", error);
 			alert("Failed to resume order.");
+		}
+	};
+
+	// Get status tabs based on order source
+	const getStatusTabs = () => {
+		if (orderSource === "pos") {
+			return ["in_progress", "saved", "completed", "voided"];
+		} else {
+			return ["pending", "preparing", "completed", "cancelled"];
 		}
 	};
 
@@ -84,9 +118,56 @@ export default function Orders() {
 				</button>
 			</div>
 
+			{/* Order Source Toggle */}
+			<div className="flex mb-6 bg-white p-2 rounded-xl shadow-sm">
+				<button
+					className={`flex-1 py-2 px-4 text-sm font-medium rounded-lg transition-colors ${
+						orderSource === "pos"
+							? "bg-blue-600 text-white"
+							: "bg-white text-slate-700 hover:bg-slate-50"
+					}`}
+					onClick={() => {
+						setOrderSource("pos");
+						// Keep the current tab if it's "all", otherwise set to default POS tab
+						if (activeTab !== "all") {
+							setActiveTab("in_progress");
+						}
+					}}
+				>
+					POS Orders
+				</button>
+				<button
+					className={`flex-1 py-2 px-4 text-sm font-medium rounded-lg transition-colors ${
+						orderSource === "website"
+							? "bg-blue-600 text-white"
+							: "bg-white text-slate-700 hover:bg-slate-50"
+					}`}
+					onClick={() => {
+						setOrderSource("website");
+						// Keep the current tab if it's "all", otherwise set to default online tab
+						if (activeTab !== "all") {
+							setActiveTab("pending");
+						}
+					}}
+				>
+					Online Orders
+				</button>
+			</div>
+
 			{/* Tab Navigation */}
 			<div className="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-xl shadow-sm">
-				{["in_progress", "saved", "completed", "voided"].map((tab) => (
+				<button
+					className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+						activeTab === "all"
+							? "bg-blue-600 text-white"
+							: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+					}`}
+					onClick={() => setActiveTab("all")}
+				>
+					ALL ORDERS
+				</button>
+
+				{getStatusTabs().map((tab) => (
 					<button
 						key={tab}
 						className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
@@ -120,10 +201,57 @@ export default function Orders() {
 										<span className="text-sm px-2 py-1 bg-slate-100 text-slate-700 rounded-lg">
 											${order.total_price}
 										</span>
+										<span
+											className={`text-xs px-2 py-1 rounded-lg ${
+												order.source === "website"
+													? "bg-purple-100 text-purple-700"
+													: "bg-blue-100 text-blue-700"
+											}`}
+										>
+											{order.source === "website" ? "ONLINE" : "POS"}
+										</span>
+										{/* Status indicator */}
+										<span
+											className={`
+                        text-xs px-2 py-1 rounded-lg
+                        ${
+													order.status === "completed"
+														? "bg-emerald-50 text-emerald-700"
+														: order.status === "voided" ||
+														  order.status === "cancelled"
+														? "bg-red-50 text-red-700"
+														: order.status === "preparing" ||
+														  order.status === "in_progress"
+														? "bg-blue-50 text-blue-700"
+														: order.status === "pending"
+														? "bg-yellow-50 text-yellow-700"
+														: "bg-amber-50 text-amber-700"
+												}
+                      `}
+										>
+											{order.status.replace("_", " ").toUpperCase()}
+										</span>
 									</div>
 									<div className="text-sm text-slate-500 space-x-4">
 										<span>Created: {formatDate(order.created_at)}</span>
 										<span>Updated: {formatDate(order.updated_at)}</span>
+										<span className="text-slate-600">
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												className="h-4 w-4 inline mr-1"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+												/>
+											</svg>
+											Created by: {order.created_by || "Unknown"}
+										</span>
 									</div>
 								</div>
 
@@ -133,10 +261,72 @@ export default function Orders() {
 									onClick={(e) => e.stopPropagation()}
 								>
 									{(order.status === "in_progress" ||
-										order.status === "saved") && (
+										order.status === "saved") &&
+										order.source === "pos" && (
+											<button
+												className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+												onClick={() => handleResumeOrder(order.id)}
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													className="h-4 w-4"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+												>
+													<path
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														strokeWidth={2}
+														d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+													/>
+													<path
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														strokeWidth={2}
+														d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+													/>
+												</svg>
+												Resume
+											</button>
+										)}
+									{isAdmin &&
+										order.status !== "voided" &&
+										order.status !== "cancelled" &&
+										order.status !== "completed" && (
+											<button
+												className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 transition-colors flex items-center gap-1.5"
+												onClick={() =>
+													handleStatusUpdate(
+														order.id,
+														order.source === "website" ? "cancelled" : "voided"
+													)
+												}
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													className="h-4 w-4"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+												>
+													<path
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														strokeWidth={2}
+														d="M6 18L18 6M6 6l12 12"
+													/>
+												</svg>
+												{order.source === "website" ? "Cancel" : "Void"}
+											</button>
+										)}
+									{order.source === "website" && order.status === "pending" && (
 										<button
-											className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100 transition-colors flex items-center gap-1.5"
-											onClick={() => handleResumeOrder(order.id)}
+											className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm hover:bg-green-100 transition-colors flex items-center gap-1.5"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleStatusUpdate(order.id, "preparing");
+											}}
 										>
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -151,45 +341,50 @@ export default function Orders() {
 													strokeWidth={2}
 													d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
 												/>
-												<path
-													strokeLinecap="round"
-													strokeLinejoin="round"
-													strokeWidth={2}
-													d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-												/>
 											</svg>
-											Resume
+											Start Preparing
 										</button>
 									)}
-									{isAdmin && order.status !== "voided" && (
-										<button
-											className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm hover:bg-red-100 transition-colors flex items-center gap-1.5"
-											onClick={() => voidOrder(order.id, navigate)}
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												className="h-4 w-4"
-												fill="none"
-												viewBox="0 0 24 24"
-												stroke="currentColor"
+									{order.source === "website" &&
+										order.status === "preparing" && (
+											<button
+												className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm hover:bg-green-100 transition-colors flex items-center gap-1.5"
+												onClick={(e) => {
+													e.stopPropagation();
+													handleStatusUpdate(order.id, "completed");
+												}}
 											>
-												<path
-													strokeLinecap="round"
-													strokeLinejoin="round"
-													strokeWidth={2}
-													d="M6 18L18 6M6 6l12 12"
-												/>
-											</svg>
-											Void
-										</button>
-									)}
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													className="h-4 w-4"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+												>
+													<path
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														strokeWidth={2}
+														d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+													/>
+												</svg>
+												Complete
+											</button>
+										)}
 								</div>
 							</div>
 						</div>
 					))
 				) : (
 					<div className="p-8 text-center text-slate-500">
-						No orders in this category
+						{activeTab === "all" ? (
+							<>No {orderSource === "pos" ? "POS" : "online"} orders found</>
+						) : (
+							<>
+								No {orderSource === "pos" ? "POS" : "online"} orders with status{" "}
+								{activeTab.replace("_", " ")}
+							</>
+						)}
 					</div>
 				)}
 			</div>
@@ -200,8 +395,14 @@ export default function Orders() {
 					<span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
 					System Operational
 				</span>
-				<span>Total Open Orders: {totalOpenOrders}</span>
-				<span>User: {isAdmin ? "Admin" : "Staff"}</span>
+				<span>
+					{orderSource === "pos"
+						? `Open POS Orders: ${totalOpenOrders}`
+						: `Active Online Orders: ${totalOpenOrders}`}
+				</span>
+				<span>
+					User: {userName} ({isAdmin ? "Admin" : "Staff"})
+				</span>
 			</div>
 		</div>
 	);

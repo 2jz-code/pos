@@ -36,28 +36,29 @@ class WebsiteTokenObtainPairView(APIView):
             # Create response with cookies
             res = Response({'message': 'Login successful!'}, status=status.HTTP_200_OK)
             res.set_cookie(
-                key='access_token',
+                key='website_access_token',
                 value=access_token,
                 httponly=True,
                 max_age=300,  # 5 minutes
-                path='/',
+                path='/api/',
                 samesite='Lax',
                 secure=False  # Set to True in production with HTTPS
             )
             res.set_cookie(
-                key='refresh_token',
+                key='website_refresh_token',
                 value=refresh_token,
                 httponly=True,
                 max_age=60 * 60 * 24 * 7,  # 7 days
-                path='/',
+                path='/api/',
                 samesite='Lax',
                 secure=False  # Set to True in production with HTTPS
             )
             res.set_cookie(
-                key='session_token',
+                key='website_session_token',
                 value=session_identifier,
                 httponly=True,
                 max_age=60 * 60 * 24 * 14,  # 14 days
+                path='/api/',
                 samesite='Lax',
                 secure=False  # Set to True in production with HTTPS
             )
@@ -70,8 +71,8 @@ class WebsiteTokenRefreshView(APIView):
     """Refresh token view for website users"""
     
     def post(self, request, *args, **kwargs):
-        refresh_token = request.COOKIES.get('refresh_token')
-        session_identifier = request.COOKIES.get('session_token')
+        refresh_token = request.COOKIES.get('website_refresh_token')
+        session_identifier = request.COOKIES.get('website_session_token')
         
         if refresh_token:
             try:
@@ -94,11 +95,11 @@ class WebsiteTokenRefreshView(APIView):
                 # Set the new access token in cookie
                 res = Response({'message': 'Token refreshed!'}, status=status.HTTP_200_OK)
                 res.set_cookie(
-                    key='access_token',
+                    key='website_access_token',
                     value=access_token,
                     httponly=True,
                     max_age=300,  # 5 minutes
-                    path='/',
+                    path='/api/',
                     samesite='Lax',
                     secure=False  # Set to True in production with HTTPS
                 )
@@ -119,7 +120,7 @@ class WebsiteTokenRefreshView(APIView):
                 value=guest_id,
                 httponly=True,
                 max_age=60 * 60 * 24 * 7,  # Guest ID expires in 7 days
-                path='/',
+                path='/api/',
                 samesite='Lax',
                 secure=False  # Use True in production for HTTPS
             )
@@ -170,7 +171,8 @@ def check_website_authentication(request):
 @api_view(['GET'])
 def has_website_refresh_token(request):
     """Check if the request contains a valid refresh token"""
-    refresh_token = request.COOKIES.get('refresh_token')
+    refresh_token = request.COOKIES.get('website_refresh_token')
+    guest_id = request.COOKIES.get('guest_id')
     
     if refresh_token:
         try:
@@ -182,14 +184,19 @@ def has_website_refresh_token(request):
             user = CustomUser.objects.get(id=user_id)
             
             if not user.is_website_user:
-                return Response({'hasRefreshToken': False}, status=400)
+                return Response({'hasRefreshToken': False, 'isGuest': bool(guest_id)}, status=400)
                 
-            return Response({'hasRefreshToken': True}, status=200)
+            return Response({'hasRefreshToken': True, 'isGuest': False}, status=200)
         except Exception:
-            # If the token is invalid or expired, treat it as non-existent
-            return Response({'hasRefreshToken': False}, status=400)
+            # If the token is invalid or expired, check if there's a guest ID
+            if guest_id:
+                return Response({'hasRefreshToken': False, 'isGuest': True}, status=200)
+            return Response({'hasRefreshToken': False, 'isGuest': False}, status=400)
     else:
-        return Response({'hasRefreshToken': False}, status=400)
+        # If no refresh token, check if there's a guest ID
+        if guest_id:
+            return Response({'hasRefreshToken': False, 'isGuest': True}, status=200)
+        return Response({'hasRefreshToken': False, 'isGuest': False}, status=400)
 
 @api_view(['POST'])
 def website_logout_view(request):
@@ -197,8 +204,8 @@ def website_logout_view(request):
     response = Response({'message': 'Logged out successfully!'}, status=status.HTTP_200_OK)
 
     # Delete the cookies
-    response.delete_cookie('access_token', path='/')
-    response.delete_cookie('refresh_token', path='/')
-    response.delete_cookie('session_token', path='/')
+    response.delete_cookie('website_access_token', path='/api/')
+    response.delete_cookie('website_refresh_token', path='/api/')
+    response.delete_cookie('website_session_token', path='/api/')
 
     return response

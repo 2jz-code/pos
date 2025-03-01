@@ -6,7 +6,8 @@ from .views import (
     CompleteOrder, 
     StartOrder, 
     UpdateInProgressOrder, 
-    GetInProgressOrder
+    GetInProgressOrder,
+    UpdateOrderStatus
 )
 
 urlpatterns = [
@@ -14,6 +15,7 @@ urlpatterns = [
     path("orders/<int:pk>/", OrderDetail.as_view(), name="order-detail"),  # ✅ Get, Update, Delete Order
     path("orders/<int:pk>/resume/", ResumeOrder.as_view(), name="resume-order"),  # ✅ Resume a saved order
     path("orders/<int:pk>/complete/", CompleteOrder.as_view(), name="complete-order"),  # ✅ Complete an order
+    path("orders/<int:pk>/status/", UpdateOrderStatus.as_view(), name="update-order-status"),
 
     # ✅ New Endpoints for Auto-Saving & Handling In-Progress Orders
     path("orders/start/", StartOrder.as_view(), name="start-order"),  # ✅ Start a new in-progress order

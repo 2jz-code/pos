@@ -1,6 +1,6 @@
 import axiosInstance from "../api/config/axiosConfig";
 import { useCartStore } from "../store/cartStore";
-
+import { toast } from "react-toastify";
 /**
  * Resumes an order by fetching details, storing items in Zustand, and navigating to POS.
  * @param {number} orderId - ID of the order to resume
@@ -52,5 +52,29 @@ export const voidOrder = async (orderId, navigate) => {
 	} catch (error) {
 		console.error("Error voiding order:", error);
 		alert("Failed to void order.");
+	}
+};
+
+// In orderActions.js
+export const updateOnlineOrderStatus = async (
+	orderId,
+	newStatus,
+	onSuccess
+) => {
+	try {
+		const response = await axiosInstance.patch(`orders/${orderId}/status/`, {
+			status: newStatus,
+		});
+
+		// Call the success callback with updated data
+		if (onSuccess && typeof onSuccess === "function") {
+			onSuccess(response.data);
+			toast.success(`Order status updated to ${newStatus.toUpperCase()}`);
+		}
+
+		return response.data;
+	} catch (error) {
+		console.error(`Error updating order status to ${newStatus}:`, error);
+		throw error;
 	}
 };

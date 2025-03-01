@@ -12,6 +12,7 @@ export default function Products() {
 	const [products, setProducts] = useState([]);
 	const [selectedCategory, setSelectedCategory] = useState("");
 	const [isAdmin, setIsAdmin] = useState(false);
+	const [userName, setUserName] = useState("");
 	const navigate = useNavigate();
 	const [isAddingCategory, setIsAddingCategory] = useState(false);
 
@@ -30,11 +31,12 @@ export default function Products() {
 
 				setCategories(categoriesRes.data);
 				if (categoriesRes.data.length > 0) {
-					setSelectedCategory(categoriesRes.data[0].name);
+					setSelectedCategory("");
 				}
 
 				setProducts(productsRes.data);
 				setIsAdmin(authRes.is_admin);
+				setUserName(authRes.username);
 			} catch (error) {
 				console.error("Error fetching data:", error);
 			}
@@ -229,7 +231,9 @@ export default function Products() {
 					System Operational
 				</span>
 				<span>Total Products: {products.length}</span>
-				<span>User: {isAdmin ? "Admin" : "Staff"}</span>
+				<span>
+					User: {userName} ({isAdmin ? "Admin" : "Staff"})
+				</span>
 			</div>
 
 			{/* Category Modal */}

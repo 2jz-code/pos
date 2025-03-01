@@ -14,9 +14,20 @@ from django.http import JsonResponse
 
 # ✅ List Orders (Now Updates Instead of Duplicating)
 class OrderList(generics.ListCreateAPIView):
-    queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Filter orders by source if provided in query parameters
+        """
+        queryset = Order.objects.all().order_by('-created_at')
+        source = self.request.query_params.get('source')
+        
+        if source:
+            queryset = queryset.filter(source=source)
+            
+        return queryset
 
     def post(self, request, *args, **kwargs):
         """
@@ -186,3 +197,40 @@ class CompleteOrder(APIView):
                 "status": "error",
                 "message": str(e)
             }, status=500)
+
+class UpdateOrderStatus(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def patch(self, request, pk):
+        """
+        Update an order's status
+        """
+        order = get_object_or_404(Order, id=pk)
+        
+        # Check if the status is valid for the order source
+        new_status = request.data.get('status')
+        
+        if not new_status:
+            return Response({"error": "Status is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate status transitions
+        if order.source == 'website':
+            valid_statuses = ['pending', 'preparing', 'completed', 'cancelled']
+            if new_status not in valid_statuses:
+                return Response(
+                    {"error": f"Invalid status for website order. Must be one of: {', '.join(valid_statuses)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:  # POS order
+            valid_statuses = ['saved', 'in_progress', 'completed', 'voided']
+            if new_status not in valid_statuses:
+                return Response(
+                    {"error": f"Invalid status for POS order. Must be one of: {', '.join(valid_statuses)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Update the order status
+        order.status = new_status
+        order.save()
+        
+        return Response(OrderSerializer(order).data)

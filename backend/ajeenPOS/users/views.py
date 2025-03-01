@@ -24,20 +24,20 @@ class LoginView(APIView):
             # Set cookies for authentication
             response = Response({"message": "Login successful"}, status=status.HTTP_200_OK)
             response.set_cookie(
-                key="access_token",
+                key="pos_access_token",
                 value=str(access_token),
                 httponly=True,
                 max_age=5,  # 5 minutes
-                path="/",
+                path="/api/",
                 samesite="Lax",
                 secure=False  # Set to True in production (HTTPS)
             )
             response.set_cookie(
-                key="refresh_token",
+                key="pos_refresh_token",
                 value=str(refresh),
                 httponly=True,
                 max_age=60 * 60 * 24 * 7,  # 7 days
-                path="/",
+                path="/api/",
                 samesite="Lax",
                 secure=False  # Set to True in production
             )
@@ -49,7 +49,7 @@ class LoginView(APIView):
 # ✅ Token Refresh View (Uses Refresh Token from Cookies)
 class CustomTokenRefreshView(APIView):
     def post(self, request, *args, **kwargs):
-        refresh_token = request.COOKIES.get("refresh_token")
+        refresh_token = request.COOKIES.get("pos_refresh_token")
 
         if not refresh_token:
             return Response({"error": "Refresh token missing"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -60,11 +60,11 @@ class CustomTokenRefreshView(APIView):
 
             response = Response({"message": "Token refreshed"}, status=status.HTTP_200_OK)
             response.set_cookie(
-                key="access_token",
+                key="pos_access_token",
                 value=str(access_token),
                 httponly=True,
                 max_age=5 * 60,  # 5 minutes
-                path="/",
+                path="/api/",
                 samesite="Lax",
                 secure=False  # Set to True in production
             )
@@ -76,7 +76,7 @@ class CustomTokenRefreshView(APIView):
 
 class CheckAuthView(APIView):
     def get(self, request):
-        access_token = request.COOKIES.get("access_token")
+        access_token = request.COOKIES.get("pos_access_token")
 
         if not access_token:
             return Response({"authenticated": False, "is_admin": False}, status=status.HTTP_401_UNAUTHORIZED)
@@ -98,7 +98,7 @@ class CheckAuthView(APIView):
 class LogoutView(APIView):
     def post(self, request):
         try:
-            refresh_token = request.COOKIES.get("refresh_token")
+            refresh_token = request.COOKIES.get("pos_refresh_token")
             if refresh_token:
                 try:
                     token = RefreshToken(refresh_token)
@@ -107,8 +107,8 @@ class LogoutView(APIView):
                     pass  # Ignore errors if token is already blacklisted or invalid
 
             response = Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
-            response.delete_cookie("access_token")
-            response.delete_cookie("refresh_token")
+            response.delete_cookie("pos_access_token", path='/api/')
+            response.delete_cookie("pos_refresh_token", path='/api/')
             return response
 
         except Exception as e:
