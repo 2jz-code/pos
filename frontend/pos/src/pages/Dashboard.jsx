@@ -8,7 +8,7 @@ import {
 	ClockIcon,
 	ChartBarIcon,
 } from "@heroicons/react/24/outline";
-
+import { HardwareStatus } from "../components/HardwareStatus";
 export default function Dashboard() {
 	const [userStatus, setUserStatus] = useState({
 		authenticated: false,
@@ -31,6 +31,7 @@ export default function Dashboard() {
 	// Updated Dashboard with more modern UI
 	return (
 		<div className="w-screen h-screen flex flex-col bg-slate-50 text-slate-800 p-6">
+			<HardwareStatus />
 			{/* Header Section - Updated with cleaner design */}
 			<header className="bg-white shadow-sm rounded-xl p-5 flex justify-between items-center mb-8">
 				<div className="flex items-center space-x-4">

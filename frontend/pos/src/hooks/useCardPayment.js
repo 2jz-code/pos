@@ -1,42 +1,50 @@
-// src/hooks/useCardPayment.js
+// src/hooks/useCardPayment.js (updated to use new context)
 import { useCallback, useState, useEffect } from "react";
-import { useHardwareSocket } from "./useHardwareSocket";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 export const useCardPayment = () => {
-	const { isConnected, sendMessage } = useHardwareSocket("card-payment");
+	const { connections, sendMessage } = useWebSocketContext();
+	const isConnected = connections.HARDWARE?.CARD_PAYMENT?.isConnected || false;
+
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [status, setStatus] = useState(null);
 	const [error, setError] = useState(null);
 	const [cardData, setCardData] = useState(null);
 
 	useEffect(() => {
-		const handleHardwareMessage = (event) => {
+		const handleMessage = (event) => {
 			const message = event.detail;
-			console.log("Card payment message received:", message);
 
-			if (message.type === "card_operation") {
-				setIsProcessing(
-					["waiting_for_card", "processing"].includes(message.status)
-				);
-				setStatus(message.status);
+			// Only process messages from card payment
+			if (
+				message._source?.category === "HARDWARE" &&
+				message._source?.endpoint === "CARD_PAYMENT"
+			) {
+				if (message.type === "card_operation") {
+					console.log("Card payment message received:", message);
 
-				if (message.status === "error" || message.status === "declined") {
-					setError(message.message);
-					setCardData(null);
-				} else if (message.status === "success") {
-					setError(null);
-					setCardData({
-						transactionId: message.transaction_id,
-						cardType: message.card_type,
-						lastFour: message.last_four,
-					});
+					setIsProcessing(
+						["waiting_for_card", "processing"].includes(message.status)
+					);
+					setStatus(message.status);
+
+					if (message.status === "error" || message.status === "declined") {
+						setError(message.message);
+						setCardData(null);
+					} else if (message.status === "success") {
+						setError(null);
+						setCardData({
+							transactionId: message.transaction_id,
+							cardType: message.card_type,
+							lastFour: message.last_four,
+						});
+					}
 				}
 			}
 		};
 
-		window.addEventListener("hardware-message", handleHardwareMessage);
-		return () =>
-			window.removeEventListener("hardware-message", handleHardwareMessage);
+		window.addEventListener("websocket-message", handleMessage);
+		return () => window.removeEventListener("websocket-message", handleMessage);
 	}, []);
 
 	const processPayment = useCallback(
@@ -53,7 +61,7 @@ export const useCardPayment = () => {
 
 			return new Promise((resolve, reject) => {
 				const timeoutId = setTimeout(() => {
-					window.removeEventListener("hardware-message", handleResponse);
+					window.removeEventListener("websocket-message", handleResponse);
 					setIsProcessing(false);
 					setStatus("timeout");
 					setError("Operation timed out");
@@ -62,6 +70,14 @@ export const useCardPayment = () => {
 
 				const handleResponse = (event) => {
 					const message = event.detail;
+
+					// Filter for card payment messages
+					if (
+						message._source?.category !== "HARDWARE" ||
+						message._source?.endpoint !== "CARD_PAYMENT"
+					) {
+						return;
+					}
 
 					if (
 						message.type === "card_operation" &&
@@ -72,7 +88,7 @@ export const useCardPayment = () => {
 						}
 
 						clearTimeout(timeoutId);
-						window.removeEventListener("hardware-message", handleResponse);
+						window.removeEventListener("websocket-message", handleResponse);
 						setIsProcessing(false);
 
 						if (message.status === "success") {
@@ -90,8 +106,8 @@ export const useCardPayment = () => {
 					}
 				};
 
-				window.addEventListener("hardware-message", handleResponse);
-				sendMessage({
+				window.addEventListener("websocket-message", handleResponse);
+				sendMessage("HARDWARE", "CARD_PAYMENT", {
 					type: "process_payment",
 					amount: amount,
 				});
@@ -104,7 +120,7 @@ export const useCardPayment = () => {
 		if (!isProcessing) return Promise.resolve();
 
 		return new Promise((resolve) => {
-			sendMessage({ type: "cancel_payment" });
+			sendMessage("HARDWARE", "CARD_PAYMENT", { type: "cancel_payment" });
 			setIsProcessing(false);
 			setStatus("cancelled");
 			resolve();
@@ -116,6 +132,7 @@ export const useCardPayment = () => {
 		status,
 		error,
 		cardData,
+		isConnected,
 		processPayment,
 		cancelPayment,
 	};

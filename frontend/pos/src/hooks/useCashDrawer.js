@@ -1,45 +1,52 @@
-// src/hooks/useCashDrawer.js
+// src/hooks/useCashDrawer.js (updated to use new context)
 import { useCallback, useState, useEffect } from "react";
-import { useHardwareSocket } from "./useHardwareSocket";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 export const useCashDrawer = () => {
-	const { isConnected, sendMessage } = useHardwareSocket("cash-drawer");
+	const { connections, sendMessage } = useWebSocketContext();
+	const isConnected = connections.HARDWARE?.CASH_DRAWER?.isConnected || false;
+
 	const [drawerState, setDrawerState] = useState("closed");
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [error, setError] = useState(null);
 
 	// Set up global hardware message listener
 	useEffect(() => {
-		const handleHardwareMessage = (event) => {
+		const handleMessage = (event) => {
 			const message = event.detail;
-			console.log("Hardware message received:", message);
 
-			if (message.type === "drawer_operation") {
-				setDrawerState(message.state);
-				setIsProcessing(false);
-				if (message.status === "error") {
-					setError(message.message);
-				}
-			} else if (message.type === "drawer_state") {
-				setDrawerState(message.state);
-			} else if (message.type === "print_operation") {
-				setIsProcessing(message.status === "processing");
-				if (message.status === "error") {
-					setError(message.message);
+			// Only process messages from cash drawer
+			if (
+				message._source?.category === "HARDWARE" &&
+				message._source?.endpoint === "CASH_DRAWER"
+			) {
+				console.log("Cash drawer message received:", message);
+
+				if (message.type === "drawer_operation") {
+					setDrawerState(message.state);
+					setIsProcessing(false);
+					if (message.status === "error") {
+						setError(message.message);
+					}
+				} else if (message.type === "drawer_state") {
+					setDrawerState(message.state);
+				} else if (message.type === "print_operation") {
+					setIsProcessing(message.status === "processing");
+					if (message.status === "error") {
+						setError(message.message);
+					}
 				}
 			}
 		};
 
-		window.addEventListener("hardware-message", handleHardwareMessage);
-		return () =>
-			window.removeEventListener("hardware-message", handleHardwareMessage);
+		window.addEventListener("websocket-message", handleMessage);
+		return () => window.removeEventListener("websocket-message", handleMessage);
 	}, []);
 
-	// useCashDrawer.js
 	const openDrawer = useCallback(() => {
 		return new Promise((resolve, reject) => {
 			const timeoutId = setTimeout(() => {
-				window.removeEventListener("hardware-message", handleResponse);
+				window.removeEventListener("websocket-message", handleResponse);
 				setIsProcessing(false);
 				setError("Operation timed out");
 				reject(new Error("Operation timed out"));
@@ -49,7 +56,14 @@ export const useCashDrawer = () => {
 
 			const handleResponse = (event) => {
 				const message = event.detail;
-				console.log("Drawer response received:", message);
+
+				// Filter for cash drawer messages
+				if (
+					message._source?.category !== "HARDWARE" ||
+					message._source?.endpoint !== "CASH_DRAWER"
+				) {
+					return;
+				}
 
 				if (
 					message.type === "drawer_operation" &&
@@ -66,7 +80,7 @@ export const useCashDrawer = () => {
 					}
 
 					clearTimeout(timeoutId);
-					window.removeEventListener("hardware-message", handleResponse);
+					window.removeEventListener("websocket-message", handleResponse);
 					setIsProcessing(false);
 
 					if (message.status === "success") {
@@ -80,8 +94,8 @@ export const useCashDrawer = () => {
 				}
 			};
 
-			window.addEventListener("hardware-message", handleResponse);
-			sendMessage({ type: "open_drawer" });
+			window.addEventListener("websocket-message", handleResponse);
+			sendMessage("HARDWARE", "CASH_DRAWER", { type: "open_drawer" });
 		});
 	}, [sendMessage]);
 
@@ -96,32 +110,39 @@ export const useCashDrawer = () => {
 
 		return new Promise((resolve, reject) => {
 			const timeoutId = setTimeout(() => {
-				window.removeEventListener("hardware-message", handleResponse);
+				window.removeEventListener("websocket-message", handleResponse);
 				setIsProcessing(false);
 				setError("Operation timed out");
 				reject(new Error("Operation timed out"));
 			}, 5000);
 
-			let processingReceived = false; // Add flag to track processing state
-			console.log(processingReceived);
+			let processingReceived = false;
+
 			const handleResponse = (event) => {
 				const message = event.detail;
+
+				// Filter for cash drawer messages
+				if (
+					message._source?.category !== "HARDWARE" ||
+					message._source?.endpoint !== "CASH_DRAWER"
+				) {
+					return;
+				}
+
 				console.log("Drawer close response received:", message);
 
 				if (
 					message.type === "drawer_operation" &&
 					message.operation === "close"
 				) {
-					// Handle processing state
 					if (message.status === "processing") {
 						processingReceived = true;
 						setDrawerState("processing");
-						return; // Important: return here to wait for final response
+						return; // Wait for final response
 					}
 
-					// Handle final response
 					clearTimeout(timeoutId);
-					window.removeEventListener("hardware-message", handleResponse);
+					window.removeEventListener("websocket-message", handleResponse);
 					setIsProcessing(false);
 
 					if (message.status === "success") {
@@ -140,12 +161,12 @@ export const useCashDrawer = () => {
 			};
 
 			try {
-				window.addEventListener("hardware-message", handleResponse);
+				window.addEventListener("websocket-message", handleResponse);
 				console.log("Sending close drawer message");
-				sendMessage({ type: "close_drawer" });
+				sendMessage("HARDWARE", "CASH_DRAWER", { type: "close_drawer" });
 			} catch (err) {
 				console.error("Error sending close drawer message:", err);
-				window.removeEventListener("hardware-message", handleResponse);
+				window.removeEventListener("websocket-message", handleResponse);
 				clearTimeout(timeoutId);
 				setIsProcessing(false);
 				setError(err.message);
@@ -166,17 +187,25 @@ export const useCashDrawer = () => {
 
 			return new Promise((resolve, reject) => {
 				const timeoutId = setTimeout(() => {
-					window.removeEventListener("hardware-message", handleResponse);
+					window.removeEventListener("websocket-message", handleResponse);
 					setIsProcessing(false);
 					setError("Print operation timed out");
 					reject(new Error("Print operation timed out"));
 				}, 5000);
 
 				let processingReceived = false;
-				console.log(processingReceived);
 
 				const handleResponse = (event) => {
 					const message = event.detail;
+
+					// Filter for cash drawer messages
+					if (
+						message._source?.category !== "HARDWARE" ||
+						message._source?.endpoint !== "CASH_DRAWER"
+					) {
+						return;
+					}
+
 					console.log("Print response received:", message);
 
 					if (message.type === "print_operation") {
@@ -189,7 +218,7 @@ export const useCashDrawer = () => {
 
 						// Handle final response
 						clearTimeout(timeoutId);
-						window.removeEventListener("hardware-message", handleResponse);
+						window.removeEventListener("websocket-message", handleResponse);
 						setIsProcessing(false);
 
 						if (message.status === "success") {
@@ -206,15 +235,15 @@ export const useCashDrawer = () => {
 				};
 
 				try {
-					window.addEventListener("hardware-message", handleResponse);
+					window.addEventListener("websocket-message", handleResponse);
 					console.log("Sending print receipt message", receiptData);
-					sendMessage({
+					sendMessage("HARDWARE", "CASH_DRAWER", {
 						type: "print_receipt",
 						receipt_data: receiptData,
 					});
 				} catch (err) {
 					console.error("Error sending print message:", err);
-					window.removeEventListener("hardware-message", handleResponse);
+					window.removeEventListener("websocket-message", handleResponse);
 					clearTimeout(timeoutId);
 					setIsProcessing(false);
 					setError(err.message);
@@ -229,6 +258,7 @@ export const useCashDrawer = () => {
 		drawerState,
 		isProcessing,
 		error,
+		isConnected,
 		openDrawer,
 		closeDrawer,
 		printReceipt,

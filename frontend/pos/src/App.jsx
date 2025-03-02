@@ -13,69 +13,72 @@ import OrderDetails from "./pages/orders/OrderDetails";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Reports from "./pages/reports/Reports";
+import { WebSocketProvider } from "./contexts/WebSocketContext";
 
 function App() {
 	return (
-		<Router>
-			<div className="w-full h-screen flex flex-col">
-				<div className="flex-grow">
-					<Routes>
-						{/* Public Route (Login) */}
-						<Route
-							path="/login"
-							element={<Login />}
-						/>
+		<WebSocketProvider>
+			<Router>
+				<div className="w-full h-screen flex flex-col">
+					<div className="flex-grow">
+						<Routes>
+							{/* Public Route (Login) */}
+							<Route
+								path="/login"
+								element={<Login />}
+							/>
 
-						{/* ✅ Wrap all protected routes inside a single ProtectedRoute */}
-						<Route element={<ProtectedRoute />}>
-							<Route
-								path="/dashboard"
-								element={<Dashboard />}
-							/>
-							<Route
-								path="/pos"
-								element={<POS />}
-							/>
-							<Route
-								path="/products"
-								element={<Products />}
-							/>
-							<Route
-								path="/products/add"
-								element={<AddProduct />}
-							/>
-							<Route
-								path="/products/:name"
-								element={<ProductDetail />}
-							/>
-							<Route
-								path="/products/edit/:name"
-								element={<EditProduct />}
-							/>
-							<Route
-								path="/orders"
-								element={<Orders />}
-							/>
-							<Route
-								path="/orders/:orderId"
-								element={<OrderDetails />}
-							/>
-							<Route
-								path="/reports"
-								element={<Reports />}
-							/>
-						</Route>
-					</Routes>
-					<ToastContainer
-						position="top-right"
-						autoClose={3000}
-						hideProgressBar={false}
-						closeOnClick
-						pauseOnHover
-					/>
+							{/* ✅ Wrap all protected routes inside a single ProtectedRoute */}
+							<Route element={<ProtectedRoute />}>
+								<Route
+									path="/dashboard"
+									element={<Dashboard />}
+								/>
+								<Route
+									path="/pos"
+									element={<POS />}
+								/>
+								<Route
+									path="/products"
+									element={<Products />}
+								/>
+								<Route
+									path="/products/add"
+									element={<AddProduct />}
+								/>
+								<Route
+									path="/products/:name"
+									element={<ProductDetail />}
+								/>
+								<Route
+									path="/products/edit/:name"
+									element={<EditProduct />}
+								/>
+								<Route
+									path="/orders"
+									element={<Orders />}
+								/>
+								<Route
+									path="/orders/:orderId"
+									element={<OrderDetails />}
+								/>
+								<Route
+									path="/reports"
+									element={<Reports />}
+								/>
+							</Route>
+						</Routes>
+						<ToastContainer
+							position="top-right"
+							autoClose={3000}
+							hideProgressBar={false}
+							closeOnClick
+							pauseOnHover
+						/>
+					</div>
 				</div>
-			</div>
-		</Router>
+			</Router>
+		</WebSocketProvider>
 	);
 }
 
