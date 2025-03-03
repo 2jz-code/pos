@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-p(z*7*h-%edr6kgk(l_8fhju&@r$y+l&q7b6&7*8g*ugku5nob
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '3d60-74-33-197-86.ngrok-free.app']
 
 
 # Application definition
@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "users",
     "products",
     "orders",
+    'payments',
     "reports",
     'channels',
     'hardware.apps.HardwareConfig',
@@ -112,11 +113,13 @@ CSRF_COOKIE_HTTPONLY = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "https://3d60-74-33-197-86.ngrok-free.app"
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "https://3d60-74-33-197-86.ngrok-free.app"
 ]
 from datetime import timedelta
 
@@ -236,3 +239,17 @@ LOGGING = {
         },
     },
 }
+
+
+
+## payment configs
+STRIPE_PUBLISHABLE_KEY = 'pk_test_51QwDbDGG2WaWxpBvik8mLyk1eddCCU706eL4oq3HH1fGY7rTbtqD42ixuMo7bbeht7ixp3X8H7h1Qd3j2mZF7pEi0006NR8YVR'
+STRIPE_SECRET_KEY = 'sk_test_51QwDbDGG2WaWxpBvDWzQT1lfmoz4rOICsqF7Gs7TOtanbAKEUIoWMNfvJYIy82D3aCsTApADim38GL5UpXpUxA1p00W8tbQ5bi'
+STRIPE_WEBHOOK_SECRET = 'whsec_1192047b9069f0c07fea922217324a87f1651a27fda96947940e7d2588754ce0'
+
+CSP_DEFAULT_SRC = ("'self'", "*.stripe.com")
+CSP_SCRIPT_SRC = ("'self'", "*.stripe.com", "https://js.stripe.com")
+CSP_FRAME_SRC = ("'self'", "*.stripe.com")
+CSP_CONNECT_SRC = ("'self'", "*.stripe.com", "api.stripe.com")
+
+FRONTEND_URL = 'http://localhost:3000'

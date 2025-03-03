@@ -3,6 +3,7 @@ import axiosInstance from "../../api/config/axiosConfig";
 import { useNavigate } from "react-router-dom";
 import { authService } from "../../api/services/authService";
 import { resumeOrder, updateOnlineOrderStatus } from "../../utils/orderActions";
+import KitchenDisplayButton from "../../components/KitchenDisplayButton";
 
 export default function Orders() {
 	const [orders, setOrders] = useState([]);
@@ -96,6 +97,7 @@ export default function Orders() {
 						Online
 					</span>
 				</div>
+				<KitchenDisplayButton />
 				<button
 					className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5"
 					onClick={() => navigate("/dashboard")}

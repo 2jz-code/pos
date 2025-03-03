@@ -1,31 +1,23 @@
+# orders/signals.py
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.db import transaction
 from .models import Order
+from .kitchen.serializers import KitchenOrderSerializer
 
 @receiver(post_save, sender=Order)
 def order_status_update(sender, instance, created, update_fields=None, **kwargs):
     """
     Universal handler for order status changes - works for both admin and automated updates
     """
-    # Check if this is a website order - we only handle these for WebSocket updates
+    # Get the channel layer for WebSocket communication
+    channel_layer = get_channel_layer()
+    
+    # Handle website orders - send updates to individual order websocket
     if instance.source == 'website':
-        print(f"Order {instance.id} status changed to {instance.status}")
-        
-        # Get the channel layer for WebSocket communication
-        channel_layer = get_channel_layer()
-        
-        # If order status is completed or cancelled, recalculate preparation times
-        if instance.status in ["completed", "cancelled"] and not created:
-            print(f"Order {instance.id} marked as {instance.status}, recalculating prep times")
-            
-            # Recalculate times immediately
-            recalculate_and_broadcast_prep_times()
-            
-            # Schedule another recalculation after the transaction completes
-            transaction.on_commit(lambda: recalculate_and_broadcast_prep_times())
+        print(f"Website order {instance.id} status changed to {instance.status}")
         
         # Send update to the specific order's group
         async_to_sync(channel_layer.group_send)(
@@ -36,6 +28,34 @@ def order_status_update(sender, instance, created, update_fields=None, **kwargs)
                 'payment_status': instance.payment_status
             }
         )
+    
+    # Handle kitchen display updates for both POS and website orders
+    # Only send updates for relevant statuses
+    relevant_pos_statuses = ['saved', 'in_progress', 'completed', 'voided']
+    relevant_website_statuses = ['pending', 'preparing', 'completed', 'cancelled']
+    
+    should_update_kitchen = (
+        (instance.source == 'pos' and instance.status in relevant_pos_statuses) or
+        (instance.source == 'website' and instance.status in relevant_website_statuses)
+    )
+    
+    if should_update_kitchen:
+        # Serialize order for kitchen display
+        order_data = KitchenOrderSerializer(instance).data
+        
+        # Determine message type based on action
+        message_type = 'new_order' if created else 'order_update'
+        
+        # Send to kitchen group
+        async_to_sync(channel_layer.group_send)(
+            'kitchen_orders',
+            {
+                'type': message_type,
+                'order': order_data
+            }
+        )
+        
+        print(f"Sent {message_type} for {instance.source} order {instance.id} to kitchen display")
 
 def recalculate_and_broadcast_prep_times():
     """

@@ -15,6 +15,9 @@ const WS_ENDPOINTS = {
 		CASH_DRAWER: "hardware/cash-drawer",
 		CARD_PAYMENT: "hardware/card-payment",
 	},
+	BUSINESS: {
+		KITCHEN: "kitchen/orders", // Add kitchen endpoint
+	},
 };
 
 // Create context
@@ -86,7 +89,7 @@ export const WebSocketProvider = ({ children }) => {
 		if (category === "HARDWARE") {
 			return `ws://localhost:8001/ws/${path}/`;
 		} else if (category === "BUSINESS") {
-			return `ws://localhost:8000/ws/${path}/`;
+			return `ws://localhost:8001/ws/${path}/`;
 		}
 
 		throw new Error(`Unknown WebSocket category: ${category}`);

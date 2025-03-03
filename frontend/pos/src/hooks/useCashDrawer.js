@@ -117,7 +117,7 @@ export const useCashDrawer = () => {
 			}, 5000);
 
 			let processingReceived = false;
-
+			console.log(processingReceived);
 			const handleResponse = (event) => {
 				const message = event.detail;
 
@@ -194,6 +194,7 @@ export const useCashDrawer = () => {
 				}, 5000);
 
 				let processingReceived = false;
+				console.log(processingReceived);
 
 				const handleResponse = (event) => {
 					const message = event.detail;

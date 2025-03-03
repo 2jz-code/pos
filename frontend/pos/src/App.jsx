@@ -14,6 +14,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Reports from "./pages/reports/Reports";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
+import KitchenDisplay from "./pages/kitchen/KitchenDisplay";
 
 function App() {
 	return (
@@ -61,6 +62,10 @@ function App() {
 								<Route
 									path="/orders/:orderId"
 									element={<OrderDetails />}
+								/>
+								<Route
+									path="/kitchen"
+									element={<KitchenDisplay />}
 								/>
 								<Route
 									path="/reports"
