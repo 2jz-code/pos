@@ -37,61 +37,30 @@ export default function POS() {
 		) || [];
 
 	return (
-		<div className="w-screen h-screen flex flex-col bg-slate-50 text-slate-800">
-			{/* Header */}
-			<header className="bg-white shadow-sm p-4 flex justify-between items-center border-b border-slate-200">
+		<div className="w-screen h-screen flex flex-col bg-gray-100 text-black">
+			{/* Toast-style Header */}
+			<header className="bg-white shadow-sm p-4 flex justify-between items-center border-b border-gray-300">
 				<div className="flex items-center space-x-6">
-					<h1 className="text-2xl font-bold text-slate-800">Ajeen POS</h1>
+					<h1 className="text-2xl font-bold">Ajeen POS</h1>
 					<div className="flex space-x-2">
-						<span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium flex items-center">
-							<span className="w-2 h-2 bg-emerald-500 rounded-full mr-1.5"></span>
-							Online
+						<span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+							● Online
 						</span>
 					</div>
 				</div>
 
 				<div className="flex items-center space-x-4">
-					<div className="relative">
-						<input
-							type="text"
-							placeholder="Search products..."
-							className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-						/>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5 text-slate-400 absolute left-3 top-2.5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-							/>
-						</svg>
-					</div>
+					<input
+						type="text"
+						placeholder="Search products..."
+						className="px-4 py-2 bg-gray-50 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						value={searchQuery}
+						onChange={(e) => setSearchQuery(e.target.value)}
+					/>
 					<button
-						className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center"
+						className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
 						onClick={() => navigate("/dashboard")}
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5 mr-1.5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M4 6h16M4 12h16M4 18h7"
-							/>
-						</svg>
 						Dashboard
 					</button>
 				</div>
@@ -100,18 +69,18 @@ export default function POS() {
 			{/* Main Content Area */}
 			<div className="flex flex-1 overflow-hidden">
 				{/* Product Panel */}
-				<div className="w-2/3 flex flex-col border-r border-slate-200 bg-white">
+				<div className="w-2/3 flex flex-col border-r border-gray-300 bg-white">
 					{/* Category Tabs */}
-					<div className="flex border-b border-slate-200 overflow-x-auto py-1 px-1">
+					<div className="flex border-b border-gray-300">
 						{categories.map((category) => (
 							<button
 								key={category.id}
-								className={`px-4 py-2 text-sm font-medium rounded-lg mx-1 transition-colors
-						  ${
-								selectedCategory === category.name
-									? "bg-blue-50 text-blue-600"
-									: "text-slate-600 hover:bg-slate-50"
-							}`}
+								className={`px-6 py-3 text-sm font-medium transition-colors
+                    ${
+											selectedCategory === category.name
+												? "bg-blue-50 text-blue-600 border-b-2 border-blue-600"
+												: "text-gray-500 hover:bg-gray-50"
+										}`}
 								onClick={() => setSelectedCategory(category.name)}
 							>
 								{category.name}
@@ -120,17 +89,17 @@ export default function POS() {
 					</div>
 
 					{/* Product Grid */}
-					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 p-4 overflow-y-auto">
+					<div className="grid grid-cols-4 gap-4 p-4 overflow-y-auto">
 						{filteredProducts.map((product) => (
 							<button
 								key={product.id}
-								className={`group relative bg-white rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-md transition-all
-						  ${showOverlay ? "opacity-50 pointer-events-none" : ""}`}
+								className={`group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-all
+                    ${showOverlay ? "opacity-50 pointer-events-none" : ""}`}
 								onClick={() =>
 									!showOverlay && useCartStore.getState().addToCart(product)
 								}
 							>
-								<div className="aspect-square bg-slate-50 rounded-t-xl overflow-hidden">
+								<div className="aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
 									<img
 										src={product.image}
 										alt={product.name}
@@ -138,10 +107,10 @@ export default function POS() {
 									/>
 								</div>
 								<div className="p-3">
-									<h3 className="text-sm font-medium text-left text-slate-800">
+									<h3 className="text-sm font-medium text-left">
 										{product.name}
 									</h3>
-									<p className="text-sm text-slate-500 text-left mt-1">
+									<p className="text-sm text-gray-600 text-left">
 										${Number(product.price).toFixed(2)}
 									</p>
 								</div>
@@ -155,7 +124,7 @@ export default function POS() {
 			</div>
 
 			{/* Bottom Status Bar */}
-			<div className="bg-slate-800 text-white px-5 py-2.5 flex justify-between text-xs">
+			<div className="bg-gray-800 text-white px-4 py-2 flex justify-between text-sm">
 				<span>Order #: {orderId || "New"}</span>
 				<span>Items: {useCartStore.getState().cart.length}</span>
 				<span>User: Admin</span>

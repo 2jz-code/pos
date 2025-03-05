@@ -1,3 +1,4 @@
+// src/features/payment/views/CreditPaymentView.jsx
 import { motion } from "framer-motion";
 import { CreditCardIcon } from "@heroicons/react/24/solid";
 import { useState } from "react";
@@ -5,7 +6,7 @@ import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
 import { ScrollableViewWrapper } from "./ScrollableViewWrapper";
-import { useCardPayment } from "../../../hooks/useCardPayment";
+import SimulatedCardPayment from "../components/SimulatedCardPayment";
 
 const { pageVariants, pageTransition } = paymentAnimations;
 
@@ -48,70 +49,60 @@ export const CreditPaymentView = ({
 	completePaymentFlow,
 	handleNavigation,
 }) => {
-	const {
-		isProcessing,
-		status,
-		error: cardError,
-		cardData,
-		processPayment,
-		cancelPayment,
-	} = useCardPayment();
-
+	const [showCardTerminal, setShowCardTerminal] = useState(false);
 	const [error, setError] = useState(null);
-	const displayError = cardError || error;
+	const [processingPayment, setProcessingPayment] = useState(false);
+	const [cardData, setCardData] = useState(null);
 
-	const handleCardPayment = async () => {
+	const startCardPayment = () => {
+		setShowCardTerminal(true);
 		setError(null);
+	};
+
+	const handlePaymentComplete = async (paymentResult) => {
+		setProcessingPayment(true);
+		setCardData(paymentResult.cardData);
 
 		try {
-			const cardResult = await processPayment(remainingAmount);
+			console.log("Payment result received:", paymentResult);
 
-			if (cardResult) {
-				// Process the payment through the main payment handler
-				const success = await handlePayment(remainingAmount, {
-					method: "credit",
-					cardData: cardResult,
-				});
+			// IMPORTANT: Only pass the base amount without the tip
+			// The remaining amount is what we're actually charging to the card
+			const paymentAmount = remainingAmount;
 
-				if (success) {
+			// Pass the tip as a separate field that won't be added to the amount
+			const success = await handlePayment(paymentAmount, {
+				method: "credit",
+				cardData: paymentResult.cardData,
+				tipAmount: paymentResult.tipAmount,
+				// Don't include totalAmount as it might cause confusion
+			});
+
+			if (success) {
+				// Keep terminal visible briefly to show success message
+				setTimeout(() => {
+					setShowCardTerminal(false);
+					setProcessingPayment(false);
+
 					if (isPaymentComplete()) {
-						await completePaymentFlow();
-						handleNavigation("Completion");
+						completePaymentFlow().then(() => {
+							handleNavigation("Completion");
+						});
 					}
-				} else {
-					throw new Error("Payment processing failed");
-				}
+				}, 2000);
+			} else {
+				throw new Error("Payment processing failed");
 			}
 		} catch (err) {
 			setError(err.message || "Failed to process card payment");
-			console.error("Card payment error:", err);
+			setProcessingPayment(false);
+			setShowCardTerminal(false);
 		}
 	};
 
-	const getStatusMessage = () => {
-		switch (status) {
-			case "waiting_for_card":
-				return "Please insert or swipe card";
-			case "processing":
-				return "Processing payment...";
-			case "cancelled":
-				return "Payment cancelled";
-			default:
-				return "Payment will be processed via card terminal";
-		}
-	};
-
-	const getStatusSubMessage = () => {
-		switch (status) {
-			case "waiting_for_card":
-				return "Follow the instructions on the terminal";
-			case "processing":
-				return "Please do not remove card";
-			case "cancelled":
-				return "You can try the payment again";
-			default:
-				return "Please follow the instructions on the terminal";
-		}
+	const handleCancelPayment = () => {
+		setShowCardTerminal(false);
+		setProcessingPayment(false);
 	};
 
 	return (
@@ -122,7 +113,7 @@ export const CreditPaymentView = ({
 			{...commonMotionProps}
 		>
 			<ScrollableViewWrapper>
-				{displayError && (
+				{error && (
 					<motion.div
 						className="p-4 bg-red-50 text-red-600 rounded-lg flex items-center"
 						initial={{ opacity: 0, y: -10 }}
@@ -140,7 +131,7 @@ export const CreditPaymentView = ({
 								clipRule="evenodd"
 							/>
 						</svg>
-						{displayError}
+						{error}
 					</motion.div>
 				)}
 
@@ -170,26 +161,22 @@ export const CreditPaymentView = ({
 						<div className="text-xs text-emerald-600">
 							Transaction ID: {cardData.transactionId}
 						</div>
+						{cardData.tipAmount > 0 && (
+							<div className="text-xs text-emerald-600">
+								Tip: ${cardData.tipAmount.toFixed(2)}
+							</div>
+						)}
 					</motion.div>
 				)}
 
 				<div className="space-y-4 mt-4">
 					<PaymentButton
 						icon={CreditCardIcon}
-						label={isProcessing ? "Processing..." : "Pay Full Amount"}
+						label={processingPayment ? "Processing..." : "Process Card Payment"}
 						variant="primary"
-						onClick={handleCardPayment}
-						disabled={isProcessing || remainingAmount === 0}
+						onClick={startCardPayment}
+						disabled={processingPayment || remainingAmount === 0}
 					/>
-
-					{isProcessing && (
-						<PaymentButton
-							label="Cancel Payment"
-							variant="danger"
-							onClick={cancelPayment}
-							disabled={status !== "waiting_for_card"}
-						/>
-					)}
 
 					<div className="p-4 bg-slate-50 rounded-lg space-y-2 border border-slate-200">
 						<div className="flex items-center">
@@ -208,15 +195,30 @@ export const CreditPaymentView = ({
 								/>
 							</svg>
 							<p className="text-sm font-medium text-slate-700">
-								{getStatusMessage()}
+								{processingPayment
+									? "Payment in progress..."
+									: cardData
+									? "Payment approved"
+									: "Click 'Process Card Payment' to start"}
 							</p>
 						</div>
 						<p className="text-xs text-slate-500 ml-7">
-							{getStatusSubMessage()}
+							{cardData
+								? "Transaction has been completed successfully"
+								: "Follow the prompts on the card terminal"}
 						</p>
 					</div>
 				</div>
 			</ScrollableViewWrapper>
+
+			{/* Card Payment Terminal Modal */}
+			{showCardTerminal && (
+				<SimulatedCardPayment
+					amount={remainingAmount}
+					onPaymentComplete={handlePaymentComplete}
+					onCancel={handleCancelPayment}
+				/>
+			)}
 		</motion.div>
 	);
 };
