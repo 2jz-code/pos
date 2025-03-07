@@ -7,7 +7,7 @@ import KitchenDisplayButton from "../../components/KitchenDisplayButton";
 
 export default function Orders() {
 	const [orders, setOrders] = useState([]);
-	const [activeTab, setActiveTab] = useState("in_progress"); // Default tab
+	const [activeTab, setActiveTab] = useState("all"); // Default tab
 	const [orderSource, setOrderSource] = useState("pos"); // Default source is POS
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [userName, setUserName] = useState("");
