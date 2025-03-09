@@ -19,6 +19,7 @@ import { WebSocketProvider } from "./contexts/WebSocketContext";
 import KitchenDisplay from "./pages/kitchen/KitchenDisplay";
 import CustomerDisplayApp from "./features/customerDisplay/components/CustomerDisplay";
 import { CustomerDisplayProvider } from "./features/customerDisplay/contexts/CustomerDisplayProvider";
+import { useCustomerDisplayNavigation } from "./features/customerDisplay/hooks/useCustomerDisplayNavigation";
 
 function App() {
 	const displayInitialized = useRef(false);
@@ -47,71 +48,81 @@ function App() {
 		<WebSocketProvider>
 			<CustomerDisplayProvider>
 				<Router>
-					<div className="w-full h-screen flex flex-col">
-						<div className="flex-grow">
-							<Routes>
-								{/* Public Route (Login) */}
-								<Route
-									path="/login"
-									element={<Login />}
-								/>
-
-								{/* Protected routes */}
-								<Route element={<ProtectedRoute />}>
-									<Route
-										path="/dashboard"
-										element={<Dashboard />}
-									/>
-									<Route
-										path="/pos"
-										element={<POS />}
-									/>
-									<Route
-										path="/products"
-										element={<Products />}
-									/>
-									<Route
-										path="/products/add"
-										element={<AddProduct />}
-									/>
-									<Route
-										path="/products/:name"
-										element={<ProductDetail />}
-									/>
-									<Route
-										path="/products/edit/:name"
-										element={<EditProduct />}
-									/>
-									<Route
-										path="/orders"
-										element={<Orders />}
-									/>
-									<Route
-										path="/orders/:orderId"
-										element={<OrderDetails />}
-									/>
-									<Route
-										path="/kitchen"
-										element={<KitchenDisplay />}
-									/>
-									<Route
-										path="/reports"
-										element={<Reports />}
-									/>
-								</Route>
-							</Routes>
-							<ToastContainer
-								position="top-right"
-								autoClose={3000}
-								hideProgressBar={false}
-								closeOnClick
-								pauseOnHover
-							/>
-						</div>
-					</div>
+					<AppContent />
 				</Router>
 			</CustomerDisplayProvider>
 		</WebSocketProvider>
+	);
+}
+
+// Separate component to use router hooks
+function AppContent() {
+	// Use our custom hook to manage customer display based on navigation
+	useCustomerDisplayNavigation();
+
+	return (
+		<div className="w-full h-screen flex flex-col">
+			<div className="flex-grow">
+				<Routes>
+					{/* Public Route (Login) */}
+					<Route
+						path="/login"
+						element={<Login />}
+					/>
+
+					{/* Protected routes */}
+					<Route element={<ProtectedRoute />}>
+						<Route
+							path="/dashboard"
+							element={<Dashboard />}
+						/>
+						<Route
+							path="/pos"
+							element={<POS />}
+						/>
+						<Route
+							path="/products"
+							element={<Products />}
+						/>
+						<Route
+							path="/products/add"
+							element={<AddProduct />}
+						/>
+						<Route
+							path="/products/:name"
+							element={<ProductDetail />}
+						/>
+						<Route
+							path="/products/edit/:name"
+							element={<EditProduct />}
+						/>
+						<Route
+							path="/orders"
+							element={<Orders />}
+						/>
+						<Route
+							path="/orders/:orderId"
+							element={<OrderDetails />}
+						/>
+						<Route
+							path="/kitchen"
+							element={<KitchenDisplay />}
+						/>
+						<Route
+							path="/reports"
+							element={<Reports />}
+						/>
+					</Route>
+				</Routes>
+				<ToastContainer
+					position="top-right"
+					autoClose={3000}
+					hideProgressBar={false}
+					closeOnClick
+					pauseOnHover
+				/>
+			</div>
+		</div>
 	);
 }
 

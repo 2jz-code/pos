@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useCartStore } from "../store/cartStore";
 import Cart from "../features/cart/components/Cart";
 import axiosInstance from "../api/config/axiosConfig";
+import { useCustomerCartDisplay } from "../features/customerDisplay/hooks/useCustomerCartDisplay";
 
 export default function POS() {
 	const [categories, setCategories] = useState([]);
@@ -12,7 +13,16 @@ export default function POS() {
 	const navigate = useNavigate();
 	const { showOverlay } = useCartStore();
 	const orderId = useCartStore((state) => state.orderId);
+	// Add this hook
+	const { updateCartDisplay } = useCustomerCartDisplay();
 
+	// Add a useEffect to update the customer display when cart changes
+	useEffect(() => {
+		const cart = useCartStore.getState().cart;
+		if (cart.length > 0) {
+			updateCartDisplay();
+		}
+	}, [updateCartDisplay]);
 	useEffect(() => {
 		axiosInstance.get("products/categories/").then((response) => {
 			setCategories(response.data);

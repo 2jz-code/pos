@@ -1,13 +1,15 @@
 // src/features/payment/views/CreditPaymentView.jsx
+
 import { motion } from "framer-motion";
 import { CreditCardIcon } from "@heroicons/react/24/solid";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
 import { ScrollableViewWrapper } from "./ScrollableViewWrapper";
-import SimulatedCardPayment from "../components/SimulatedCardPayment";
-
+import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCustomerFlow";
+import { CUSTOMER_FLOW_STEPS } from "../constants/paymentFlowSteps";
+import { formatPrice } from "../../../utils/numberUtils";
 const { pageVariants, pageTransition } = paymentAnimations;
 
 const commonPropTypes = {
@@ -44,67 +46,116 @@ const commonMotionProps = {
 export const CreditPaymentView = ({
 	state,
 	remainingAmount,
-	handlePayment,
-	isPaymentComplete,
-	completePaymentFlow,
-	handleNavigation,
+	// handlePayment,
+	// isPaymentComplete,
+	// completePaymentFlow,
+	// handleNavigation,
 }) => {
-	const [showCardTerminal, setShowCardTerminal] = useState(false);
 	const [error, setError] = useState(null);
 	const [processingPayment, setProcessingPayment] = useState(false);
 	const [cardData, setCardData] = useState(null);
 
-	const startCardPayment = () => {
-		setShowCardTerminal(true);
-		setError(null);
-	};
+	// Use the customer flow hook
+	const {
+		flowActive,
+		currentStep,
+		startFlow,
+		goToStep,
+		completeFlow,
+		stepData,
+	} = useCustomerFlow();
 
-	const handlePaymentComplete = async (paymentResult) => {
+	// Handle flow completion (when all steps are done)
+	useEffect(() => {
+		if (stepData.rewards) {
+			// After rewards step is completed, move to tip step
+			goToStep("tip");
+		} else if (stepData.tip) {
+			// After tip step is completed, move to payment step
+			goToStep("payment");
+
+			// Store the tip information
+			if (stepData.tip.tipAmount > 0) {
+				setCardData((prevData) => ({
+					...prevData,
+					tipAmount: stepData.tip.tipAmount,
+					tipPercentage: stepData.tip.tipPercentage,
+					totalWithTip: stepData.tip.totalWithTip,
+				}));
+			}
+		}
+	}, [stepData, goToStep]);
+
+	const processCardPayment = async () => {
 		setProcessingPayment(true);
-		setCardData(paymentResult.cardData);
+		setError(null);
 
 		try {
-			console.log("Payment result received:", paymentResult);
-
-			// IMPORTANT: Only pass the base amount without the tip
-			// The remaining amount is what we're actually charging to the card
-			const paymentAmount = remainingAmount;
-
-			// Pass the tip as a separate field that won't be added to the amount
-			const success = await handlePayment(paymentAmount, {
-				method: "credit",
-				cardData: paymentResult.cardData,
-				tipAmount: paymentResult.tipAmount,
-				// Don't include totalAmount as it might cause confusion
-			});
-
-			if (success) {
-				// Keep terminal visible briefly to show success message
-				setTimeout(() => {
-					setShowCardTerminal(false);
-					setProcessingPayment(false);
-
-					if (isPaymentComplete()) {
-						completePaymentFlow().then(() => {
-							handleNavigation("Completion");
-						});
-					}
-				}, 2000);
-			} else {
-				throw new Error("Payment processing failed");
+			// Start the customer flow if not active
+			if (!flowActive) {
+				startFlow();
 			}
-		} catch (err) {
-			setError(err.message || "Failed to process card payment");
+
+			// Skip directly to rewards step (bypassing payment for now)
+			// This is the key change - we're going to rewards first
+			goToStep("rewards");
+
+			// Store minimal card info for display purposes only
+			const cardDisplayInfo = {
+				cardType: "Credit Card",
+				lastFour: "****",
+				transactionStatus: "Pending",
+			};
+
+			setCardData(cardDisplayInfo);
 			setProcessingPayment(false);
-			setShowCardTerminal(false);
+		} catch (err) {
+			setError(err.message || "Failed to prepare payment");
+			setProcessingPayment(false);
+			completeFlow(); // End the flow on error
 		}
 	};
 
-	const handleCancelPayment = () => {
-		setShowCardTerminal(false);
-		setProcessingPayment(false);
-	};
+	// Get the current step label for display
+	const getCurrentStepLabel = () => {
+		if (!flowActive) return "Ready to process payment";
 
+		const step = CUSTOMER_FLOW_STEPS.find((s) => s.id === currentStep);
+		switch (currentStep) {
+			case "cart":
+				return "Customer reviewing cart...";
+			case "payment":
+				return "Processing payment...";
+			case "rewards":
+				return "Customer registering for rewards...";
+			case "receipt":
+				return "Generating receipt...";
+			default:
+				return step ? `Step: ${step.label}` : "Processing...";
+		}
+	};
+	// const finalizePayment = async () => {
+	// 	try {
+	// 	  setProcessingPayment(true);
+
+	// 	  // Process the actual payment using the collected flow data
+	// 	  const success = await handlePayment(remainingAmount, {
+	// 		method: "credit",
+	// 		flowData: stepData, // Pass all the collected flow data
+	// 	  });
+
+	// 	  if (success) {
+	// 		completePaymentFlow().then(() => {
+	// 		  handleNavigation("Completion");
+	// 		});
+	// 	  } else {
+	// 		throw new Error("Payment processing failed");
+	// 	  }
+	// 	} catch (err) {
+	// 	  setError(err.message || "Failed to process payment");
+	// 	  setProcessingPayment(false);
+	// 	}
+	//   };
 	return (
 		<motion.div
 			key="credit-payment"
@@ -158,24 +209,85 @@ export const CreditPaymentView = ({
 								{cardData.cardType} ending in {cardData.lastFour}
 							</span>
 						</div>
-						<div className="text-xs text-emerald-600">
-							Transaction ID: {cardData.transactionId}
-						</div>
-						{cardData.tipAmount > 0 && (
+						{cardData.transactionId && (
 							<div className="text-xs text-emerald-600">
-								Tip: ${cardData.tipAmount.toFixed(2)}
+								Transaction ID: {cardData.transactionId}
 							</div>
 						)}
+						{cardData.tipAmount > 0 && (
+							<div className="text-xs text-emerald-600">
+								Tip: ${formatPrice(cardData.tipAmount)}
+							</div>
+						)}
+						{cardData.totalWithTip && (
+							<div className="text-xs text-emerald-600">
+								Total with tip: ${formatPrice(cardData.totalWithTip)}
+							</div>
+						)}
+						<div className="text-xs text-emerald-600">
+							Status: {cardData.transactionStatus}
+						</div>
+					</motion.div>
+				)}
+
+				{/* Customer flow status */}
+				{flowActive && (
+					<motion.div
+						className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm mb-4"
+						initial={{ opacity: 0, y: 10 }}
+						animate={{ opacity: 1, y: 0 }}
+					>
+						<div className="mb-2">
+							<div className="text-sm font-medium text-slate-600">
+								Customer Progress
+							</div>
+							<div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mt-1">
+								<motion.div
+									className="h-full bg-blue-500"
+									initial={{ width: 0 }}
+									animate={{
+										width: `${
+											((CUSTOMER_FLOW_STEPS.findIndex(
+												(s) => s.id === currentStep
+											) +
+												1) /
+												CUSTOMER_FLOW_STEPS.length) *
+											100
+										}%`,
+									}}
+									transition={{ duration: 0.5 }}
+								/>
+							</div>
+						</div>
+
+						<div className="flex items-center">
+							<div
+								className={`w-3 h-3 rounded-full mr-2 ${
+									processingPayment
+										? "bg-blue-500 animate-pulse"
+										: "bg-emerald-500"
+								}`}
+							></div>
+							<span className="text-sm text-slate-700">
+								{getCurrentStepLabel()}
+							</span>
+						</div>
 					</motion.div>
 				)}
 
 				<div className="space-y-4 mt-4">
 					<PaymentButton
 						icon={CreditCardIcon}
-						label={processingPayment ? "Processing..." : "Process Card Payment"}
+						label={
+							flowActive
+								? "Processing Customer Flow..."
+								: processingPayment
+								? "Processing..."
+								: "Process Card Payment"
+						}
 						variant="primary"
-						onClick={startCardPayment}
-						disabled={processingPayment || remainingAmount === 0}
+						onClick={processCardPayment}
+						disabled={flowActive || processingPayment || remainingAmount === 0}
 					/>
 
 					<div className="p-4 bg-slate-50 rounded-lg space-y-2 border border-slate-200">
@@ -195,30 +307,23 @@ export const CreditPaymentView = ({
 								/>
 							</svg>
 							<p className="text-sm font-medium text-slate-700">
-								{processingPayment
-									? "Payment in progress..."
+								{flowActive
+									? getCurrentStepLabel()
 									: cardData
 									? "Payment approved"
 									: "Click 'Process Card Payment' to start"}
 							</p>
 						</div>
 						<p className="text-xs text-slate-500 ml-7">
-							{cardData
+							{flowActive
+								? "Customer flow in progress"
+								: cardData
 								? "Transaction has been completed successfully"
-								: "Follow the prompts on the card terminal"}
+								: "This will guide the customer through the checkout process"}
 						</p>
 					</div>
 				</div>
 			</ScrollableViewWrapper>
-
-			{/* Card Payment Terminal Modal */}
-			{showCardTerminal && (
-				<SimulatedCardPayment
-					amount={remainingAmount}
-					onPaymentComplete={handlePaymentComplete}
-					onCancel={handleCancelPayment}
-				/>
-			)}
 		</motion.div>
 	);
 };
