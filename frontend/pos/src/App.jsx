@@ -20,36 +20,69 @@ import KitchenDisplay from "./pages/kitchen/KitchenDisplay";
 import CustomerDisplayApp from "./features/customerDisplay/components/CustomerDisplay";
 import { CustomerDisplayProvider } from "./features/customerDisplay/contexts/CustomerDisplayProvider";
 import { useCustomerDisplayNavigation } from "./features/customerDisplay/hooks/useCustomerDisplayNavigation";
+import TerminalSimulation from "./features/customerDisplay/components/terminal/TerminalSimulation";
+import { TerminalSimulationProvider } from "./features/customerDisplay/contexts/TerminalSimulationProvider";
 
 function App() {
 	const displayInitialized = useRef(false);
 
-	// Check if we're in customer display mode
-	const isCustomerDisplay =
-		new URLSearchParams(window.location.search).get("mode") ===
-		"customer-display";
+	// Check if we're in customer display or terminal simulation mode
+	const urlParams = new URLSearchParams(window.location.search);
+	const mode = urlParams.get("mode");
+	const isCustomerDisplay = mode === "customer-display";
+	const isTerminalSimulation = mode === "terminal-simulation";
 
 	useEffect(() => {
-		// Only initialize the customer display if this is the main window (not customer display mode)
+		// Only initialize the customer display if this is the main window (not a special mode)
 		// and it hasn't been initialized yet
-		if (!isCustomerDisplay && !displayInitialized.current) {
+		if (
+			!isCustomerDisplay &&
+			!isTerminalSimulation &&
+			!displayInitialized.current
+		) {
 			displayInitialized.current = true;
 			customerDisplayManager.openWindow();
 		}
-	}, [isCustomerDisplay]);
+	}, [isCustomerDisplay, isTerminalSimulation]);
+
+	// If we're in terminal simulation mode, render the terminal component
+	if (isTerminalSimulation) {
+		return (
+			<TerminalSimulation
+				onPaymentResult={(result) => {
+					// Send result back to main window
+					if (window.opener) {
+						window.opener.postMessage(
+							{
+								type: "PAYMENT_RESULT",
+								content: result,
+							},
+							"*"
+						);
+					}
+				}}
+			/>
+		);
+	}
 
 	// If we're in customer display mode, render the customer display app
 	if (isCustomerDisplay) {
-		return <CustomerDisplayApp />;
+		return (
+			<TerminalSimulationProvider>
+				<CustomerDisplayApp />
+			</TerminalSimulationProvider>
+		);
 	}
 
 	// Otherwise render the main POS application
 	return (
 		<WebSocketProvider>
 			<CustomerDisplayProvider>
-				<Router>
-					<AppContent />
-				</Router>
+				<TerminalSimulationProvider>
+					<Router>
+						<AppContent />
+					</Router>
+				</TerminalSimulationProvider>
 			</CustomerDisplayProvider>
 		</WebSocketProvider>
 	);

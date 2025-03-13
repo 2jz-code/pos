@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { CreditCardIcon } from "@heroicons/react/24/solid";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
@@ -46,14 +46,15 @@ const commonMotionProps = {
 export const CreditPaymentView = ({
 	state,
 	remainingAmount,
-	// handlePayment,
+	handlePayment,
 	// isPaymentComplete,
-	// completePaymentFlow,
-	// handleNavigation,
+	completePaymentFlow,
+	handleNavigation,
 }) => {
 	const [error, setError] = useState(null);
 	const [processingPayment, setProcessingPayment] = useState(false);
 	const [cardData, setCardData] = useState(null);
+	const previousStepRef = useRef({ rewards: null, tip: null });
 
 	// Use the customer flow hook
 	const {
@@ -67,14 +68,17 @@ export const CreditPaymentView = ({
 
 	// Handle flow completion (when all steps are done)
 	useEffect(() => {
-		if (stepData.rewards) {
-			// After rewards step is completed, move to tip step
-			goToStep("tip");
-		} else if (stepData.tip) {
-			// After tip step is completed, move to payment step
-			goToStep("payment");
+		// Only proceed if the data has actually changed
+		const rewardsChanged = stepData.rewards !== previousStepRef.current.rewards;
+		const tipChanged = stepData.tip !== previousStepRef.current.tip;
 
-			// Store the tip information
+		if (stepData.rewards && rewardsChanged && currentStep !== "tip") {
+			goToStep("tip");
+			previousStepRef.current.rewards = stepData.rewards;
+		} else if (stepData.tip && tipChanged && currentStep !== "payment") {
+			goToStep("payment");
+			previousStepRef.current.tip = stepData.tip;
+
 			if (stepData.tip.tipAmount > 0) {
 				setCardData((prevData) => ({
 					...prevData,
@@ -83,8 +87,26 @@ export const CreditPaymentView = ({
 					totalWithTip: stepData.tip.totalWithTip,
 				}));
 			}
+		} else if (stepData.receipt && stepData.receipt.status === "complete") {
+			// Process the actual payment using the collected flow data
+			handlePayment(remainingAmount, {
+				method: "credit",
+				flowData: stepData,
+			})
+				.then((success) => {
+					if (success) {
+						completePaymentFlow().then(() => {
+							handleNavigation("Completion");
+						});
+					} else {
+						setError("Payment processing failed");
+					}
+				})
+				.catch((err) => {
+					setError(err.message || "Failed to process payment");
+				});
 		}
-	}, [stepData, goToStep]);
+	}, [stepData, currentStep, goToStep]);
 
 	const processCardPayment = async () => {
 		setProcessingPayment(true);

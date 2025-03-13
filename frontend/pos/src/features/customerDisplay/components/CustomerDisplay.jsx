@@ -46,20 +46,21 @@ const CustomerDisplay = () => {
 	}, []);
 
 	useEffect(() => {
-		// Listen for messages from the parent window
 		const handleMessage = (event) => {
-			// Make sure the message is from our parent window
 			if (event.source === window.opener) {
 				if (event.data.type === "CUSTOMER_DISPLAY_UPDATE") {
 					setDisplayData(event.data.content);
-					// Set the display mode based on the content
 					setDisplayMode(event.data.content.displayMode || "custom");
 				} else if (event.data.type === "SHOW_CART") {
-					setDisplayMode("cart");
+					// Instead of setting displayMode to "cart", set to "flow" with cart step
+					setDisplayMode("flow");
+					setDisplayData({
+						...displayData,
+						currentStep: "cart",
+					});
 				} else if (event.data.type === "SHOW_WELCOME") {
 					setDisplayMode("welcome");
 				} else if (event.data.type === "START_CUSTOMER_FLOW") {
-					// Use cart data from localStorage instead of recalculating
 					const flowContent = {
 						...event.data.content,
 						cartData: cartData,

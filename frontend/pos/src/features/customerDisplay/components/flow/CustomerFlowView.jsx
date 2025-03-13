@@ -1,4 +1,4 @@
-// features/customerDisplay/components/CustomerFlowView.jsx
+// features/customerDisplay/components/flow/CustomerFlowView.jsx
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
@@ -8,6 +8,8 @@ import PropTypes from "prop-types";
 import CartView from "../cart/CartView";
 import RewardsRegistrationView from "../rewards/RewardsRegistrationView";
 import TipSelectionView from "../tip/TipSelectionView";
+import PaymentView from "../payment/PaymentView";
+import ReceiptView from "../receipt/ReceiptView"; // Import the new receipt component
 
 const CustomerFlowView = ({ flowData, onStepComplete }) => {
 	const [currentStep, setCurrentStep] = useState(
@@ -44,6 +46,7 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 			subtotal: cartData.subtotal || 0,
 			tax: cartData.taxAmount || 0, // Note: taxAmount from calculateCartTotals
 			total: cartData.total || 0,
+			tipAmount: flowData?.tipAmount || 0, // Add tip amount from flow data
 		};
 	};
 
@@ -53,7 +56,7 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 
 		switch (currentStep) {
 			case "cart":
-				return <CartView cartData={flowData?.cartData || { items: [] }} />;
+				return <CartView cartData={orderData} />;
 			case "rewards":
 				return <RewardsRegistrationView onComplete={handleStepComplete} />;
 			case "tip":
@@ -66,59 +69,18 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 				);
 			case "payment":
 				return (
-					<div className="text-center p-4">
-						<div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-8 w-8 text-blue-600"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-								/>
-							</svg>
-						</div>
-						<h2 className="text-xl font-bold text-slate-800 mb-2">
-							Processing Payment
-						</h2>
-						<p className="text-slate-600">
-							Please follow the prompts on the payment terminal.
-						</p>
-					</div>
+					<PaymentView
+						orderData={orderData}
+						onComplete={handleStepComplete}
+					/>
 				);
 			case "receipt":
 				return (
-					<div className="text-center p-4">
-						<div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-8 w-8 text-emerald-600"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M5 13l4 4L19 7"
-								/>
-							</svg>
-						</div>
-						<h2 className="text-xl font-bold text-slate-800 mb-2">
-							Transaction Complete
-						</h2>
-						<p className="text-slate-600">
-							Thank you for your purchase!
-							<br />
-							Your receipt is being printed.
-						</p>
-					</div>
+					<ReceiptView
+						orderData={orderData}
+						paymentData={flowData?.payment} // Pass payment data from flow
+						onComplete={handleStepComplete}
+					/>
 				);
 			default:
 				return <div>Unknown step</div>;
@@ -134,14 +96,6 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
 			></motion.div>
-
-			{/* Progress meter */}
-			{/* <div className="p-6">
-				<FlowProgressMeter
-					steps={CUSTOMER_FLOW_STEPS}
-					currentStep={currentStep}
-				/>
-			</div> */}
 
 			{/* Step content */}
 			<div className="flex-1 overflow-auto">
@@ -164,6 +118,8 @@ CustomerFlowView.propTypes = {
 	flowData: PropTypes.shape({
 		currentStep: PropTypes.string,
 		cartData: PropTypes.object,
+		tipAmount: PropTypes.number,
+		payment: PropTypes.object, // Add payment data to the prop types
 	}),
 	onStepComplete: PropTypes.func,
 };
