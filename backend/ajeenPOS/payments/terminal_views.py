@@ -107,8 +107,8 @@ class TerminalPaymentCaptureView(APIView):
             )
         
         try:
-            # Retrieve the payment intent
-            payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+            # Capture the payment intent
+            payment_intent = stripe.PaymentIntent.capture(payment_intent_id)
             
             # Find the associated payment
             try:
@@ -129,7 +129,12 @@ class TerminalPaymentCaptureView(APIView):
             
             return Response({
                 'status': payment_intent.status,
-                'payment_intent_id': payment_intent_id
+                'payment_intent_id': payment_intent_id,
+                'id': payment_intent.id,
+                'amount': payment_intent.amount,
+                'currency': payment_intent.currency,
+                'payment_method_details': payment_intent.payment_method_details,
+                'created': payment_intent.created
             })
             
         except stripe.error.StripeError as e:
@@ -158,6 +163,122 @@ class ReaderStatusView(APIView):
                 'readers': reader_data,
                 'reader_count': len(reader_data)
             })
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class SimulateCardPresentationView(APIView):
+    """
+    Simulate presenting a payment method to a terminal
+    """
+    def post(self, request, *args, **kwargs):
+        try:
+            # Get the reader ID from the request
+            reader_id = request.data.get('reader_id')
+            
+            if not reader_id:
+                return Response(
+                    {'error': 'Reader ID is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Use Stripe's Test Helpers API to simulate presenting a payment method
+            presentation = stripe.terminal.Reader.TestHelpers.present_payment_method(
+                reader_id
+            )
+            
+            return Response({
+                'success': True,
+                'reader_id': reader_id,
+                'status': 'payment_method_presented'
+            })
+            
+        except stripe.error.StripeError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class PaymentIntentStatusView(APIView):
+    """
+    Get the status of a payment intent
+    """
+    def get(self, request, payment_intent_id, *args, **kwargs):
+        try:
+            # Retrieve the payment intent with valid expansion
+            payment_intent = stripe.PaymentIntent.retrieve(
+                payment_intent_id,
+                expand=['payment_method']  # Remove 'payment_method_details' from expand
+            )
+            
+            # Return the payment intent data
+            return Response({
+                'id': payment_intent.id,
+                'status': payment_intent.status,
+                'amount': payment_intent.amount,
+                'currency': payment_intent.currency,
+                # 'payment_method_details': payment_intent.payment_method_details,  # This will still be included, just not expanded
+                'created': payment_intent.created
+            })
+            
+        except stripe.error.StripeError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class ProcessPaymentMethodView(APIView):
+    """
+    Process a payment method on a terminal reader
+    """
+    def post(self, request, *args, **kwargs):
+        try:
+            # Get the reader ID and payment intent ID from the request
+            reader_id = request.data.get('reader_id')
+            payment_intent_id = request.data.get('payment_intent_id')
+            
+            if not reader_id:
+                return Response(
+                    {'error': 'Reader ID is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            if not payment_intent_id:
+                return Response(
+                    {'error': 'Payment Intent ID is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Process the payment method on the reader
+            process_payment = stripe.terminal.Reader.process_payment_intent(
+                reader_id,
+                payment_intent=payment_intent_id,
+            )
+            
+            return Response({
+                'success': True,
+                'reader_id': reader_id,
+                'payment_intent_id': payment_intent_id,
+                'status': process_payment.status
+            })
+            
+        except stripe.error.StripeError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             return Response(
                 {'error': str(e)},
