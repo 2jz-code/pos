@@ -10,10 +10,14 @@ const PaymentView = ({ orderData, onComplete }) => {
 	const { processPayment, paymentStatus, paymentResult, error } =
 		useTerminalSimulation();
 
-	// Start payment process on component mount
+	// In the useEffect that starts the payment process
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			setIsInitiating(false);
+			console.log("Processing payment with order data:", orderData);
+			if (!orderData.orderId) {
+				console.warn("⚠️ No orderId in order data when starting payment!");
+			}
 			processPayment(orderData);
 		}, 1500);
 		return () => clearTimeout(timer);

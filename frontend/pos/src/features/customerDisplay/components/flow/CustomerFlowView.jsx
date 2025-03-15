@@ -47,6 +47,7 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 			tax: cartData.taxAmount || 0, // Note: taxAmount from calculateCartTotals
 			total: cartData.total || 0,
 			tipAmount: flowData?.tipAmount || 0, // Add tip amount from flow data
+			orderId: flowData?.orderId || null, // Explicitly include the order ID
 		};
 	};
 

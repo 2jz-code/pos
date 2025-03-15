@@ -61,19 +61,30 @@ const CustomerDisplay = () => {
 				} else if (event.data.type === "SHOW_WELCOME") {
 					setDisplayMode("welcome");
 				} else if (event.data.type === "START_CUSTOMER_FLOW") {
+					// Ensure orderId is properly captured and propagated
+					const orderId = event.data.content.orderId;
+					console.log("Starting customer flow with orderId:", orderId);
+
 					const flowContent = {
 						...event.data.content,
-						cartData: cartData,
+						cartData: {
+							...(cartData || {}),
+							...event.data.content.cartData,
+							orderId: orderId,
+						},
+						orderId: orderId,
 					};
 					setDisplayData(flowContent);
 					setDisplayMode("flow");
 				} else if (event.data.type === "UPDATE_CUSTOMER_FLOW") {
-					// Preserve cart data if it's not included in the update
+					// Preserve cart data and orderId if it's not included in the update
 					const updatedContent = {
 						...event.data.content,
-						cartData:
-							event.data.content.cartData ||
-							(displayData ? displayData.cartData : cartData),
+						cartData: {
+							...(displayData?.cartData || {}),
+							...(event.data.content.cartData || {}),
+						},
+						orderId: event.data.content.orderId || displayData?.orderId,
 					};
 					setDisplayData(updatedContent);
 					// Keep the display mode as flow
@@ -100,17 +111,25 @@ const CustomerDisplay = () => {
 			cartData?.cart || (displayData?.cart ? displayData.cart : []);
 
 		if (!Array.isArray(cartItems) || cartItems.length === 0) {
-			return { items: [], subtotal: 0, taxAmount: 0, total: 0 };
+			return {
+				items: [],
+				subtotal: 0,
+				taxAmount: 0,
+				total: 0,
+				orderId: displayData?.orderId || null,
+			};
 		}
 
 		// Use the existing utility to calculate totals
 		const { subtotal, taxAmount, total } = calculateCartTotals(cartItems);
 
+		// Include the order ID from display data if available
 		return {
 			items: cartItems,
 			subtotal,
 			taxAmount,
 			total,
+			orderId: displayData?.orderId || cartData?.orderId || null,
 		};
 	};
 
@@ -121,7 +140,13 @@ const CustomerDisplay = () => {
 			window.opener.postMessage(
 				{
 					type: "CUSTOMER_FLOW_STEP_COMPLETE",
-					content: { step, data: stepData },
+					content: {
+						step,
+						data: {
+							...stepData,
+							orderId: displayData?.orderId, // Include orderId in step completion
+						},
+					},
 				},
 				"*"
 			);
@@ -130,17 +155,21 @@ const CustomerDisplay = () => {
 
 	// Render the appropriate view based on the display mode
 	const renderDisplay = () => {
+		const processedData = processedCartData();
+		console.log("Processed cart data with orderId:", processedData.orderId);
+
 		switch (displayMode) {
 			case "welcome":
 				return <WelcomePage />;
 			case "cart":
-				return <CartView cartData={processedCartData()} />;
+				return <CartView cartData={processedData} />;
 			case "flow":
 				return (
 					<CustomerFlowView
 						flowData={{
 							...displayData,
-							cartData: processedCartData(),
+							cartData: processedData,
+							orderId: displayData?.orderId || processedData.orderId,
 						}}
 						onStepComplete={handleFlowStepComplete}
 					/>

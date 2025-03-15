@@ -104,6 +104,7 @@ class CustomerDisplayWindowManager {
 			subtotal,
 			taxAmount,
 			total,
+			orderId: cart.orderId,
 		};
 
 		if (!this.displayWindow || this.displayWindow.closed) {
@@ -235,12 +236,13 @@ class CustomerDisplayWindowManager {
 	startCustomerFlow(cartItems) {
 		// Use existing utility to calculate totals
 		const { subtotal, taxAmount, total } = calculateCartTotals(cartItems);
-
+		const orderId = useCartStore.getState().cart.orderId;
 		const cartData = {
 			items: cartItems,
 			subtotal,
 			taxAmount,
 			total,
+			orderId: orderId,
 		};
 
 		if (!this.displayWindow || this.displayWindow.closed) {
@@ -270,6 +272,7 @@ class CustomerDisplayWindowManager {
 						currentStep: "cart",
 						cartData,
 						displayMode: "flow",
+						orderId: orderId,
 					},
 				},
 				"*"
@@ -305,15 +308,20 @@ class CustomerDisplayWindowManager {
 	}
 
 	updateCustomerFlowStep(step, stepData = {}) {
-		// Preserve cart data if it exists
+		// Preserve cart data and orderId if they exist
 		const cartData =
 			stepData.cartData ||
 			(this.lastFlowData ? this.lastFlowData.cartData : null);
+		const orderId =
+			stepData.orderId ||
+			(cartData ? cartData.orderId : null) ||
+			(this.lastFlowData ? this.lastFlowData.orderId : null);
 
 		const content = {
 			currentStep: step,
 			...stepData,
 			cartData,
+			orderId, // Include orderId at the top level
 			displayMode: "flow",
 		};
 

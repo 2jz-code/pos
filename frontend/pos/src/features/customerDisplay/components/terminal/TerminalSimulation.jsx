@@ -112,9 +112,9 @@ const TerminalSimulation = ({ paymentData = {}, onPaymentResult }) => {
 			const response = await axiosInstance.post(
 				"payments/terminal/create-payment-intent/",
 				{
-					amount: Math.round(amount * 100), // Convert to cents
+					amount: amount, // Convert to cents
 					description: "POS Terminal Payment",
-					order_id: data.orderId || null,
+					order_id: data.orderId,
 				}
 			);
 

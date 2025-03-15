@@ -9,6 +9,12 @@ from orders.models import Order
 from django.shortcuts import get_object_or_404
 import stripe
 import json
+from django.db import transaction
+import logging
+
+
+logger = logging.getLogger(__name__)
+
 
 class ConnectionTokenView(APIView):
     """
@@ -23,7 +29,7 @@ class ConnectionTokenView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
+        
 class TerminalPaymentIntentView(APIView):
     """
     Create a payment intent for Stripe Terminal
@@ -39,8 +45,8 @@ class TerminalPaymentIntentView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Convert to cents if needed
-            amount_cents = int(float(amount))
+            # Convert to cents for Stripe
+            amount_cents = int(float(amount) * 100)
             
             # Optional parameters
             order_id = request.data.get('order_id')
@@ -50,31 +56,49 @@ class TerminalPaymentIntentView(APIView):
             metadata = {'source': 'terminal'}
             
             # Add order information if provided
+            order = None
             if order_id:
                 try:
                     order = Order.objects.get(id=order_id)
-                    metadata['order_id'] = order_id
-                    
-                    # Update description with order info
+                    metadata['order_id'] = str(order_id)
                     description = f"Payment for Order #{order_id}"
                 except Order.DoesNotExist:
-                    pass
+                    return Response(
+                        {'error': f'Order with ID {order_id} not found'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
             
-            # Create the payment intent
-            payment_intent = create_terminal_payment_intent(
-                amount=amount_cents,
-                metadata=metadata,
-                description=description
-            )
-            
-            # Create a Payment record if order was provided
-            if order_id and 'order' in locals():
-                Payment.objects.create(
-                    order=order,
-                    payment_intent_id=payment_intent.id,
-                    amount=amount / 100,  # Convert back from cents
-                    status='pending'
+            # Create the payment intent within a transaction
+            with transaction.atomic():
+                payment_intent = create_terminal_payment_intent(
+                    amount=amount_cents,
+                    metadata=metadata,
+                    description=description
                 )
+                
+                # Create or update Payment record if order was provided
+                if order:
+                    # Check if payment already exists for this order
+                    try:
+                        # Try to get existing payment
+                        existing_payment = Payment.objects.get(order=order)
+                        
+                        # Update the existing payment with new payment intent
+                        existing_payment.payment_intent_id = payment_intent.id
+                        existing_payment.amount = float(amount)
+                        existing_payment.status = 'pending'
+                        existing_payment.save()
+                        
+                        print(f"Updated existing payment {existing_payment.id} for order {order_id}")
+                    except Payment.DoesNotExist:
+                        # Create new payment if none exists
+                        payment = Payment.objects.create(
+                            order=order,
+                            payment_intent_id=payment_intent.id,
+                            amount=float(amount),
+                            status='pending'
+                        )
+                        print(f"Created new payment {payment.id} for order {order_id}")
             
             # Return the client secret
             return Response({
@@ -83,16 +107,18 @@ class TerminalPaymentIntentView(APIView):
             })
             
         except stripe.error.StripeError as e:
+            print(f"Stripe error: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print(f"Unexpected error: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
+        
 class TerminalPaymentCaptureView(APIView):
     """
     Capture a payment intent for Stripe Terminal

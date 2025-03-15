@@ -20,11 +20,15 @@ export function useCustomerFlow() {
 	}, [stepData]);
 
 	// Start the customer flow
-	const startFlow = useCallback(() => {
-		setFlowActive(true);
-		setCurrentStep(CUSTOMER_FLOW_STEPS[0].id);
-		customerDisplayManager.startCustomerFlow(cart);
-	}, [cart]);
+	const startFlow = useCallback(
+		(orderId) => {
+			setFlowActive(true);
+			setCurrentStep(CUSTOMER_FLOW_STEPS[0].id);
+			setStepData((prev) => ({ ...prev, orderId }));
+			customerDisplayManager.startCustomerFlow(cart);
+		},
+		[cart]
+	);
 
 	// Advance to the next step
 	const nextStep = useCallback(() => {
