@@ -233,7 +233,12 @@ class CustomerDisplayWindowManager {
 		return () => window.removeEventListener("message", handleMessage);
 	}
 
-	startCustomerFlow(cartItems) {
+	startCustomerFlow(
+		cartItems,
+		initialStep = "cart",
+		paymentMethod = "credit",
+		orderTotal = 0
+	) {
 		// Use existing utility to calculate totals
 		const { subtotal, taxAmount, total } = calculateCartTotals(cartItems);
 		const orderId = useCartStore.getState().cart.orderId;
@@ -245,6 +250,18 @@ class CustomerDisplayWindowManager {
 			orderId: orderId,
 		};
 
+		// Add initial cash data if it's a cash payment
+		const cashData =
+			paymentMethod === "cash"
+				? {
+						cashTendered: 0,
+						change: 0,
+						amountPaid: 0,
+						remainingAmount: orderTotal || total,
+						isFullyPaid: (orderTotal || total) <= 0,
+				  }
+				: null;
+
 		if (!this.displayWindow || this.displayWindow.closed) {
 			this.openWindow();
 
@@ -255,9 +272,12 @@ class CustomerDisplayWindowManager {
 						{
 							type: "START_CUSTOMER_FLOW",
 							content: {
-								currentStep: "cart",
+								currentStep: initialStep,
 								cartData,
 								displayMode: "flow",
+								paymentMethod,
+								cashData,
+								orderId: orderId,
 							},
 						},
 						"*"
@@ -269,9 +289,11 @@ class CustomerDisplayWindowManager {
 				{
 					type: "START_CUSTOMER_FLOW",
 					content: {
-						currentStep: "cart",
+						currentStep: initialStep,
 						cartData,
 						displayMode: "flow",
+						paymentMethod,
+						cashData,
 						orderId: orderId,
 					},
 				},
@@ -308,10 +330,17 @@ class CustomerDisplayWindowManager {
 	}
 
 	updateCustomerFlowStep(step, stepData = {}) {
+		console.log(
+			"WindowManager.updateCustomerFlowStep called with:",
+			step,
+			stepData
+		);
+
 		// Preserve cart data and orderId if they exist
 		const cartData =
 			stepData.cartData ||
 			(this.lastFlowData ? this.lastFlowData.cartData : null);
+
 		const orderId =
 			stepData.orderId ||
 			(cartData ? cartData.orderId : null) ||
@@ -321,27 +350,31 @@ class CustomerDisplayWindowManager {
 			currentStep: step,
 			...stepData,
 			cartData,
-			orderId, // Include orderId at the top level
+			orderId,
 			displayMode: "flow",
 		};
+
+		console.log("Prepared content for customer display:", content);
 
 		// Store last flow data for reference
 		this.lastFlowData = content;
 
 		if (!this.displayWindow || this.displayWindow.closed) {
+			console.log("Display window not available, opening new window");
 			this.openWindow();
 			setTimeout(() => {
 				if (this.displayWindow && !this.displayWindow.closed) {
-					this.displayWindow.postMessage(
-						{
-							type: "UPDATE_CUSTOMER_FLOW",
-							content,
-						},
-						"*"
-					);
+					this.sendUpdateMessage(content);
 				}
 			}, 500);
 		} else {
+			this.sendUpdateMessage(content);
+		}
+	}
+
+	sendUpdateMessage(content) {
+		try {
+			console.log("Sending message to customer display:", content);
 			this.displayWindow.postMessage(
 				{
 					type: "UPDATE_CUSTOMER_FLOW",
@@ -349,6 +382,9 @@ class CustomerDisplayWindowManager {
 				},
 				"*"
 			);
+			console.log("Message sent successfully");
+		} catch (error) {
+			console.error("Error sending update to customer display:", error);
 		}
 	}
 

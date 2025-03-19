@@ -8,6 +8,9 @@ import { ScrollableViewWrapper } from "./ScrollableViewWrapper";
 // import { hardwareService } from "../../../api/services/hardwareService";
 const { pageVariants, pageTransition } = paymentAnimations;
 import { useCashDrawer } from "../../../hooks/useCashDrawer";
+import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCustomerFlow";
+import customerDisplayManager from "../../../features/customerDisplay/utils/windowManager";
+import { useCartStore } from "../../../store/cartStore";
 
 const commonMotionProps = {
 	variants: pageVariants,
@@ -36,9 +39,50 @@ export const CashPaymentView = ({
 	} = useCashDrawer();
 	const [error, setError] = useState(null); // Add local error state
 	const [paymentInProgress, setPaymentInProgress] = useState(false);
-
+	const { startFlow, goToStep, updateFlowData, flowActive } = useCustomerFlow();
 	// Combine errors from drawer and local state for display
 	const displayError = drawerError || error;
+	const [hasBeenMounted, setHasBeenMounted] = useState(false);
+
+	useEffect(() => {
+		// Mark that the component has been mounted
+		setHasBeenMounted(true);
+
+		// This cleanup function runs when component unmounts
+		return () => {
+			// Only reset the display if we're not navigating away from POS
+			if (hasBeenMounted) {
+				console.log("CashPaymentView unmounting, resetting to cart display");
+
+				// Get the current cart
+				const cart = useCartStore.getState().cart;
+
+				// Reset display to cart view instead of welcome
+				try {
+					if (cart && cart.length > 0) {
+						customerDisplayManager.showCart(cart);
+					} else {
+						customerDisplayManager.showWelcome();
+					}
+				} catch (err) {
+					console.error("Error resetting customer display:", err);
+				}
+			}
+		};
+	}, [hasBeenMounted]);
+
+	useEffect(() => {
+		// Make sure window manager is accessible
+		console.log("Window manager object:", customerDisplayManager);
+
+		// Try direct access
+		try {
+			const displayWindow = customerDisplayManager.openWindow();
+			console.log("Display window opened:", displayWindow);
+		} catch (err) {
+			console.error("Error accessing window manager:", err);
+		}
+	}, []);
 
 	useEffect(() => {
 		console.log("CashPaymentView rendered with state:", {
@@ -68,9 +112,15 @@ export const CashPaymentView = ({
 
 		// Calculate totals
 		const totalTendered = cashTransactions.reduce(
-			(sum, t) => sum + t.cashTendered,
+			(sum, t) => sum + (t.cashTendered || 0),
 			0
 		);
+
+		const totalAmount = cashTransactions.reduce(
+			(sum, t) => sum + (t.amount || 0),
+			0
+		);
+
 		const totalChange = cashTransactions.reduce(
 			(sum, t) => sum + (t.change || 0),
 			0
@@ -79,6 +129,8 @@ export const CashPaymentView = ({
 		return {
 			totalTendered,
 			totalChange,
+			totalAmount,
+			isFullyPaid: totalAmount >= remainingAmount || remainingAmount <= 0,
 		};
 	};
 
@@ -106,7 +158,7 @@ export const CashPaymentView = ({
 			const validAmount = Math.min(amount, remainingAmount);
 			const change = amount - validAmount;
 
-			// Then process the payment
+			// Process the payment
 			const success = await handlePayment(validAmount, {
 				method: "cash",
 				cashTendered: amount,
@@ -115,6 +167,65 @@ export const CashPaymentView = ({
 
 			if (!success) {
 				throw new Error("Payment processing failed");
+			}
+
+			// Calculate values
+			const originalTotal = remainingAmount + state.amountPaid;
+			const currentAmountPaid = state.amountPaid + validAmount;
+			const newRemainingAmount = originalTotal - currentAmountPaid;
+
+			const currentTotals = getTransactionTotals() || {
+				totalTendered: 0,
+				totalChange: 0,
+			};
+			const totalTendered = currentTotals.totalTendered + amount;
+			const totalChange = currentTotals.totalChange + change;
+
+			// Prepare cash data
+			const cashData = {
+				cashTendered: totalTendered,
+				change: totalChange,
+				amountPaid: currentAmountPaid,
+				remainingAmount: newRemainingAmount,
+				isFullyPaid: newRemainingAmount <= 0,
+			};
+
+			// 1. Try updating via the hook (existing method)
+			updateFlowData({
+				paymentMethod: "cash",
+				cashData: cashData,
+			});
+
+			// 2. IMPORTANT: Direct communication with the display window
+			try {
+				// Ensure the window is open
+				if (
+					!customerDisplayManager.displayWindow ||
+					customerDisplayManager.displayWindow.closed
+				) {
+					customerDisplayManager.openWindow();
+				}
+
+				// Wait a moment for the window to be ready
+				setTimeout(() => {
+					// Send a direct message to update the customer display
+					customerDisplayManager.displayWindow.postMessage(
+						{
+							type: "DIRECT_CASH_UPDATE",
+							content: {
+								currentStep: "payment",
+								paymentMethod: "cash",
+								cashData: cashData,
+								displayMode: "flow",
+							},
+						},
+						"*"
+					);
+
+					console.log("Direct message sent to customer display");
+				}, 300);
+			} catch (err) {
+				console.error("Error sending direct message:", err);
 			}
 		} catch (err) {
 			setError(err.message || "Failed to process payment");
@@ -175,13 +286,44 @@ export const CashPaymentView = ({
 			if (result) {
 				console.log("Drawer closed successfully");
 
+				// Get the latest transaction details
+				const transactionTotals = getTransactionTotals();
+
+				// Mark the cash payment as complete in the flow with accurate data
+				updateFlowData({
+					cashPaymentComplete: true,
+					cashData: {
+						cashTendered: transactionTotals?.totalTendered || 0,
+						change: transactionTotals?.totalChange || 0,
+						amountPaid: state.amountPaid,
+						remainingAmount: remainingAmount,
+						isFullyPaid: remainingAmount <= 0 || transactionTotals?.isFullyPaid,
+					},
+				});
+
+				// After a short delay, move to receipt step
+				setTimeout(() => {
+					goToStep("receipt", {
+						paymentMethod: "cash",
+						cashData: {
+							cashTendered: transactionTotals?.totalTendered || 0,
+							change: transactionTotals?.totalChange || 0,
+							amountPaid: state.amountPaid,
+							remainingAmount: remainingAmount,
+							isFullyPaid:
+								remainingAmount <= 0 || transactionTotals?.isFullyPaid,
+						},
+						cashPaymentComplete: true,
+					});
+				}, 1000);
+
 				// Prepare receipt data
 				const receiptData = {
 					items: state.transactions,
 					total: state.amountPaid,
 					payment_method: "cash",
-					amount_tendered: getLatestTransaction()?.cashTendered || 0,
-					change: getLatestTransaction()?.change || 0,
+					amount_tendered: getTransactionTotals()?.totalTendered || 0,
+					change: getTransactionTotals()?.totalChange || 0,
 				};
 
 				try {
@@ -352,6 +494,7 @@ CashPaymentView.propTypes = {
 		paymentMethod: PropTypes.string,
 		splitMode: PropTypes.bool.isRequired,
 		amountPaid: PropTypes.number.isRequired,
+		orderId: PropTypes.number,
 		transactions: PropTypes.arrayOf(
 			PropTypes.shape({
 				method: PropTypes.string.isRequired,

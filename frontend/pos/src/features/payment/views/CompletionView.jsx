@@ -5,12 +5,31 @@ import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
 import { ScrollableViewWrapper } from "./ScrollableViewWrapper";
+import customerDisplayManager from "../../../features/customerDisplay/utils/windowManager";
 
 const { pageVariants, pageTransition } = paymentAnimations;
 
 export const CompletionView = ({ onStartNewOrder }) => {
 	const handleStartNew = async () => {
 		console.log("Starting new order from completion view");
+
+		// Tell the customer display to return to welcome screen
+		try {
+			if (
+				customerDisplayManager.displayWindow &&
+				!customerDisplayManager.displayWindow.closed
+			) {
+				console.log("Sending welcome command to customer display");
+				customerDisplayManager.showWelcome();
+			}
+		} catch (err) {
+			console.error("Error sending welcome command to customer display:", err);
+		}
+
+		// Wait a short delay to ensure customer display has time to process
+		await new Promise((resolve) => setTimeout(resolve, 300));
+
+		// Then call the original handler to start a new order
 		await onStartNewOrder();
 	};
 

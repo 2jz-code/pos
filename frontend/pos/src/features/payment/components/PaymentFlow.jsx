@@ -24,6 +24,17 @@ export const PaymentFlow = ({ totalAmount, onBack, onComplete }) => {
 		}
 	}, [cartActions, onBack]);
 
+	const handleComplete = useCallback(
+		async (paymentDetails) => {
+			// Ensure orderId is available (from props or state)
+			const orderId = useCartStore.getState().orderId;
+
+			console.log("Completing order with payment details:", paymentDetails);
+			return await cartActions.completeOrder(orderId, paymentDetails);
+		},
+		[cartActions]
+	);
+
 	const {
 		state,
 		setState,
@@ -37,7 +48,7 @@ export const PaymentFlow = ({ totalAmount, onBack, onComplete }) => {
 		handleStartNewOrder,
 	} = usePaymentFlow({
 		totalAmount,
-		onComplete,
+		onComplete: handleComplete, // Use our wrapper function
 		onNewOrder: handleNewOrder,
 	});
 

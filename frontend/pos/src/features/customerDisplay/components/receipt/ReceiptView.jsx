@@ -11,15 +11,14 @@ const ReceiptView = ({ orderData, paymentData, onComplete }) => {
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			setIsAnimating(false);
-			// Give a moment for animation to finish before signaling completion
-			setTimeout(() => {
-				if (onComplete) {
-					onComplete({
-						status: "complete",
-						timestamp: new Date().toISOString(),
-					});
-				}
-			}, 1000);
+
+			// Add this: Call onComplete to signal receipt view is done
+			if (onComplete) {
+				onComplete({
+					status: "complete",
+					timestamp: new Date().toISOString(),
+				});
+			}
 		}, 3000);
 
 		return () => clearTimeout(timer);

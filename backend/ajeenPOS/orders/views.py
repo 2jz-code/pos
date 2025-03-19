@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from payments.models import Payment
 from .models import Order, OrderItem
 from .serializers import OrderSerializer
 from products.models import Product
@@ -95,6 +96,7 @@ class StartOrder(APIView):
         """
         user = request.user
         new_order = Order.objects.create(user=user, status="in_progress")
+        payment = Payment.objects.create(order=new_order, status = "pending", )
         return Response(OrderSerializer(new_order).data, status=status.HTTP_201_CREATED)
 
 
@@ -128,6 +130,9 @@ class UpdateInProgressOrder(APIView):
 
         # ✅ Recalculate total price
         order.calculate_total_price()
+        payment = get_object_or_404(Payment, order=order)
+        payment.amount = order.calculate_total_price()
+        payment.save()
         order.save()
 
         return Response({"message": "Order auto-saved", "order": OrderSerializer(order).data})
@@ -185,7 +190,12 @@ class CompleteOrder(APIView):
             order.status = "completed"
             order.payment_status = request.data.get("payment_status", "paid")
             order.save()
-            
+
+            payment = get_object_or_404(Payment, order=order)
+            payment.payment_method = request.data.get("payment_method")
+            payment.status= "completed"
+            payment.save()
+
             return Response({
                 "status": "success",  # Add this explicit status field
                 "message": "Order completed successfully",

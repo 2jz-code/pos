@@ -69,14 +69,6 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 
 	return (
 		<div className="w-full h-screen bg-white flex flex-col">
-			{/* Top colored band */}
-			<motion.div
-				className="h-2 bg-gradient-to-r from-blue-500 to-indigo-600 w-full flex-shrink-0"
-				initial={{ scaleX: 0 }}
-				animate={{ scaleX: 1 }}
-				transition={{ duration: 0.8, ease: "easeOut" }}
-			/>
-
 			{/* Main content - using flex with justify-between to maximize space usage */}
 			<div className="flex-1 flex flex-col px-4 py-2">
 				{/* Header - reduced vertical padding */}

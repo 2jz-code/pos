@@ -1,6 +1,6 @@
 // features/customerDisplay/components/payment/PaymentView.jsx
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { motion } from "framer-motion";
 import { useTerminalSimulation } from "../../hooks/useTerminalSimulation";
@@ -9,19 +9,32 @@ const PaymentView = ({ orderData, onComplete }) => {
 	const [isInitiating, setIsInitiating] = useState(true);
 	const { processPayment, paymentStatus, paymentResult, error } =
 		useTerminalSimulation();
+	const hasStartedPaymentRef = useRef(false);
 
 	// In the useEffect that starts the payment process
 	useEffect(() => {
+		// Only proceed if we haven't started the payment process yet
+		if (hasStartedPaymentRef.current) {
+			return;
+		}
+
 		const timer = setTimeout(() => {
 			setIsInitiating(false);
 			console.log("Processing payment with order data:", orderData);
+
 			if (!orderData.orderId) {
 				console.warn("⚠️ No orderId in order data when starting payment!");
 			}
+
+			// Mark that we've started the payment process
+			hasStartedPaymentRef.current = true;
+
+			// Process the payment
 			processPayment(orderData);
 		}, 1500);
+
 		return () => clearTimeout(timer);
-	}, [orderData, processPayment]);
+	}, []);
 
 	// When payment is successful, notify parent
 	useEffect(() => {
@@ -41,6 +54,17 @@ const PaymentView = ({ orderData, onComplete }) => {
 			return () => clearTimeout(timer);
 		}
 	}, [paymentStatus, paymentResult, onComplete]);
+
+	useEffect(() => {
+		if (paymentStatus === "error") {
+			hasStartedPaymentRef.current = false;
+		}
+	}, [paymentStatus]);
+
+	const handleRetry = () => {
+		hasStartedPaymentRef.current = true; // Set flag before retrying
+		processPayment(orderData);
+	};
 
 	// Format currency
 	const formatCurrency = (amount) => {
@@ -140,7 +164,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 								Processing Payment
 							</h2>
 							<p className="text-slate-600 mb-6">
-								Please complete payment on the terminal window.
+								Please complete payment on the physical terminal.
 							</p>
 
 							<motion.div
@@ -153,7 +177,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 								}}
 								className="text-blue-600 font-medium"
 							>
-								Continue on the terminal →
+								Follow the instructions on the terminal →
 							</motion.div>
 						</>
 					) : paymentStatus === "success" ? (
@@ -209,7 +233,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 								{error || "There was an error processing your payment."}
 							</p>
 							<button
-								onClick={() => processPayment(orderData)}
+								onClick={handleRetry}
 								className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
 							>
 								Try Again
@@ -229,6 +253,7 @@ PaymentView.propTypes = {
 		tax: PropTypes.number,
 		total: PropTypes.number,
 		tipAmount: PropTypes.number,
+		orderId: PropTypes.number,
 	}),
 	onComplete: PropTypes.func,
 };

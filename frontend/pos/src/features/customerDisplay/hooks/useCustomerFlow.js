@@ -20,12 +20,39 @@ export function useCustomerFlow() {
 	}, [stepData]);
 
 	// Start the customer flow
+	// Update the startFlow function to accept payment method
 	const startFlow = useCallback(
-		(orderId) => {
+		(orderId, paymentMethod = "credit", orderTotal = 0) => {
 			setFlowActive(true);
-			setCurrentStep(CUSTOMER_FLOW_STEPS[0].id);
-			setStepData((prev) => ({ ...prev, orderId }));
-			customerDisplayManager.startCustomerFlow(cart);
+
+			// For cash payments, start at the payment step directly
+			const initialStep =
+				paymentMethod === "cash" ? "payment" : CUSTOMER_FLOW_STEPS[0].id;
+
+			setCurrentStep(initialStep);
+			setStepData((prev) => ({
+				...prev,
+				orderId,
+				paymentMethod,
+				cashData:
+					paymentMethod === "cash"
+						? {
+								// Initialize with zero values for a fresh cash payment
+								cashTendered: 0,
+								change: 0,
+								amountPaid: 0,
+								remainingAmount: orderTotal,
+								isFullyPaid: orderTotal <= 0,
+						  }
+						: undefined,
+			}));
+
+			customerDisplayManager.startCustomerFlow(
+				cart,
+				initialStep,
+				paymentMethod,
+				orderTotal
+			);
 		},
 		[cart]
 	);
@@ -83,38 +110,52 @@ export function useCustomerFlow() {
 			setStepData((prev) => {
 				const updated = { ...prev, [step]: data };
 
-				// Determine the next step based on the completed step
+				// Determine the next step based on the completed step and payment method
 				let nextStepId = null;
 
-				if (step === "rewards") {
-					nextStepId = "tip";
-				} else if (step === "tip" && data.tipAmount !== undefined) {
-					updated.tipAmount = data.tipAmount;
-					nextStepId = "payment";
-				} else if (step === "payment") {
-					// Store payment data for receipt
-					updated.payment = data;
-					nextStepId = "receipt";
-				} else if (step === "receipt") {
-					// Instead of directly calling completeFlow, schedule it
-					setTimeout(completeFlow, 0);
-					return updated;
+				// For cash payments, we have a simplified flow
+				if (prev.paymentMethod === "cash") {
+					if (step === "payment" && prev.cashPaymentComplete === true) {
+						nextStepId = "receipt";
+					} else if (step === "receipt") {
+						setTimeout(completeFlow, 0);
+						return updated;
+					}
 				} else {
-					// For other steps, find the next in sequence
-					const currentIndex = CUSTOMER_FLOW_STEPS.findIndex(
-						(s) => s.id === step
-					);
-					if (currentIndex < CUSTOMER_FLOW_STEPS.length - 1) {
-						nextStepId = CUSTOMER_FLOW_STEPS[currentIndex + 1].id;
+					// Original credit card flow logic
+					if (step === "rewards") {
+						nextStepId = "tip";
+					} else if (step === "tip" && data.tipAmount !== undefined) {
+						updated.tipAmount = data.tipAmount;
+						nextStepId = "payment";
+					} else if (step === "payment") {
+						updated.payment = data;
+						nextStepId = "receipt";
+					} else if (step === "receipt" && data.status === "complete") {
+						console.log("Receipt view completed, ending flow");
+
+						// Set a flag to indicate receipt is complete
+						updated.receiptComplete = true;
+
+						// Notify the credit payment view that the flow is complete
+						setTimeout(() => {
+							completeFlow();
+						}, 500);
+					} else {
+						// For other steps, find the next in sequence
+						const currentIndex = CUSTOMER_FLOW_STEPS.findIndex(
+							(s) => s.id === step
+						);
+						if (currentIndex < CUSTOMER_FLOW_STEPS.length - 1) {
+							nextStepId = CUSTOMER_FLOW_STEPS[currentIndex + 1].id;
+						}
 					}
 				}
 
-				// If we have a next step, update it (but after this state update completes)
+				// If we have a next step, update it
 				if (nextStepId) {
-					// Use setTimeout to break the potential update cycle
 					setTimeout(() => {
 						setCurrentStep(nextStepId);
-						// Use the latest stepData via the ref
 						customerDisplayManager.updateCustomerFlowStep(nextStepId, {
 							...stepDataRef.current,
 							[step]: data,
@@ -135,6 +176,30 @@ export function useCustomerFlow() {
 		return cleanup;
 	}, [flowActive, completeFlow]); // Remove stepData from dependencies
 
+	const updateFlowData = useCallback(
+		(newData) => {
+			console.log("useCustomerFlow.updateFlowData called with:", newData);
+
+			setStepData((prev) => {
+				const updated = { ...prev, ...newData };
+				console.log("Updated step data:", updated);
+
+				// Update the customer display with the new data
+				if (currentStep) {
+					console.log(
+						"Calling customerDisplayManager.updateCustomerFlowStep with:",
+						currentStep,
+						updated
+					);
+					customerDisplayManager.updateCustomerFlowStep(currentStep, updated);
+				}
+
+				return updated;
+			});
+		},
+		[currentStep]
+	);
+
 	return {
 		currentStep,
 		flowActive,
@@ -143,6 +208,7 @@ export function useCustomerFlow() {
 		nextStep,
 		goToStep,
 		completeFlow,
+		updateFlowData,
 		isLastStep:
 			currentStep === CUSTOMER_FLOW_STEPS[CUSTOMER_FLOW_STEPS.length - 1].id,
 		getFlowData: () => stepData,

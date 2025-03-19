@@ -6,7 +6,8 @@ from .consumers.card_payment import CardPaymentConsumer
 websocket_urlpatterns = [
     # Cash drawer operations endpoint
     re_path(r'ws/hardware/cash-drawer/$', CashDrawerConsumer.as_asgi()),
-    
+    re_path(r'ws/hardware/receipt-printer/$', CashDrawerConsumer.as_asgi()),
+
     # Card payment operations endpoint
     re_path(r'ws/hardware/card-payment/$', CardPaymentConsumer.as_asgi()),
 ]

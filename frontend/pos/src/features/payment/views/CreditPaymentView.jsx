@@ -1,7 +1,7 @@
 // src/features/payment/views/CreditPaymentView.jsx
 
 import { motion } from "framer-motion";
-import { CreditCardIcon } from "@heroicons/react/24/solid";
+import { CreditCardIcon, XCircleIcon } from "@heroicons/react/24/solid";
 import { useState, useEffect, useRef } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
@@ -10,6 +10,10 @@ import { ScrollableViewWrapper } from "./ScrollableViewWrapper";
 import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCustomerFlow";
 import { CUSTOMER_FLOW_STEPS } from "../constants/paymentFlowSteps";
 import { formatPrice } from "../../../utils/numberUtils";
+import TerminalStatusIndicator from "../components/TerminalStatusIndicator";
+import { useCartStore } from "../../../store/cartStore";
+import customerDisplayManager from "../../customerDisplay/utils/windowManager";
+
 const { pageVariants, pageTransition } = paymentAnimations;
 
 const commonPropTypes = {
@@ -47,15 +51,16 @@ export const CreditPaymentView = ({
 	state,
 	remainingAmount,
 	handlePayment,
-	// isPaymentComplete,
 	completePaymentFlow,
 	handleNavigation,
 }) => {
 	const [error, setError] = useState(null);
 	const [processingPayment, setProcessingPayment] = useState(false);
 	const [cardData, setCardData] = useState(null);
+	const [isCancelling, setIsCancelling] = useState(false);
 	const previousStepRef = useRef({ rewards: null, tip: null });
-
+	const isCompletingPaymentRef = useRef(false);
+	const hasNavigatedRef = useRef(false);
 	// Use the customer flow hook
 	const {
 		flowActive,
@@ -87,26 +92,103 @@ export const CreditPaymentView = ({
 					totalWithTip: stepData.tip.totalWithTip,
 				}));
 			}
-		} else if (stepData.receipt && stepData.receipt.status === "complete") {
+		} else if (
+			stepData.receipt &&
+			stepData.receipt.status === "complete" &&
+			!isCompletingPaymentRef.current &&
+			!hasNavigatedRef.current
+		) {
+			// Set flag to prevent concurrent/repeated executions
+			isCompletingPaymentRef.current = true;
+
+			console.log("Starting payment completion (receipt complete)");
+
 			// Process the actual payment using the collected flow data
 			handlePayment(remainingAmount, {
 				method: "credit",
 				flowData: stepData,
 			})
 				.then((success) => {
-					if (success) {
-						completePaymentFlow().then(() => {
-							handleNavigation("Completion");
-						});
+					if (success && !hasNavigatedRef.current) {
+						console.log("Payment successful, completing flow");
+
+						// Complete the payment flow
+						return completePaymentFlow();
 					} else {
-						setError("Payment processing failed");
+						throw new Error("Payment processing failed or already completed");
+					}
+				})
+				.then(() => {
+					if (!hasNavigatedRef.current) {
+						console.log("Flow completed, navigating to completion view");
+						hasNavigatedRef.current = true;
+						handleNavigation("Completion");
 					}
 				})
 				.catch((err) => {
+					console.error("Payment completion error:", err);
 					setError(err.message || "Failed to process payment");
+				})
+				.finally(() => {
+					// Reset the completion flag
+					isCompletingPaymentRef.current = false;
 				});
 		}
-	}, [stepData, currentStep, goToStep]);
+	}, [
+		stepData,
+		currentStep,
+		goToStep,
+		handlePayment,
+		remainingAmount,
+		completePaymentFlow,
+		handleNavigation,
+	]);
+
+	// Function to cancel payment process
+	const cancelCardPayment = async () => {
+		setIsCancelling(true);
+		setError(null);
+
+		try {
+			console.log("Cancelling card payment process");
+
+			// Get the current cart data
+			const cart = useCartStore.getState().cart;
+
+			// If we're in an active flow, complete/reset it
+			if (flowActive) {
+				completeFlow();
+				console.log("Customer flow reset");
+
+				// Reset customer display to cart view
+				try {
+					if (cart && cart.length > 0) {
+						// Reset to cart view
+						customerDisplayManager.showCart(cart);
+						console.log("Customer display reset to cart view");
+					} else {
+						// If cart is empty, show welcome screen
+						customerDisplayManager.showWelcome();
+						console.log("Customer display reset to welcome (empty cart)");
+					}
+				} catch (displayErr) {
+					console.error("Error resetting customer display:", displayErr);
+				}
+			}
+
+			// Reset local component state
+			setProcessingPayment(false);
+			setCardData(null);
+
+			// Show cancellation message
+			setError("Payment process cancelled");
+		} catch (err) {
+			console.error("Error cancelling payment:", err);
+			setError("Failed to cancel payment: " + err.message);
+		} finally {
+			setIsCancelling(false);
+		}
+	};
 
 	const processCardPayment = async () => {
 		setProcessingPayment(true);
@@ -119,7 +201,6 @@ export const CreditPaymentView = ({
 			}
 
 			// Skip directly to rewards step (bypassing payment for now)
-			// This is the key change - we're going to rewards first
 			goToStep("rewards");
 
 			// Store minimal card info for display purposes only
@@ -156,28 +237,36 @@ export const CreditPaymentView = ({
 				return step ? `Step: ${step.label}` : "Processing...";
 		}
 	};
-	// const finalizePayment = async () => {
-	// 	try {
-	// 	  setProcessingPayment(true);
 
-	// 	  // Process the actual payment using the collected flow data
-	// 	  const success = await handlePayment(remainingAmount, {
-	// 		method: "credit",
-	// 		flowData: stepData, // Pass all the collected flow data
-	// 	  });
+	// Cleanup on unmount - also reset the display
+	useEffect(() => {
+		return () => {
+			// Clean up any active flow if component unmounts
+			if (flowActive && !isCancelling) {
+				console.log("CreditPaymentView unmounting, cleaning up active flow");
 
-	// 	  if (success) {
-	// 		completePaymentFlow().then(() => {
-	// 		  handleNavigation("Completion");
-	// 		});
-	// 	  } else {
-	// 		throw new Error("Payment processing failed");
-	// 	  }
-	// 	} catch (err) {
-	// 	  setError(err.message || "Failed to process payment");
-	// 	  setProcessingPayment(false);
-	// 	}
-	//   };
+				// Get the current cart
+				const cart = useCartStore.getState().cart;
+
+				// Complete the flow
+				completeFlow();
+
+				// Reset display to cart if we have items
+				try {
+					if (cart && cart.length > 0) {
+						customerDisplayManager.showCart(cart);
+					} else {
+						customerDisplayManager.showWelcome();
+					}
+				} catch (err) {
+					console.error("Error resetting display on unmount:", err);
+				}
+				isCompletingPaymentRef.current = false;
+				hasNavigatedRef.current = false;
+			}
+		};
+	}, [flowActive, completeFlow, isCancelling]);
+
 	return (
 		<motion.div
 			key="credit-payment"
@@ -186,6 +275,7 @@ export const CreditPaymentView = ({
 			{...commonMotionProps}
 		>
 			<ScrollableViewWrapper>
+				<TerminalStatusIndicator />
 				{error && (
 					<motion.div
 						className="p-4 bg-red-50 text-red-600 rounded-lg flex items-center"
@@ -252,7 +342,7 @@ export const CreditPaymentView = ({
 					</motion.div>
 				)}
 
-				{/* Customer flow status */}
+				{/* Customer flow status with cancel button */}
 				{flowActive && (
 					<motion.div
 						className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm mb-4"
@@ -260,9 +350,24 @@ export const CreditPaymentView = ({
 						animate={{ opacity: 1, y: 0 }}
 					>
 						<div className="mb-2">
-							<div className="text-sm font-medium text-slate-600">
-								Customer Progress
+							<div className="flex justify-between items-center">
+								<div className="text-sm font-medium text-slate-600">
+									Customer Progress
+								</div>
+
+								{/* Add cancel button */}
+								{!isCancelling && (
+									<button
+										onClick={cancelCardPayment}
+										className="text-red-600 hover:text-red-800 text-sm flex items-center"
+										disabled={isCancelling}
+									>
+										<XCircleIcon className="h-4 w-4 mr-1" />
+										Cancel
+									</button>
+								)}
 							</div>
+
 							<div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mt-1">
 								<motion.div
 									className="h-full bg-blue-500"
@@ -285,65 +390,30 @@ export const CreditPaymentView = ({
 						<div className="flex items-center">
 							<div
 								className={`w-3 h-3 rounded-full mr-2 ${
-									processingPayment
+									processingPayment || isCancelling
 										? "bg-blue-500 animate-pulse"
 										: "bg-emerald-500"
 								}`}
 							></div>
 							<span className="text-sm text-slate-700">
-								{getCurrentStepLabel()}
+								{isCancelling ? "Cancelling payment..." : getCurrentStepLabel()}
 							</span>
 						</div>
 					</motion.div>
 				)}
 
 				<div className="space-y-4 mt-4">
-					<PaymentButton
-						icon={CreditCardIcon}
-						label={
-							flowActive
-								? "Processing Customer Flow..."
-								: processingPayment
-								? "Processing..."
-								: "Process Card Payment"
-						}
-						variant="primary"
-						onClick={processCardPayment}
-						disabled={flowActive || processingPayment || remainingAmount === 0}
-					/>
-
-					<div className="p-4 bg-slate-50 rounded-lg space-y-2 border border-slate-200">
-						<div className="flex items-center">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-5 w-5 mr-2 text-slate-500"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							<p className="text-sm font-medium text-slate-700">
-								{flowActive
-									? getCurrentStepLabel()
-									: cardData
-									? "Payment approved"
-									: "Click 'Process Card Payment' to start"}
-							</p>
-						</div>
-						<p className="text-xs text-slate-500 ml-7">
-							{flowActive
-								? "Customer flow in progress"
-								: cardData
-								? "Transaction has been completed successfully"
-								: "This will guide the customer through the checkout process"}
-						</p>
-					</div>
+					{!flowActive ? (
+						<PaymentButton
+							icon={CreditCardIcon}
+							label={
+								processingPayment ? "Processing..." : "Process Card Payment"
+							}
+							variant="primary"
+							onClick={processCardPayment}
+							disabled={processingPayment || remainingAmount === 0}
+						/>
+					) : null}
 				</div>
 			</ScrollableViewWrapper>
 		</motion.div>

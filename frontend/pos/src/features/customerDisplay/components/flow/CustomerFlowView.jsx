@@ -10,6 +10,7 @@ import RewardsRegistrationView from "../rewards/RewardsRegistrationView";
 import TipSelectionView from "../tip/TipSelectionView";
 import PaymentView from "../payment/PaymentView";
 import ReceiptView from "../receipt/ReceiptView"; // Import the new receipt component
+import CashFlowView from "../payment/CashFlowView";
 
 const CustomerFlowView = ({ flowData, onStepComplete }) => {
 	const [currentStep, setCurrentStep] = useState(
@@ -26,6 +27,7 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 	// Handle step completion
 	const handleStepComplete = (stepData) => {
 		if (onStepComplete) {
+			console.log(`Completing step: ${currentStep}`, stepData);
 			onStepComplete(currentStep, stepData);
 		}
 	};
@@ -69,6 +71,17 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 					/>
 				);
 			case "payment":
+				// Check if this is a cash payment
+				if (flowData?.paymentMethod === "cash") {
+					return (
+						<CashFlowView
+							orderData={orderData}
+							cashData={flowData.cashData}
+							onComplete={handleStepComplete}
+							isComplete={flowData.cashPaymentComplete === true}
+						/>
+					);
+				}
 				return (
 					<PaymentView
 						orderData={orderData}
@@ -79,7 +92,9 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 				return (
 					<ReceiptView
 						orderData={orderData}
-						paymentData={flowData?.payment} // Pass payment data from flow
+						paymentData={flowData?.payment}
+						paymentMethod={flowData?.paymentMethod || "credit"}
+						cashData={flowData?.cashData}
 						onComplete={handleStepComplete}
 					/>
 				);
@@ -120,7 +135,10 @@ CustomerFlowView.propTypes = {
 		currentStep: PropTypes.string,
 		cartData: PropTypes.object,
 		tipAmount: PropTypes.number,
-		payment: PropTypes.object, // Add payment data to the prop types
+		payment: PropTypes.object,
+		orderId: PropTypes.number,
+		cashData: PropTypes.object,
+		paymentMethod: PropTypes.string,
 	}),
 	onStepComplete: PropTypes.func,
 };

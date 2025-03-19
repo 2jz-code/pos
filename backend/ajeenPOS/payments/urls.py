@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import CreatePaymentIntentView, PaymentWebhookView, ProcessPaymentView, ConfirmPaymentView
-from .terminal_views import SimulateCardPresentationView, TerminalPaymentCaptureView, ReaderStatusView, TerminalPaymentIntentView, ConnectionTokenView, PaymentIntentStatusView, ProcessPaymentMethodView
+from .terminal_views import CheckPaymentCompletionView ,SimulateCardPresentationView, TerminalPaymentCaptureView, ReaderStatusView, TerminalPaymentIntentView, ConnectionTokenView, PaymentIntentStatusView, ProcessPaymentMethodView
 urlpatterns = [
     path('create-payment-intent/', CreatePaymentIntentView.as_view(), name='create-payment-intent'),
     path('process-payment/', ProcessPaymentView.as_view(), name='process-payment'),
@@ -16,5 +16,5 @@ urlpatterns = [
     path('terminal/reader-status/', ReaderStatusView.as_view(), name='terminal-simulate-present-payment-method'),
     path('terminal/payment-status/<str:payment_intent_id>/', PaymentIntentStatusView.as_view(), name='terminal-payment-status'),
     path('terminal/process-payment-method/', ProcessPaymentMethodView.as_view(), name='terminal-process-payment-method'),
-
+    path('terminal/check-payment-completion/<str:payment_intent_id>/', CheckPaymentCompletionView.as_view(), name='check-payment-completion'),
 ]

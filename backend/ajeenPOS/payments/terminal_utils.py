@@ -39,7 +39,7 @@ def create_terminal_payment_intent(amount, currency='usd', metadata=None, descri
             amount=amount,
             currency=currency,
             payment_method_types=['card_present'],
-            capture_method='automatic',
+            capture_method='manual',
             metadata=metadata or {},
             description=description
         )

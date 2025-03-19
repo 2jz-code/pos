@@ -85,6 +85,7 @@ class TerminalPaymentIntentView(APIView):
                         
                         # Update the existing payment with new payment intent
                         existing_payment.payment_intent_id = payment_intent.id
+                        existing_payment.payment_method = "card"
                         existing_payment.amount = float(amount)
                         existing_payment.status = 'pending'
                         existing_payment.save()
@@ -159,7 +160,7 @@ class TerminalPaymentCaptureView(APIView):
                 'id': payment_intent.id,
                 'amount': payment_intent.amount,
                 'currency': payment_intent.currency,
-                'payment_method_details': payment_intent.payment_method_details,
+                # 'payment_method_details': payment_intent.payment_method_details,
                 'created': payment_intent.created
             })
             
@@ -170,28 +171,40 @@ class TerminalPaymentCaptureView(APIView):
         
 class ReaderStatusView(APIView):
     """
-    Check the status of registered readers
+    Check the status of a specific registered reader
     """
     def get(self, request, *args, **kwargs):
         try:
-            readers = stripe.terminal.Reader.list(limit=10)
+            # Get reader ID from request parameters or use default if provided
+            reader_id = request.query_params.get('reader_id', 'tmr_F9NiKA2GgcXTyg')
             
-            reader_data = [{
+            # Retrieve the specific reader
+            reader = stripe.terminal.Reader.retrieve(reader_id)
+            
+            # Format the reader data
+            reader_data = {
                 'id': reader.id,
                 'device_type': reader.device_type,
                 'status': reader.status,
-                'label': reader.label,
-                'location': reader.location,
-                'serial_number': reader.serial_number
-            } for reader in readers.data]
+                'label': getattr(reader, 'label', None),  # Use getattr for optional fields
+                'location': getattr(reader, 'location', None),
+                'serial_number': getattr(reader, 'serial_number', None)
+            }
             
             return Response({
-                'readers': reader_data,
-                'reader_count': len(reader_data)
+                'reader': reader_data,
+                'success': True
             })
-        except Exception as e:
+        except stripe.error.InvalidRequestError as e:
+            # Handle case where reader doesn't exist
             return Response(
-                {'error': str(e)},
+                {'error': f"Reader not found: {str(e)}", 'success': False},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            # Handle other errors
+            return Response(
+                {'error': f"Error retrieving reader: {str(e)}", 'success': False},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -305,6 +318,44 @@ class ProcessPaymentMethodView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class CheckPaymentCompletionView(APIView):
+    """
+    Check if a payment has been completed on the terminal
+    """
+    def get(self, request, payment_intent_id, *args, **kwargs):
+        try:
+            # Retrieve the payment intent
+            payment_intent = stripe.PaymentIntent.retrieve(
+                payment_intent_id,
+                expand=['payment_method', 'charges.data.payment_method_details']
+            )
+            
+            # Check if the payment is complete
+            is_complete = payment_intent.status == 'succeeded'
+            
+            # Get card details if available
+            card_details = None
+            if is_complete and payment_intent.charges and payment_intent.charges.data:
+                charge = payment_intent.charges.data[0]
+                if hasattr(charge, 'payment_method_details') and charge.payment_method_details:
+                    card_details = charge.payment_method_details.card_present
+            
+            return Response({
+                'id': payment_intent.id,
+                'status': payment_intent.status,
+                'is_complete': is_complete,
+                'amount': payment_intent.amount,
+                'currency': payment_intent.currency,
+                'card_details': card_details,
+                'created': payment_intent.created
+            })
+            
         except Exception as e:
             return Response(
                 {'error': str(e)},

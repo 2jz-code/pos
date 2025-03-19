@@ -23,6 +23,8 @@ import { useCustomerDisplayNavigation } from "./features/customerDisplay/hooks/u
 import TerminalSimulation from "./features/customerDisplay/components/terminal/TerminalSimulation";
 import { TerminalSimulationProvider } from "./features/customerDisplay/contexts/TerminalSimulationProvider";
 
+window.customerDisplayManager = customerDisplayManager;
+
 function App() {
 	const displayInitialized = useRef(false);
 

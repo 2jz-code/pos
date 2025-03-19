@@ -14,6 +14,7 @@ const WS_ENDPOINTS = {
 	HARDWARE: {
 		CASH_DRAWER: "hardware/cash-drawer",
 		CARD_PAYMENT: "hardware/card-payment",
+		RECEIPT_PRINTER: "hardware/receipt-printer",
 	},
 	BUSINESS: {
 		KITCHEN: "kitchen/orders", // Add kitchen endpoint

@@ -8,6 +8,7 @@ import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
 import { ScrollableViewWrapper } from "./ScrollableViewWrapper";
+import { useCustomerFlow } from "../../customerDisplay/hooks/useCustomerFlow";
 
 const { pageVariants, pageTransition } = paymentAnimations;
 
@@ -37,42 +38,60 @@ const commonMotionProps = {
 	transition: pageTransition,
 };
 
-export const InitialOptionsView = ({ handleNavigation }) => (
-	<motion.div
-		key="initial-options"
-		className="absolute inset-0 p-4 space-y-4"
-		{...commonMotionProps}
-	>
-		<ScrollableViewWrapper>
-			<div className="text-center mb-6">
-				<h3 className="text-lg font-medium text-slate-800 mb-2">
-					Select Payment Method
-				</h3>
-				<p className="text-slate-500 text-sm">
-					Choose how you would like to complete this transaction
-				</p>
-			</div>
+export const InitialOptionsView = ({
+	handleNavigation,
+	state,
+	remainingAmount,
+}) => {
+	const { startFlow, flowActive } = useCustomerFlow();
 
-			<PaymentButton
-				icon={BanknotesIcon}
-				label="Pay with Cash"
-				onClick={() => handleNavigation("Cash", 1)}
-				className="mb-3"
-			/>
-			<PaymentButton
-				icon={CreditCardIcon}
-				label="Pay with Credit Card"
-				onClick={() => handleNavigation("Credit", 1)}
-				className="mb-3"
-			/>
-			<PaymentButton
-				icon={ArrowsRightLeftIcon}
-				label="Split Payment"
-				onClick={() => handleNavigation("Split", 1)}
-			/>
-		</ScrollableViewWrapper>
-	</motion.div>
-);
+	const handlePaymentMethodSelect = (method) => {
+		// Start customer flow if selecting cash payment
+		if (method === "Cash" && !flowActive) {
+			startFlow(state.orderId, "cash", remainingAmount);
+		}
+
+		// Navigate to the payment view
+		handleNavigation(method, 1);
+	};
+
+	return (
+		<motion.div
+			key="initial-options"
+			className="absolute inset-0 p-4 space-y-4"
+			{...commonMotionProps}
+		>
+			<ScrollableViewWrapper>
+				<div className="text-center mb-6">
+					<h3 className="text-lg font-medium text-slate-800 mb-2">
+						Select Payment Method
+					</h3>
+					<p className="text-slate-500 text-sm">
+						Choose how you would like to complete this transaction
+					</p>
+				</div>
+
+				<PaymentButton
+					icon={BanknotesIcon}
+					label="Pay with Cash"
+					onClick={() => handlePaymentMethodSelect("Cash")}
+					className="mb-3"
+				/>
+				<PaymentButton
+					icon={CreditCardIcon}
+					label="Pay with Credit Card"
+					onClick={() => handlePaymentMethodSelect("Credit")}
+					className="mb-3"
+				/>
+				<PaymentButton
+					icon={ArrowsRightLeftIcon}
+					label="Split Payment"
+					onClick={() => handlePaymentMethodSelect("Split")}
+				/>
+			</ScrollableViewWrapper>
+		</motion.div>
+	);
+};
 
 InitialOptionsView.propTypes = {
 	...commonPropTypes,

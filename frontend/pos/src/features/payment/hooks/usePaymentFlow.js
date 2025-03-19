@@ -32,11 +32,17 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				};
 			} else {
 				// Going forward
+				// Set payment method based on the view we're navigating to
+				let paymentMethod = prev.paymentMethod;
+				if (nextView === "Cash") paymentMethod = "cash";
+				if (nextView === "Credit") paymentMethod = "credit";
+
 				return {
 					...prev,
 					currentView: nextView,
 					previousViews: [...prev.previousViews, prev.currentView],
 					direction,
+					paymentMethod, // Update the payment method
 				};
 			}
 		});
@@ -84,8 +90,10 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 			const paymentDetails = {
 				totalPaid: state.amountPaid,
 				transactions: state.transactions,
+				paymentMethod: state.paymentMethod, // Include payment method
 			};
 
+			console.log("Payment details:", paymentDetails);
 			const success = await onComplete?.(paymentDetails);
 			console.log("Payment completion result:", success);
 
@@ -115,7 +123,13 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 			setError(error.message);
 			return false;
 		}
-	}, [state.amountPaid, state.transactions, onComplete, state.currentView]);
+	}, [
+		state.amountPaid,
+		state.transactions,
+		state.paymentMethod,
+		onComplete,
+		state.currentView,
+	]);
 
 	// Add explicit navigation function
 	const navigateToView = useCallback((viewName) => {

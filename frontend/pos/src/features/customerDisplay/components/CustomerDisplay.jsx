@@ -88,6 +88,14 @@ const CustomerDisplay = () => {
 					};
 					setDisplayData(updatedContent);
 					// Keep the display mode as flow
+				} else if (event.data.type === "DIRECT_CASH_UPDATE") {
+					console.log("Received DIRECT_CASH_UPDATE:", event.data.content);
+
+					// Update display data directly
+					setDisplayData((prevData) => ({
+						...prevData,
+						...event.data.content,
+					}));
 				}
 			}
 		};

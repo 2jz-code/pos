@@ -70,7 +70,7 @@ const TerminalSimulation = ({ paymentData = {}, onPaymentResult }) => {
 				"payments/terminal/connection-token/"
 			);
 			setConnectionToken(tokenResponse.data.secret);
-
+			console.log(connectionToken);
 			// 2. Get available readers (in test mode, we'll get a simulated reader)
 			const readersResponse = await axiosInstance.get(
 				"payments/terminal/reader-status/"
@@ -119,7 +119,7 @@ const TerminalSimulation = ({ paymentData = {}, onPaymentResult }) => {
 			);
 
 			setPaymentIntentId(response.data.id);
-
+			console.log(paymentIntentId);
 			// Now process the payment intent on the reader (new step)
 			await processPaymentIntent(response.data.id, readerId);
 		} catch (err) {

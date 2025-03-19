@@ -289,14 +289,6 @@ const RewardsRegistrationView = ({ onComplete }) => {
 
 	return (
 		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
-			{/* Top colored band */}
-			<motion.div
-				className="h-3 bg-gradient-to-r from-blue-500 to-indigo-600 w-full flex-shrink-0"
-				initial={{ scaleX: 0 }}
-				animate={{ scaleX: 1 }}
-				transition={{ duration: 0.8, ease: "easeOut" }}
-			></motion.div>
-
 			{/* Main content */}
 			<div className="flex-1 flex flex-col p-6 justify-center">
 				<div className="max-w-md w-full mx-auto">
