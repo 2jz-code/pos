@@ -8,7 +8,7 @@ from .serializers import OrderSerializer
 from products.models import Product
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
-from datetime import timedelta
+from datetime import timezone
 import json
 from django.http import JsonResponse
 
@@ -186,23 +186,73 @@ class CompleteOrder(APIView):
         Completes an order by setting the status to "completed".
         """
         try:
+            # Log the incoming request data for debugging
+            print("CompleteOrder received data:", json.dumps(request.data, indent=2))
+            
             order = get_object_or_404(Order, id=pk, user=request.user, status="in_progress")
             order.status = "completed"
             order.payment_status = request.data.get("payment_status", "paid")
             order.save()
 
-            payment = get_object_or_404(Payment, order=order)
-            payment.payment_method = request.data.get("payment_method")
-            payment.status= "completed"
+            # Get or create payment
+            payment, created = Payment.objects.get_or_create(order=order)
+            
+            # Get payment data from request
+            payment_data = request.data.get("payment_details") or request.data.get("paymentDetails", {})
+            payment_method = payment_data.get("paymentMethod") or request.data.get("payment_method")
+            
+            # Update payment record
+            payment.payment_method = payment_method
+            payment.status = "completed"
+            payment.amount = payment_data.get("totalPaid") or order.total_price
+            
+            # Handle split payments
+            if payment_method == "split":
+                payment.is_split_payment = True
+                
+                # Get transactions and split details
+                transactions = payment_data.get("transactions", [])
+                split_details = payment_data.get("splitDetails")
+                
+                # Store the complete payment details
+                try:
+                    # Create a complete structure with all payment data
+                    complete_payment_data = {
+                        "transactions": transactions,
+                        "splitDetails": split_details,
+                        "totalPaid": payment_data.get("totalPaid"),
+                        "splitPayment": payment_data.get("splitPayment", True),
+                        "paymentMethod": payment_method,
+                        "completed_at": payment_data.get("completed_at") or timezone.now().isoformat()
+                    }
+                    
+                    # Store this complete structure
+                    payment.transactions_json = json.dumps(complete_payment_data)
+                    print(f"Stored payment data: {payment.transactions_json}")
+                except Exception as e:
+                    print(f"Error storing payment data: {str(e)}")
+                    # Fallback to storing just the transactions
+                    if transactions:
+                        payment.set_transactions(transactions)
+            
             payment.save()
-
+            
+            # Log the payment object after saving
+            print(f"Payment saved: id={payment.id}, method={payment.payment_method}, is_split={payment.is_split_payment}")
+            if payment.transactions_json:
+                print(f"Transaction data length: {len(payment.transactions_json)}")
+            else:
+                print("No transaction data stored")
+            
             return Response({
-                "status": "success",  # Add this explicit status field
+                "status": "success",
                 "message": "Order completed successfully",
                 "order": OrderSerializer(order).data
             })
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response({
                 "status": "error",
                 "message": str(e)

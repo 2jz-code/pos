@@ -1,6 +1,6 @@
 // src/components/payment/views/CashPaymentView.jsx
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
@@ -23,9 +23,8 @@ const commonMotionProps = {
 export const CashPaymentView = ({
 	state,
 	remainingAmount,
-	handlePayment, // This will be the processPayment function from PaymentFlow
+	handlePayment,
 	setState,
-	isPaymentComplete,
 	completePaymentFlow,
 	handleNavigation,
 }) => {
@@ -39,7 +38,7 @@ export const CashPaymentView = ({
 	} = useCashDrawer();
 	const [error, setError] = useState(null); // Add local error state
 	const [paymentInProgress, setPaymentInProgress] = useState(false);
-	const { startFlow, goToStep, updateFlowData, flowActive } = useCustomerFlow();
+	const { goToStep, updateFlowData, flowActive, startFlow } = useCustomerFlow();
 	// Combine errors from drawer and local state for display
 	const displayError = drawerError || error;
 	const [hasBeenMounted, setHasBeenMounted] = useState(false);
@@ -143,6 +142,67 @@ export const CashPaymentView = ({
 		);
 	};
 
+	const currentPaymentAmount =
+		state.splitMode && state.nextSplitAmount
+			? state.nextSplitAmount
+			: remainingAmount;
+
+	// Add a function to handle returning to split view
+	const handleReturnToSplitView = useCallback(() => {
+		handleNavigation("Split", -1);
+	}, [handleNavigation]);
+
+	// Add a useEffect to initialize the cash flow when coming from split payment
+	useEffect(() => {
+		// Only initialize if this is a split payment and flow isn't already active
+		if (state.splitMode && !flowActive) {
+			console.log("Initializing cash flow for split payment");
+			console.log(`Split details from cash payment:`, state.splitDetails);
+
+			// Create a modified order data object for split payments
+			const splitOrderData = {
+				subtotal: currentPaymentAmount * 0.9, // Approximate subtotal based on tax rate
+				tax: currentPaymentAmount * 0.1, // Approximate tax
+				total: currentPaymentAmount, // Set the total to the split amount
+				isSplitPayment: true,
+				originalTotal: remainingAmount + state.amountPaid,
+			};
+
+			// Start the cash flow with the modified order data
+			startFlow(
+				state.orderId,
+				"cash",
+				currentPaymentAmount,
+				true, // isSplitPayment
+				state.splitDetails,
+				splitOrderData // Pass the modified order data
+			);
+
+			// Initialize with split payment data
+			updateFlowData({
+				paymentMethod: "cash",
+				isSplitPayment: true,
+				splitDetails: state.splitDetails,
+				splitOrderData: splitOrderData, // Include the modified order data
+				cashData: {
+					cashTendered: 0,
+					change: 0,
+					amountPaid: state.amountPaid,
+					remainingAmount: currentPaymentAmount,
+					isFullyPaid: currentPaymentAmount <= 0,
+				},
+			});
+		}
+	}, [
+		state.splitMode,
+		flowActive,
+		state.orderId,
+		currentPaymentAmount,
+		state.amountPaid,
+		state.splitDetails,
+		remainingAmount,
+	]);
+
 	const handlePresetAmount = async (amount) => {
 		setError(null);
 		setPaymentInProgress(true);
@@ -155,7 +215,8 @@ export const CashPaymentView = ({
 				throw new Error("Failed to open cash drawer");
 			}
 
-			const validAmount = Math.min(amount, remainingAmount);
+			// Use currentPaymentAmount instead of remainingAmount for split payments
+			const validAmount = Math.min(amount, currentPaymentAmount);
 			const change = amount - validAmount;
 
 			// Process the payment
@@ -163,6 +224,8 @@ export const CashPaymentView = ({
 				method: "cash",
 				cashTendered: amount,
 				change: change,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
 			});
 
 			if (!success) {
@@ -170,9 +233,11 @@ export const CashPaymentView = ({
 			}
 
 			// Calculate values
-			const originalTotal = remainingAmount + state.amountPaid;
+			const originalTotal = state.splitMode
+				? currentPaymentAmount
+				: remainingAmount + state.amountPaid;
 			const currentAmountPaid = state.amountPaid + validAmount;
-			const newRemainingAmount = originalTotal - currentAmountPaid;
+			const newRemainingAmount = originalTotal - validAmount;
 
 			const currentTotals = getTransactionTotals() || {
 				totalTendered: 0,
@@ -188,17 +253,19 @@ export const CashPaymentView = ({
 				amountPaid: currentAmountPaid,
 				remainingAmount: newRemainingAmount,
 				isFullyPaid: newRemainingAmount <= 0,
+				isSplitPayment: state.splitMode,
 			};
 
-			// 1. Try updating via the hook (existing method)
+			// Update flow data
 			updateFlowData({
 				paymentMethod: "cash",
 				cashData: cashData,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
 			});
 
-			// 2. IMPORTANT: Direct communication with the display window
+			// Send direct message to customer display
 			try {
-				// Ensure the window is open
 				if (
 					!customerDisplayManager.displayWindow ||
 					customerDisplayManager.displayWindow.closed
@@ -206,9 +273,7 @@ export const CashPaymentView = ({
 					customerDisplayManager.openWindow();
 				}
 
-				// Wait a moment for the window to be ready
 				setTimeout(() => {
-					// Send a direct message to update the customer display
 					customerDisplayManager.displayWindow.postMessage(
 						{
 							type: "DIRECT_CASH_UPDATE",
@@ -217,11 +282,12 @@ export const CashPaymentView = ({
 								paymentMethod: "cash",
 								cashData: cashData,
 								displayMode: "flow",
+								isSplitPayment: state.splitMode,
+								splitDetails: state.splitDetails,
 							},
 						},
 						"*"
 					);
-
 					console.log("Direct message sent to customer display");
 				}, 300);
 			} catch (err) {
@@ -248,26 +314,94 @@ export const CashPaymentView = ({
 		setPaymentInProgress(true);
 
 		try {
+			// First open the drawer and wait for it to complete
 			const drawerResult = await openDrawer();
 			if (!drawerResult) {
 				throw new Error("Failed to open cash drawer");
 			}
 
 			// Calculate how much of this payment will go towards the remaining amount
-			const validAmount = Math.min(amount, remainingAmount);
+			// Use currentPaymentAmount instead of remainingAmount for split payments
+			const validAmount = Math.min(amount, currentPaymentAmount);
 			const change = amount - validAmount;
 
+			// Process the payment
 			const success = await handlePayment(validAmount, {
 				method: "cash",
 				cashTendered: amount,
 				change: change,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
 			});
 
-			if (success) {
-				setState((prev) => ({ ...prev, customAmount: "" }));
-			} else {
+			if (!success) {
 				throw new Error("Payment processing failed");
 			}
+
+			// Calculate values
+			const originalTotal = state.splitMode
+				? currentPaymentAmount
+				: remainingAmount + state.amountPaid;
+			const currentAmountPaid = state.amountPaid + validAmount;
+			const newRemainingAmount = originalTotal - validAmount;
+
+			const currentTotals = getTransactionTotals() || {
+				totalTendered: 0,
+				totalChange: 0,
+			};
+			const totalTendered = currentTotals.totalTendered + amount;
+			const totalChange = currentTotals.totalChange + change;
+
+			// Prepare cash data
+			const cashData = {
+				cashTendered: totalTendered,
+				change: totalChange,
+				amountPaid: currentAmountPaid,
+				remainingAmount: newRemainingAmount,
+				isFullyPaid: newRemainingAmount <= 0,
+				isSplitPayment: state.splitMode,
+			};
+
+			// Update flow data
+			updateFlowData({
+				paymentMethod: "cash",
+				cashData: cashData,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
+			});
+
+			// Send direct message to customer display
+			try {
+				if (
+					!customerDisplayManager.displayWindow ||
+					customerDisplayManager.displayWindow.closed
+				) {
+					customerDisplayManager.openWindow();
+				}
+
+				setTimeout(() => {
+					customerDisplayManager.displayWindow.postMessage(
+						{
+							type: "DIRECT_CASH_UPDATE",
+							content: {
+								currentStep: "payment",
+								paymentMethod: "cash",
+								cashData: cashData,
+								displayMode: "flow",
+								isSplitPayment: state.splitMode,
+								splitDetails: state.splitDetails,
+							},
+						},
+						"*"
+					);
+					console.log("Direct message sent to customer display");
+				}, 300);
+			} catch (err) {
+				console.error("Error sending direct message:", err);
+			}
+
+			// Clear the custom amount input
+			setState((prev) => ({ ...prev, customAmount: "" }));
 		} catch (err) {
 			setError(err.message || "Failed to process payment");
 			console.error("Custom amount payment error:", err);
@@ -296,9 +430,16 @@ export const CashPaymentView = ({
 						cashTendered: transactionTotals?.totalTendered || 0,
 						change: transactionTotals?.totalChange || 0,
 						amountPaid: state.amountPaid,
-						remainingAmount: remainingAmount,
-						isFullyPaid: remainingAmount <= 0 || transactionTotals?.isFullyPaid,
+						remainingAmount: state.splitMode
+							? currentPaymentAmount - (transactionTotals?.totalAmount || 0)
+							: remainingAmount,
+						isFullyPaid:
+							(state.splitMode ? currentPaymentAmount : remainingAmount) <= 0 ||
+							transactionTotals?.isFullyPaid,
+						isSplitPayment: state.splitMode,
 					},
+					isSplitPayment: state.splitMode,
+					splitDetails: state.splitDetails,
 				});
 
 				// After a short delay, move to receipt step
@@ -309,11 +450,16 @@ export const CashPaymentView = ({
 							cashTendered: transactionTotals?.totalTendered || 0,
 							change: transactionTotals?.totalChange || 0,
 							amountPaid: state.amountPaid,
-							remainingAmount: remainingAmount,
+							remainingAmount: state.splitMode
+								? currentPaymentAmount - (transactionTotals?.totalAmount || 0)
+								: remainingAmount,
 							isFullyPaid:
-								remainingAmount <= 0 || transactionTotals?.isFullyPaid,
+								(state.splitMode ? currentPaymentAmount : remainingAmount) <=
+									0 || transactionTotals?.isFullyPaid,
 						},
 						cashPaymentComplete: true,
+						isSplitPayment: state.splitMode,
+						splitDetails: state.splitDetails,
 					});
 				}, 1000);
 
@@ -324,6 +470,7 @@ export const CashPaymentView = ({
 					payment_method: "cash",
 					amount_tendered: getTransactionTotals()?.totalTendered || 0,
 					change: getTransactionTotals()?.totalChange || 0,
+					is_split_payment: state.splitMode,
 				};
 
 				try {
@@ -331,8 +478,26 @@ export const CashPaymentView = ({
 					await printReceipt(receiptData);
 					console.log("Receipt printed successfully");
 
-					// Complete payment flow and navigate
-					if (isPaymentComplete()) {
+					// Check if all payments are complete (remaining amount is zero)
+					const isAllPaymentsComplete = remainingAmount <= 0;
+					console.log(
+						"Is all payments complete:",
+						isAllPaymentsComplete,
+						"Remaining amount:",
+						remainingAmount
+					);
+
+					// Handle navigation based on payment completion and split status
+					if (state.splitMode && !isAllPaymentsComplete) {
+						// For split payments with remaining balance, go back to split view
+						console.log(
+							"Split payment portion complete, returning to split view"
+						);
+						setTimeout(() => {
+							handleReturnToSplitView();
+						}, 2000);
+					} else {
+						// For fully paid transactions (split or not), proceed to completion
 						console.log("Payment is complete, proceeding to completion");
 						const success = await completePaymentFlow();
 						if (success) {
@@ -364,6 +529,31 @@ export const CashPaymentView = ({
 			{...commonMotionProps}
 		>
 			<ScrollableViewWrapper>
+				{/* Add split payment indicator if in split mode */}
+				{state.splitMode && (
+					<motion.div
+						className="p-4 bg-amber-50 text-amber-700 rounded-lg mb-4 flex items-center justify-between"
+						initial={{ opacity: 0, y: -10 }}
+						animate={{ opacity: 1, y: 0 }}
+					>
+						<div>
+							<div className="font-medium">Split Payment</div>
+							<div className="text-sm">
+								{state.splitDetails?.mode === "equal"
+									? `Payment ${
+											(state.splitDetails?.currentSplitIndex || 0) + 1
+									  } of ${state.splitDetails?.numberOfSplits}`
+									: "Custom split amount"}
+							</div>
+						</div>
+						<button
+							onClick={handleReturnToSplitView}
+							className="px-2 py-1 bg-white text-amber-700 border border-amber-200 rounded-lg text-sm hover:bg-amber-50"
+						>
+							Change
+						</button>
+					</motion.div>
+				)}
 				{displayError && (
 					<motion.div
 						className="p-4 bg-red-50 text-red-600 rounded-lg flex items-center"
@@ -389,8 +579,13 @@ export const CashPaymentView = ({
 				<div className="p-4 bg-blue-50 text-blue-700 rounded-lg mb-4">
 					<div className="font-medium mb-1">Amount Due</div>
 					<div className="text-2xl font-bold">
-						${remainingAmount.toFixed(2)}
+						${currentPaymentAmount.toFixed(2)}
 					</div>
+					{state.splitMode && remainingAmount !== currentPaymentAmount && (
+						<div className="text-sm mt-1">
+							Total remaining: ${remainingAmount.toFixed(2)}
+						</div>
+					)}
 				</div>
 
 				<div className="grid grid-cols-2 gap-3 mb-4">
@@ -501,6 +696,7 @@ CashPaymentView.propTypes = {
 				amount: PropTypes.number.isRequired,
 				cashTendered: PropTypes.number,
 				change: PropTypes.number,
+				splitPayment: PropTypes.bool,
 			})
 		).isRequired,
 		customAmount: PropTypes.string.isRequired,
@@ -509,13 +705,23 @@ CashPaymentView.propTypes = {
 			cashTendered: PropTypes.number,
 			change: PropTypes.number,
 		}),
+		// Add split payment related props
+		splitDetails: PropTypes.shape({
+			mode: PropTypes.oneOf(["equal", "custom", "remaining"]),
+			numberOfSplits: PropTypes.number,
+			customAmount: PropTypes.number,
+			currentSplitIndex: PropTypes.number,
+			completedSplits: PropTypes.array,
+		}),
+		nextSplitAmount: PropTypes.number,
+		currentSplitMethod: PropTypes.string,
 	}).isRequired,
 	remainingAmount: PropTypes.number.isRequired,
 	handlePayment: PropTypes.func.isRequired,
 	setState: PropTypes.func.isRequired,
 	isPaymentComplete: PropTypes.func.isRequired,
 	completePaymentFlow: PropTypes.func.isRequired,
-	handleNavigation: PropTypes.func.isRequired, // Add this line
+	handleNavigation: PropTypes.func.isRequired,
 };
 
 export default CashPaymentView;

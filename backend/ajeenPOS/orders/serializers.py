@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Order, OrderItem
 from products.models import Product  # ✅ Import Product model
 from django.contrib.auth import get_user_model
-
+from payments.serializers import PaymentSerializer, Payment
 User = get_user_model()
 
 # ✅ Add ProductSerializer to include product details
@@ -22,6 +22,7 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     user_details = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
+    payment = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
@@ -29,7 +30,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'id', 'status', 'payment_status', 'total_price', 
             'created_at', 'updated_at', 'source', 'items', 
             'user', 'user_details', 'created_by',
-            'guest_first_name', 'guest_last_name', 'guest_email'
+            'guest_first_name', 'guest_last_name', 'guest_email',
+            'payment'  # Add payment field
         ]
     
     def get_user_details(self, obj):
@@ -49,3 +51,16 @@ class OrderSerializer(serializers.ModelSerializer):
             return f"{obj.guest_first_name} {obj.guest_last_name} (Guest)"
         else:
             return "Guest Customer"
+    
+    def get_payment(self, obj):
+        """Get payment information if available"""
+        try:
+            # Use related_name='payment' from the Payment model
+            payment = obj.payment
+            return PaymentSerializer(payment).data
+        except Payment.DoesNotExist:
+            return None
+        except Exception as e:
+            # Log the error for debugging
+            print(f"Error retrieving payment for order {obj.id}: {str(e)}")
+            return None

@@ -1,8 +1,7 @@
-// src/features/payment/views/CreditPaymentView.jsx
-
+// Enhanced CreditPaymentView.jsx
 import { motion } from "framer-motion";
 import { CreditCardIcon, XCircleIcon } from "@heroicons/react/24/solid";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
@@ -18,6 +17,7 @@ const { pageVariants, pageTransition } = paymentAnimations;
 
 const commonPropTypes = {
 	state: PropTypes.shape({
+		orderId: PropTypes.number,
 		direction: PropTypes.number.isRequired,
 		paymentMethod: PropTypes.string,
 		splitMode: PropTypes.bool.isRequired,
@@ -28,9 +28,20 @@ const commonPropTypes = {
 				amount: PropTypes.number.isRequired,
 				cashTendered: PropTypes.number,
 				change: PropTypes.number,
+				splitPayment: PropTypes.bool,
 			})
 		).isRequired,
 		customAmount: PropTypes.string.isRequired,
+		// Add split payment related props
+		splitDetails: PropTypes.shape({
+			mode: PropTypes.oneOf(["equal", "custom", "remaining"]),
+			numberOfSplits: PropTypes.number,
+			customAmount: PropTypes.number,
+			currentSplitIndex: PropTypes.number,
+			completedSplits: PropTypes.array,
+		}),
+		nextSplitAmount: PropTypes.number,
+		currentSplitMethod: PropTypes.string,
 	}).isRequired,
 	remainingAmount: PropTypes.number.isRequired,
 	handlePayment: PropTypes.func.isRequired,
@@ -54,13 +65,18 @@ export const CreditPaymentView = ({
 	completePaymentFlow,
 	handleNavigation,
 }) => {
+	// State management
 	const [error, setError] = useState(null);
 	const [processingPayment, setProcessingPayment] = useState(false);
 	const [cardData, setCardData] = useState(null);
 	const [isCancelling, setIsCancelling] = useState(false);
+	const [splitOrderData, setSplitOrderData] = useState(null);
+
+	// References for tracking component state
 	const previousStepRef = useRef({ rewards: null, tip: null });
 	const isCompletingPaymentRef = useRef(false);
 	const hasNavigatedRef = useRef(false);
+
 	// Use the customer flow hook
 	const {
 		flowActive,
@@ -69,7 +85,133 @@ export const CreditPaymentView = ({
 		goToStep,
 		completeFlow,
 		stepData,
+		updateFlowData,
+		resetFlowForSplitContinuation, // Add this
 	} = useCustomerFlow();
+
+	// Calculate current payment amount based on split mode
+	const currentPaymentAmount =
+		state.splitMode && state.nextSplitAmount
+			? state.nextSplitAmount
+			: remainingAmount;
+
+	// Debug logging on mount
+	useEffect(() => {
+		console.log("CreditPaymentView mounted with state:", {
+			splitMode: state.splitMode,
+			remainingAmount,
+			currentPaymentAmount,
+			amountPaid: state.amountPaid,
+			splitDetails: state.splitDetails,
+			flowActive,
+		});
+
+		return () => {
+			console.log("CreditPaymentView unmounting");
+		};
+	}, []);
+
+	// Debug button visibility
+	useEffect(() => {
+		console.log("Button visibility check:", {
+			flowActive,
+			shouldShowButton: !flowActive,
+			processingPayment,
+			remainingAmount,
+			isButtonDisabled: processingPayment || remainingAmount === 0,
+		});
+	}, [flowActive, processingPayment, remainingAmount]);
+
+	// Prepare split order data but don't start flow automatically
+	useEffect(() => {
+		if (state.splitMode && !flowActive) {
+			console.log("Preparing data for split payment");
+
+			// Create a modified order data object for split payments
+			const splitData = {
+				subtotal: currentPaymentAmount * 0.9,
+				tax: currentPaymentAmount * 0.1,
+				total: currentPaymentAmount,
+				isSplitPayment: true,
+				originalTotal: remainingAmount + state.amountPaid,
+			};
+
+			// Store this data for later use when the user clicks the button
+			setSplitOrderData(splitData);
+		}
+	}, [
+		state.splitMode,
+		flowActive,
+		currentPaymentAmount,
+		remainingAmount,
+		state.amountPaid,
+	]);
+
+	// Effect to update flow data when split details change
+	useEffect(() => {
+		if (flowActive && state.splitMode && currentStep) {
+			// Update flow data with latest split information
+			updateFlowData({
+				isSplitPayment: true,
+				splitDetails: state.splitDetails,
+				currentPaymentAmount: currentPaymentAmount,
+				remainingAmount: remainingAmount,
+			});
+
+			console.log("Updated flow data with latest split information", {
+				currentStep,
+				splitDetails: state.splitDetails,
+				currentPaymentAmount,
+				remainingAmount,
+			});
+		}
+	}, [
+		flowActive,
+		state.splitMode,
+		state.splitDetails,
+		currentStep,
+		currentPaymentAmount,
+		remainingAmount,
+		updateFlowData,
+	]);
+
+	// Add a function to handle returning to split view after payment
+	const handleSplitContinuation = useCallback(() => {
+		if (state.splitMode) {
+			console.log("Returning to split view from credit payment");
+
+			// Check if there's remaining amount to pay
+			if (remainingAmount <= 0) {
+				console.log("No remaining amount, proceeding to completion instead");
+				completePaymentFlow().then(() => {
+					handleNavigation("Completion");
+				});
+				return;
+			}
+
+			// IMPORTANT: Reset flow state before navigating to ensure a fresh start
+			completeFlow();
+			resetFlowForSplitContinuation();
+			// Reset any local payment processing state
+			setProcessingPayment(false);
+			setCardData(null);
+			hasNavigatedRef.current = false;
+			isCompletingPaymentRef.current = false;
+
+			// Add a small delay before navigation to ensure flow is properly cleaned up
+			setTimeout(() => {
+				console.log("Navigating back to split view for next payment selection");
+				handleNavigation("Split", -1);
+			}, 300);
+		}
+	}, [
+		state.splitMode,
+		handleNavigation,
+		completeFlow,
+		remainingAmount,
+		completePaymentFlow,
+		resetFlowForSplitContinuation,
+	]);
 
 	// Handle flow completion (when all steps are done)
 	useEffect(() => {
@@ -92,6 +234,14 @@ export const CreditPaymentView = ({
 					totalWithTip: stepData.tip.totalWithTip,
 				}));
 			}
+
+			// Update flow data with split payment info
+			if (state.splitMode) {
+				updateFlowData({
+					isSplitPayment: true,
+					splitDetails: state.splitDetails,
+				});
+			}
 		} else if (
 			stepData.receipt &&
 			stepData.receipt.status === "complete" &&
@@ -102,24 +252,63 @@ export const CreditPaymentView = ({
 			isCompletingPaymentRef.current = true;
 
 			console.log("Starting payment completion (receipt complete)");
+			console.log("Receipt completion - payment status:", {
+				remainingAmount,
+				currentPaymentAmount,
+				splitMode: state.splitMode,
+				splitDetails: state.splitDetails,
+			});
 
 			// Process the actual payment using the collected flow data
-			handlePayment(remainingAmount, {
+			handlePayment(currentPaymentAmount, {
 				method: "credit",
 				flowData: stepData,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
 			})
 				.then((success) => {
 					if (success && !hasNavigatedRef.current) {
-						console.log("Payment successful, completing flow");
+						console.log("Payment successful");
 
-						// Complete the payment flow
-						return completePaymentFlow();
+						// Check if all payments are complete (remaining amount is zero or very close to zero)
+						const epsilon = 0.01;
+						const isAllPaymentsComplete = Math.abs(remainingAmount) < epsilon;
+
+						console.log(
+							"Is all payments complete:",
+							isAllPaymentsComplete,
+							"Remaining amount:",
+							remainingAmount
+						);
+
+						if (state.splitMode && !isAllPaymentsComplete) {
+							// For split payments with remaining balance, go back to split view
+							console.log(
+								"Split payment portion complete, returning to split view"
+							);
+
+							// IMPORTANT: Force completion of current flow to start fresh
+							completeFlow();
+
+							// Wait a moment before navigating to ensure UI updates properly
+							setTimeout(() => {
+								// Set a flag to prevent any automatic processing
+								hasNavigatedRef.current = true;
+								handleSplitContinuation();
+							}, 1000);
+
+							return false; // Don't complete the payment flow yet
+						} else {
+							// For fully paid transactions (split or not), proceed to completion
+							console.log("Payment is complete, proceeding to completion");
+							return completePaymentFlow();
+						}
 					} else {
 						throw new Error("Payment processing failed or already completed");
 					}
 				})
-				.then(() => {
-					if (!hasNavigatedRef.current) {
+				.then((shouldNavigate) => {
+					if (shouldNavigate && !hasNavigatedRef.current) {
 						console.log("Flow completed, navigating to completion view");
 						hasNavigatedRef.current = true;
 						handleNavigation("Completion");
@@ -139,9 +328,15 @@ export const CreditPaymentView = ({
 		currentStep,
 		goToStep,
 		handlePayment,
+		currentPaymentAmount,
 		remainingAmount,
 		completePaymentFlow,
 		handleNavigation,
+		state.splitMode,
+		state.splitDetails,
+		updateFlowData,
+		handleSplitContinuation,
+		completeFlow,
 	]);
 
 	// Function to cancel payment process
@@ -180,8 +375,13 @@ export const CreditPaymentView = ({
 			setProcessingPayment(false);
 			setCardData(null);
 
-			// Show cancellation message
-			setError("Payment process cancelled");
+			// If in split mode, go back to split view
+			if (state.splitMode) {
+				handleNavigation("Split", -1);
+			} else {
+				// Show cancellation message
+				setError("Payment process cancelled");
+			}
 		} catch (err) {
 			console.error("Error cancelling payment:", err);
 			setError("Failed to cancel payment: " + err.message);
@@ -190,32 +390,75 @@ export const CreditPaymentView = ({
 		}
 	};
 
+	// Enhanced processCardPayment to handle split payments
 	const processCardPayment = async () => {
 		setProcessingPayment(true);
 		setError(null);
 
 		try {
-			// Start the customer flow if not active
-			if (!flowActive) {
-				startFlow();
-			}
+			// Use the stored split order data or create a new one
+			const orderData = state.splitMode
+				? splitOrderData || {
+						subtotal: currentPaymentAmount * 0.9,
+						tax: currentPaymentAmount * 0.1,
+						total: currentPaymentAmount,
+						isSplitPayment: true,
+						originalTotal: remainingAmount + state.amountPaid,
+				  }
+				: null;
 
-			// Skip directly to rewards step (bypassing payment for now)
-			goToStep("rewards");
+			console.log("Starting credit card payment process with data:", {
+				orderId: state.orderId,
+				paymentMethod: "credit",
+				amount: currentPaymentAmount,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
+				splitOrderData: orderData,
+			});
+
+			// If we're in split mode, ensure we're using the correct amount
+			const paymentAmount = state.splitMode
+				? currentPaymentAmount
+				: remainingAmount;
+
+			// Start the customer flow
+			startFlow(
+				state.orderId,
+				"credit",
+				paymentAmount,
+				state.splitMode,
+				state.splitDetails,
+				orderData
+			);
+
+			// Skip directly to rewards step with complete split payment data
+			goToStep("rewards", {
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
+				splitOrderData: orderData,
+				currentPaymentAmount: paymentAmount,
+				totalRemainingAmount: remainingAmount,
+			});
 
 			// Store minimal card info for display purposes only
 			const cardDisplayInfo = {
 				cardType: "Credit Card",
 				lastFour: "****",
 				transactionStatus: "Pending",
+				amount: paymentAmount,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails ? { ...state.splitDetails } : null,
 			};
 
 			setCardData(cardDisplayInfo);
 			setProcessingPayment(false);
 		} catch (err) {
+			console.error("Error starting credit card payment:", err);
 			setError(err.message || "Failed to prepare payment");
 			setProcessingPayment(false);
-			completeFlow(); // End the flow on error
+			if (flowActive) {
+				completeFlow(); // End the flow on error
+			}
 		}
 	};
 
@@ -276,6 +519,33 @@ export const CreditPaymentView = ({
 		>
 			<ScrollableViewWrapper>
 				<TerminalStatusIndicator />
+				{/* Add split payment indicator if in split mode */}
+				{state.splitMode && (
+					<motion.div
+						className="p-4 bg-amber-50 text-amber-700 rounded-lg mb-4 flex items-center justify-between"
+						initial={{ opacity: 0, y: -10 }}
+						animate={{ opacity: 1, y: 0 }}
+					>
+						<div>
+							<div className="font-medium">Split Payment</div>
+							<div className="text-sm">
+								{state.splitDetails?.mode === "equal"
+									? `Payment ${
+											(state.splitDetails?.currentSplitIndex || 0) + 1
+									  } of ${state.splitDetails?.numberOfSplits}`
+									: state.splitDetails?.mode === "remaining"
+									? "Remaining Amount"
+									: "Custom split amount"}
+							</div>
+						</div>
+						<button
+							onClick={() => handleNavigation("Split", -1)}
+							className="px-2 py-1 bg-white text-amber-700 border border-amber-200 rounded-lg text-sm hover:bg-amber-50"
+						>
+							Change
+						</button>
+					</motion.div>
+				)}
 				{error && (
 					<motion.div
 						className="p-4 bg-red-50 text-red-600 rounded-lg flex items-center"
@@ -305,8 +575,13 @@ export const CreditPaymentView = ({
 				>
 					<div className="font-medium mb-1">Amount to Pay</div>
 					<div className="text-2xl font-bold">
-						${remainingAmount.toFixed(2)}
+						${currentPaymentAmount.toFixed(2)}
 					</div>
+					{state.splitMode && remainingAmount !== currentPaymentAmount && (
+						<div className="text-sm mt-1">
+							Total remaining: ${remainingAmount.toFixed(2)}
+						</div>
+					)}
 				</motion.div>
 
 				{cardData && (
@@ -339,6 +614,11 @@ export const CreditPaymentView = ({
 						<div className="text-xs text-emerald-600">
 							Status: {cardData.transactionStatus}
 						</div>
+						{state.splitMode && (
+							<div className="text-xs text-emerald-600">
+								Split payment: {state.splitDetails?.mode || "custom"} mode
+							</div>
+						)}
 					</motion.div>
 				)}
 
@@ -403,6 +683,7 @@ export const CreditPaymentView = ({
 				)}
 
 				<div className="space-y-4 mt-4">
+					{/* Always show the button when not in an active flow */}
 					{!flowActive ? (
 						<PaymentButton
 							icon={CreditCardIcon}

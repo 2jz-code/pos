@@ -32,30 +32,43 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 		}
 	};
 
-	// Get cart data from the pre-calculated values
-	const getOrderData = () => {
-		// Ensure we have valid cart data
-		const cartData = flowData?.cartData || {
-			items: [],
-			subtotal: 0,
-			taxAmount: 0,
-			total: 0,
-		};
+	// // Get cart data from the pre-calculated values
+	// const getOrderData = () => {
+	// 	// Ensure we have valid cart data
+	// 	const cartData = flowData?.cartData || {
+	// 		items: [],
+	// 		subtotal: 0,
+	// 		taxAmount: 0,
+	// 		total: 0,
+	// 	};
 
-		// Return a standardized structure
-		return {
-			items: cartData.items || [],
-			subtotal: cartData.subtotal || 0,
-			tax: cartData.taxAmount || 0, // Note: taxAmount from calculateCartTotals
-			total: cartData.total || 0,
-			tipAmount: flowData?.tipAmount || 0, // Add tip amount from flow data
-			orderId: flowData?.orderId || null, // Explicitly include the order ID
-		};
-	};
+	// 	// Return a standardized structure
+	// 	return {
+	// 		items: cartData.items || [],
+	// 		subtotal: cartData.subtotal || 0,
+	// 		tax: cartData.taxAmount || 0, // Note: taxAmount from calculateCartTotals
+	// 		total: cartData.total || 0,
+	// 		tipAmount: flowData?.tipAmount || 0, // Add tip amount from flow data
+	// 		orderId: flowData?.orderId || null, // Explicitly include the order ID
+	// 	};
+	// };
 
-	// Render the current step content
 	const renderStepContent = () => {
-		const orderData = getOrderData();
+		// Get order data from the pre-calculated values or use split order data if available
+		const orderData =
+			flowData?.splitOrderData && flowData?.isSplitPayment
+				? {
+						...flowData.splitOrderData,
+						items: flowData?.cartData?.items || [],
+				  }
+				: {
+						items: flowData?.cartData?.items || [],
+						subtotal: flowData?.cartData?.subtotal || 0,
+						tax: flowData?.cartData?.taxAmount || 0,
+						total: flowData?.cartData?.total || 0,
+						tipAmount: flowData?.tipAmount || 0,
+						orderId: flowData?.orderId || null,
+				  };
 
 		switch (currentStep) {
 			case "cart":
@@ -139,6 +152,9 @@ CustomerFlowView.propTypes = {
 		orderId: PropTypes.number,
 		cashData: PropTypes.object,
 		paymentMethod: PropTypes.string,
+		cashPaymentComplete: PropTypes.bool,
+		splitOrderData: PropTypes.object,
+		isSplitPayment: PropTypes.bool,
 	}),
 	onStepComplete: PropTypes.func,
 };

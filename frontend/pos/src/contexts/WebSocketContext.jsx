@@ -28,10 +28,10 @@ export const WebSocketProvider = ({ children }) => {
 	// Initialize connection states for all endpoints
 	const initialConnectionStates = Object.entries(WS_ENDPOINTS).reduce(
 		(categories, [category, endpoints]) => {
-			categories[category] = Object.entries(endpoints).reduce(
-				(endpoints, [name, path]) => {
-					endpoints[name] = { isConnected: false, error: null };
-					return endpoints;
+			categories[category] = Object.keys(endpoints).reduce(
+				(endpointStates, name) => {
+					endpointStates[name] = { isConnected: false, error: null };
+					return endpointStates;
 				},
 				{}
 			);
@@ -48,7 +48,8 @@ export const WebSocketProvider = ({ children }) => {
 	// Initialize refs for all endpoints
 	useEffect(() => {
 		Object.entries(WS_ENDPOINTS).forEach(([category, endpoints]) => {
-			Object.entries(endpoints).forEach(([name, _]) => {
+			// Use Object.keys instead since we don't need the path values
+			Object.keys(endpoints).forEach((name) => {
 				if (!wsRefs.current[`${category}.${name}`]) {
 					wsRefs.current[`${category}.${name}`] = null;
 				}

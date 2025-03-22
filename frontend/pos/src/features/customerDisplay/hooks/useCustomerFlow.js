@@ -19,10 +19,15 @@ export function useCustomerFlow() {
 		stepDataRef.current = stepData;
 	}, [stepData]);
 
-	// Start the customer flow
-	// Update the startFlow function to accept payment method
 	const startFlow = useCallback(
-		(orderId, paymentMethod = "credit", orderTotal = 0) => {
+		(
+			orderId,
+			paymentMethod = "credit",
+			orderTotal = 0,
+			isSplitPayment = false,
+			splitDetails = null,
+			splitOrderData = null
+		) => {
 			setFlowActive(true);
 
 			// For cash payments, start at the payment step directly
@@ -34,6 +39,9 @@ export function useCustomerFlow() {
 				...prev,
 				orderId,
 				paymentMethod,
+				isSplitPayment,
+				splitDetails,
+				splitOrderData, // Store the split order data
 				cashData:
 					paymentMethod === "cash"
 						? {
@@ -43,6 +51,7 @@ export function useCustomerFlow() {
 								amountPaid: 0,
 								remainingAmount: orderTotal,
 								isFullyPaid: orderTotal <= 0,
+								isSplitPayment,
 						  }
 						: undefined,
 			}));
@@ -51,7 +60,10 @@ export function useCustomerFlow() {
 				cart,
 				initialStep,
 				paymentMethod,
-				orderTotal
+				orderTotal,
+				isSplitPayment,
+				splitDetails,
+				splitOrderData
 			);
 		},
 		[cart]
@@ -200,6 +212,28 @@ export function useCustomerFlow() {
 		[currentStep]
 	);
 
+	const resetFlowForSplitContinuation = useCallback(() => {
+		// Reset flow state but maintain split payment information
+		const currentSplitDetails = stepData.splitDetails;
+		const originalTotal = stepData.splitOrderData?.originalTotal;
+		const amountPaid = stepData.cashData?.amountPaid || 0;
+
+		// Reset flow state
+		setFlowActive(false);
+		setCurrentStep(null);
+
+		// Keep only the necessary split information
+		setStepData({
+			splitDetails: currentSplitDetails,
+			splitOrderData: {
+				originalTotal: originalTotal,
+			},
+			amountPaid: amountPaid,
+		});
+
+		console.log("Customer flow reset for split continuation");
+	}, [stepData]);
+
 	return {
 		currentStep,
 		flowActive,
@@ -209,6 +243,7 @@ export function useCustomerFlow() {
 		goToStep,
 		completeFlow,
 		updateFlowData,
+		resetFlowForSplitContinuation,
 		isLastStep:
 			currentStep === CUSTOMER_FLOW_STEPS[CUSTOMER_FLOW_STEPS.length - 1].id,
 		getFlowData: () => stepData,

@@ -37,8 +37,15 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 		}
 	}, [stage, onComplete]);
 
-	// Extract data
-	const { subtotal = 0, tax = 0, total = 0 } = orderData || {};
+	// Extract data - use the correct total based on whether this is a split payment
+	const {
+		subtotal = 0,
+		tax = 0,
+		total = 0,
+		isSplitPayment = false,
+		originalTotal,
+	} = orderData || {};
+
 	const {
 		cashTendered = 0,
 		change = 0,
@@ -46,15 +53,6 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 		remainingAmount = total - amountPaid,
 		isFullyPaid = false,
 	} = cashData || {};
-
-	// Log the data being received to debug
-	useEffect(() => {
-		console.log("CashFlowView received data:", {
-			orderData,
-			cashData,
-			isComplete,
-		});
-	}, [orderData, cashData, isComplete]);
 
 	return (
 		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
@@ -67,7 +65,11 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 					transition={{ delay: 0.2 }}
 				>
 					<h1 className="text-3xl font-bold text-slate-800">Cash Payment</h1>
-					<p className="text-slate-500 mt-2">Transaction Details</p>
+					<p className="text-slate-500 mt-2">
+						{isSplitPayment
+							? "Split Payment - Transaction Details"
+							: "Transaction Details"}
+					</p>
 				</motion.div>
 
 				<div className="flex-1 flex flex-col justify-center items-center">
@@ -94,6 +96,14 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 										<span className="font-semibold">Total:</span>
 										<span className="font-bold">${formatPrice(total)}</span>
 									</div>
+
+									{/* Show original total if this is a split payment */}
+									{isSplitPayment && originalTotal && (
+										<div className="flex justify-between text-sm text-slate-500 mt-1">
+											<span>Original Transaction Total:</span>
+											<span>${formatPrice(originalTotal)}</span>
+										</div>
+									)}
 								</div>
 							</div>
 

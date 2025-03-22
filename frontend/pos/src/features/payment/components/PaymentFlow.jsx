@@ -11,7 +11,7 @@ import { PaymentViews } from "../views";
 import { useCartActions } from "../../cart/hooks/useCartActions";
 import { useCartStore } from "../../../store/cartStore";
 
-export const PaymentFlow = ({ totalAmount, onBack, onComplete }) => {
+export const PaymentFlow = ({ totalAmount, onBack }) => {
 	const cartActions = useCartActions();
 
 	const handleNewOrder = useCallback(async () => {

@@ -237,18 +237,29 @@ class CustomerDisplayWindowManager {
 		cartItems,
 		initialStep = "cart",
 		paymentMethod = "credit",
-		orderTotal = 0
+		orderTotal = 0,
+		isSplitPayment = false,
+		splitDetails = null,
+		splitOrderData = null
 	) {
 		// Use existing utility to calculate totals
 		const { subtotal, taxAmount, total } = calculateCartTotals(cartItems);
 		const orderId = useCartStore.getState().cart.orderId;
-		const cartData = {
-			items: cartItems,
-			subtotal,
-			taxAmount,
-			total,
-			orderId: orderId,
-		};
+
+		// Use split order data if provided, otherwise use calculated cart data
+		const cartData = splitOrderData
+			? {
+					...splitOrderData,
+					items: cartItems,
+					orderId: orderId,
+			  }
+			: {
+					items: cartItems,
+					subtotal,
+					taxAmount,
+					total,
+					orderId: orderId,
+			  };
 
 		// Add initial cash data if it's a cash payment
 		const cashData =
@@ -257,8 +268,12 @@ class CustomerDisplayWindowManager {
 						cashTendered: 0,
 						change: 0,
 						amountPaid: 0,
-						remainingAmount: orderTotal || total,
-						isFullyPaid: (orderTotal || total) <= 0,
+						remainingAmount:
+							orderTotal || (splitOrderData ? splitOrderData.total : total),
+						isFullyPaid:
+							(orderTotal || (splitOrderData ? splitOrderData.total : total)) <=
+							0,
+						isSplitPayment,
 				  }
 				: null;
 
@@ -278,6 +293,9 @@ class CustomerDisplayWindowManager {
 								paymentMethod,
 								cashData,
 								orderId: orderId,
+								isSplitPayment,
+								splitDetails,
+								splitOrderData,
 							},
 						},
 						"*"
@@ -295,6 +313,9 @@ class CustomerDisplayWindowManager {
 						paymentMethod,
 						cashData,
 						orderId: orderId,
+						isSplitPayment,
+						splitDetails,
+						splitOrderData,
 					},
 				},
 				"*"

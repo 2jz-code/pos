@@ -11,6 +11,15 @@ const PaymentView = ({ orderData, onComplete }) => {
 		useTerminalSimulation();
 	const hasStartedPaymentRef = useRef(false);
 
+	useEffect(() => {
+		console.log("PaymentView received orderData:", {
+			total: orderData.total,
+			isSplitPayment: orderData.isSplitPayment,
+			originalTotal: orderData.originalTotal,
+			tipAmount: orderData.tipAmount || 0,
+		});
+	}, [orderData]);
+
 	// In the useEffect that starts the payment process
 	useEffect(() => {
 		// Only proceed if we haven't started the payment process yet
@@ -254,6 +263,8 @@ PaymentView.propTypes = {
 		total: PropTypes.number,
 		tipAmount: PropTypes.number,
 		orderId: PropTypes.number,
+		isSplitPayment: PropTypes.bool,
+		originalTotal: PropTypes.number,
 	}),
 	onComplete: PropTypes.func,
 };

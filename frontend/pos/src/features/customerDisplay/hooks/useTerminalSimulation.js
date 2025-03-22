@@ -79,22 +79,37 @@ export function useTerminalSimulation() {
 				setError("");
 				setReaderInfo(null);
 
-				// 1. Check reader status first
+				// Check reader status first
 				const reader = await getReaderStatus();
+
+				// Get the amount to charge - either split amount or full amount
+				const amount = orderData.total + (orderData.tipAmount || 0);
+
 				console.log(
-					`Using terminal reader: ${reader.label || reader.id} (${
-						reader.device_type
-					})`
+					`Processing payment with amount: ${amount}`,
+					`isSplitPayment: ${orderData.isSplitPayment}`,
+					`originalTotal: ${orderData.originalTotal || "N/A"}`
 				);
 
-				// 2. Create payment intent
-				const amount = orderData.total + (orderData.tipAmount || 0);
+				// Create payment intent with metadata for split payments
 				const response = await axiosInstance.post(
 					"payments/terminal/create-payment-intent/",
 					{
 						amount: amount,
-						description: "POS Terminal Payment",
+						description: orderData.isSplitPayment
+							? "POS Split Payment"
+							: "POS Terminal Payment",
 						order_id: orderData.orderId,
+						metadata: {
+							is_split_payment: orderData.isSplitPayment ? "true" : "false",
+							split_amount: orderData.isSplitPayment ? amount.toString() : "",
+							original_total: orderData.originalTotal
+								? orderData.originalTotal.toString()
+								: "",
+							remaining_after: orderData.isSplitPayment
+								? (orderData.originalTotal - amount).toString()
+								: "",
+						},
 					}
 				);
 
@@ -167,10 +182,13 @@ export function useTerminalSimulation() {
 						// Extract card details if available
 						const cardDetails = response.data.card_details || {};
 
+						// Get the actual amount charged from the response
+						const chargedAmount = response.data.amount / 100; // Convert from cents
+
 						const result = {
 							status: "success",
 							transactionId: response.data.id,
-							amount: response.data.amount / 100, // Convert from cents
+							amount: chargedAmount, // Make sure to use the actual charged amount
 							timestamp: new Date().toISOString(),
 							cardInfo: {
 								brand: cardDetails.brand || "Card",
@@ -183,6 +201,14 @@ export function useTerminalSimulation() {
 										deviceType: readerInfo.device_type,
 								  }
 								: null,
+							// Add split payment information
+							splitPayment: response.data.metadata?.is_split_payment === "true",
+							splitAmount: parseFloat(
+								response.data.metadata?.split_amount || chargedAmount
+							),
+							originalTotal: parseFloat(
+								response.data.metadata?.original_total || chargedAmount
+							),
 						};
 
 						setPaymentResult(result);
