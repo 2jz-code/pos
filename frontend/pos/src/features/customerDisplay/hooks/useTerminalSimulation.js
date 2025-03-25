@@ -85,8 +85,17 @@ export function useTerminalSimulation() {
 				// Get the amount to charge - either split amount or full amount
 				const amount = orderData.total + (orderData.tipAmount || 0);
 
+				// Extract orderId, ensuring it's not undefined
+				const orderId = orderData.orderId;
+
+				if (!orderId) {
+					console.error("Missing orderId in payment processing:", orderData);
+					throw new Error("Order ID is required for payment processing");
+				}
+
 				console.log(
 					`Processing payment with amount: ${amount}`,
+					`orderId: ${orderId}`,
 					`isSplitPayment: ${orderData.isSplitPayment}`,
 					`originalTotal: ${orderData.originalTotal || "N/A"}`
 				);
@@ -99,7 +108,7 @@ export function useTerminalSimulation() {
 						description: orderData.isSplitPayment
 							? "POS Split Payment"
 							: "POS Terminal Payment",
-						order_id: orderData.orderId,
+						order_id: orderId, // Use the extracted orderId
 						metadata: {
 							is_split_payment: orderData.isSplitPayment ? "true" : "false",
 							split_amount: orderData.isSplitPayment ? amount.toString() : "",
@@ -109,6 +118,7 @@ export function useTerminalSimulation() {
 							remaining_after: orderData.isSplitPayment
 								? (orderData.originalTotal - amount).toString()
 								: "",
+							order_id: orderId.toString(), // Also include in metadata
 						},
 					}
 				);

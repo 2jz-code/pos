@@ -28,6 +28,13 @@ export function useCustomerFlow() {
 			splitDetails = null,
 			splitOrderData = null
 		) => {
+			// Get orderId from the cart store if not provided
+			const effectiveOrderId = orderId || useCartStore.getState().orderId;
+
+			if (!effectiveOrderId) {
+				console.error("No orderId available when starting customer flow!");
+			}
+
 			setFlowActive(true);
 
 			// For cash payments, start at the payment step directly
@@ -37,11 +44,16 @@ export function useCustomerFlow() {
 			setCurrentStep(initialStep);
 			setStepData((prev) => ({
 				...prev,
-				orderId,
+				orderId: effectiveOrderId, // Use the effective order ID
 				paymentMethod,
 				isSplitPayment,
 				splitDetails,
-				splitOrderData, // Store the split order data
+				splitOrderData: splitOrderData
+					? {
+							...splitOrderData,
+							orderId: effectiveOrderId, // Also ensure orderId in splitOrderData
+					  }
+					: null,
 				cashData:
 					paymentMethod === "cash"
 						? {
@@ -64,6 +76,11 @@ export function useCustomerFlow() {
 				isSplitPayment,
 				splitDetails,
 				splitOrderData
+					? {
+							...splitOrderData,
+							orderId: effectiveOrderId, // Ensure orderId in data sent to display
+					  }
+					: null
 			);
 		},
 		[cart]
@@ -212,27 +229,54 @@ export function useCustomerFlow() {
 		[currentStep]
 	);
 
-	const resetFlowForSplitContinuation = useCallback(() => {
-		// Reset flow state but maintain split payment information
-		const currentSplitDetails = stepData.splitDetails;
-		const originalTotal = stepData.splitOrderData?.originalTotal;
-		const amountPaid = stepData.cashData?.amountPaid || 0;
+	const resetFlowForSplitContinuation = useCallback(
+		(paymentInfo = {}) => {
+			// Reset flow state but maintain split payment information
+			const currentSplitDetails = stepData.splitDetails;
+			const originalTotal = stepData.splitOrderData?.originalTotal;
 
-		// Reset flow state
-		setFlowActive(false);
-		setCurrentStep(null);
+			// Get payment amounts from the passed info or use defaults
+			const amountPaid = paymentInfo.amountPaid || stepData.amountPaid || 0;
+			const currentPaymentAmount = paymentInfo.currentPaymentAmount || 0;
+			const calculatedRemainingAmount =
+				paymentInfo.remainingAmount ||
+				(originalTotal ? Math.max(0, originalTotal - amountPaid) : 0);
 
-		// Keep only the necessary split information
-		setStepData({
-			splitDetails: currentSplitDetails,
-			splitOrderData: {
-				originalTotal: originalTotal,
-			},
-			amountPaid: amountPaid,
-		});
+			console.log("FLOW RESET: Resetting flow for split continuation:", {
+				originalTotal,
+				amountPaid,
+				currentPaymentAmount,
+				calculatedRemainingAmount,
+			});
 
-		console.log("Customer flow reset for split continuation");
-	}, [stepData]);
+			// Reset flow state
+			setFlowActive(false);
+			setCurrentStep(null);
+
+			// Keep only the necessary split information
+			setStepData({
+				splitDetails: {
+					...currentSplitDetails,
+					// Update the current split index
+					currentSplitIndex: (currentSplitDetails?.currentSplitIndex || 0) + 1,
+					// Update the remaining amount
+					remainingAmount: calculatedRemainingAmount,
+				},
+				splitOrderData: {
+					originalTotal: originalTotal,
+					remainingAmount: calculatedRemainingAmount,
+				},
+				amountPaid: amountPaid,
+				// Add a flag to indicate this is a continuation
+				isSplitContinuation: true,
+				// Store the last payment amount
+				lastPaymentAmount: currentPaymentAmount,
+			});
+
+			console.log("FLOW RESET: Customer flow reset for split continuation");
+		},
+		[stepData]
+	);
 
 	return {
 		currentStep,

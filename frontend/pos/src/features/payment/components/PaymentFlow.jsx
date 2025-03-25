@@ -26,11 +26,60 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 
 	const handleComplete = useCallback(
 		async (paymentDetails) => {
-			// Ensure orderId is available (from props or state)
-			const orderId = useCartStore.getState().orderId;
+			try {
+				// Ensure orderId is available
+				const orderId = useCartStore.getState().orderId;
 
-			console.log("Completing order with payment details:", paymentDetails);
-			return await cartActions.completeOrder(orderId, paymentDetails);
+				if (!orderId) {
+					console.error(
+						"PAYMENT CHAIN: Missing orderId when completing payment!"
+					);
+					return false;
+				}
+
+				console.log("PAYMENT CHAIN: Completing order with payment details:", {
+					orderId,
+					paymentMethod: paymentDetails.paymentMethod,
+					transactionId: paymentDetails.transactionId,
+					amount: paymentDetails.amount,
+				});
+
+				// CRITICAL FIX: Ensure we're calling the right method with correct parameters
+				const completePaymentDetails = {
+					...paymentDetails,
+					orderId: orderId,
+				};
+
+				// CRITICAL FIX: Add explicit try/catch for better error handling
+				try {
+					console.log(
+						"PAYMENT CHAIN: Calling cartActions.completeOrder with orderId:",
+						orderId
+					);
+					const result = await cartActions.completeOrder(
+						orderId,
+						completePaymentDetails
+					);
+					console.log("PAYMENT CHAIN: completeOrder result:", result);
+					return true;
+				} catch (error) {
+					console.error(
+						"PAYMENT CHAIN: Error in cartActions.completeOrder:",
+						error
+					);
+					// Check if there's a response with more details
+					if (error.response) {
+						console.error("PAYMENT CHAIN: API error details:", {
+							status: error.response.status,
+							data: error.response.data,
+						});
+					}
+					return false;
+				}
+			} catch (error) {
+				console.error("PAYMENT CHAIN: Error in handleComplete:", error);
+				return false;
+			}
 		},
 		[cartActions]
 	);

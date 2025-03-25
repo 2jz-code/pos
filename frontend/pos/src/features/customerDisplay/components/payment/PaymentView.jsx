@@ -4,13 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { motion } from "framer-motion";
 import { useTerminalSimulation } from "../../hooks/useTerminalSimulation";
+import { useCartStore } from "../../../../store/cartStore";
 
 const PaymentView = ({ orderData, onComplete }) => {
 	const [isInitiating, setIsInitiating] = useState(true);
 	const { processPayment, paymentStatus, paymentResult, error } =
 		useTerminalSimulation();
 	const hasStartedPaymentRef = useRef(false);
-
 	useEffect(() => {
 		console.log("PaymentView received orderData:", {
 			total: orderData.total,
@@ -29,40 +29,69 @@ const PaymentView = ({ orderData, onComplete }) => {
 
 		const timer = setTimeout(() => {
 			setIsInitiating(false);
-			console.log("Processing payment with order data:", orderData);
 
-			if (!orderData.orderId) {
+			// Get the orderId from multiple possible sources to ensure we have it
+			const effectiveOrderId =
+				orderData.orderId || useCartStore.getState().orderId;
+
+			console.log("Processing payment with order data:", {
+				...orderData,
+				orderId: effectiveOrderId,
+			});
+
+			if (!effectiveOrderId) {
 				console.warn("⚠️ No orderId in order data when starting payment!");
+			} else {
+				console.log("Using orderId for payment:", effectiveOrderId);
 			}
+
+			// Create a new object with the orderId explicitly set
+			const paymentOrderData = {
+				...orderData,
+				orderId: effectiveOrderId,
+			};
 
 			// Mark that we've started the payment process
 			hasStartedPaymentRef.current = true;
 
-			// Process the payment
-			processPayment(orderData);
+			// Process the payment with the updated orderData
+			processPayment(paymentOrderData);
 		}, 1500);
 
 		return () => clearTimeout(timer);
-	}, []);
+	}, [orderData]);
 
 	// When payment is successful, notify parent
 	useEffect(() => {
 		if (paymentStatus === "success" && paymentResult && onComplete) {
+			// Get the orderId from multiple sources
+			const effectiveOrderId =
+				orderData.orderId || useCartStore.getState().orderId;
+
+			console.log(
+				"Payment successful, preparing completion with orderId:",
+				effectiveOrderId
+			);
+
 			// Wait a moment before completing to show success state
 			const timer = setTimeout(() => {
 				// Include complete payment data in the completion event
-				onComplete({
+				const completionData = {
 					status: "success",
 					transactionId: paymentResult.transactionId,
 					cardInfo: paymentResult.cardInfo,
 					amount: paymentResult.amount,
 					timestamp: paymentResult.timestamp,
-				});
+					orderId: effectiveOrderId, // Use the effective orderId
+				};
+
+				console.log("Completing payment with data:", completionData);
+				onComplete(completionData);
 			}, 2000);
 
 			return () => clearTimeout(timer);
 		}
-	}, [paymentStatus, paymentResult, onComplete]);
+	}, [paymentStatus, paymentResult, onComplete, orderData]);
 
 	useEffect(() => {
 		if (paymentStatus === "error") {

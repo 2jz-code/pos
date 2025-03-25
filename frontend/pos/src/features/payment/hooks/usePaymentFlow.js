@@ -25,7 +25,9 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 
 		// The most reliable way to check if all payments are complete
 		// is to compare the total amount paid with the total amount due
-		const allPaymentsComplete = Math.abs(totalAmount - state.amountPaid) < 0.01;
+		const epsilon = 0.01; // Small epsilon to handle floating point errors
+		const allPaymentsComplete =
+			Math.abs(totalAmount - state.amountPaid) < epsilon;
 
 		// Log for debugging
 		console.log("Split payment completion check:", {
@@ -39,7 +41,10 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 	}, [state.splitMode, state.amountPaid, totalAmount]);
 
 	const isPaymentComplete = useCallback(() => {
-		return state.amountPaid >= totalAmount;
+		// Use a more precise epsilon check for floating point comparison
+		const epsilon = 0.01;
+		const remainingAmount = totalAmount - state.amountPaid;
+		return Math.abs(remainingAmount) < epsilon;
 	}, [state.amountPaid, totalAmount]);
 
 	const resetSplitState = useCallback(() => {
@@ -59,6 +64,16 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 			const epsilon = 0.01;
 			const isFullyPaid = Math.abs(remainingAmount) < epsilon;
 
+			console.log("NAVIGATION: Payment navigation check:", {
+				nextView,
+				direction,
+				totalAmount,
+				amountPaid: state.amountPaid,
+				remainingAmount,
+				isFullyPaid,
+				splitMode: state.splitMode,
+			});
+
 			if (nextView === "Split" && direction < 0) {
 				// Reset split-specific state to prevent auto-processing
 				resetSplitState();
@@ -72,7 +87,7 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				nextView !== "Completion"
 			) {
 				console.log(
-					"All split payments complete, redirecting to completion view"
+					"NAVIGATION: All split payments complete, redirecting to completion view"
 				);
 				setState((prev) => ({
 					...prev,
@@ -109,6 +124,9 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 						isFullyPaid &&
 						(nextView === "Cash" || nextView === "Credit")
 					) {
+						console.log(
+							"NAVIGATION: Split payment is complete, going to completion view"
+						);
 						// If split payment is complete, go to completion view instead
 						return {
 							...prev,
@@ -130,7 +148,7 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				}
 			});
 		},
-		[isSplitPaymentComplete, state.amountPaid, totalAmount]
+		[totalAmount, state.amountPaid, state.splitMode, resetSplitState]
 	);
 
 	const handleBack = useCallback(() => {
@@ -186,8 +204,21 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 		setError(null);
 
 		try {
+			console.log("PAYMENT: Processing payment:", {
+				amount,
+				method: paymentDetails.method,
+				splitMode: state.splitMode,
+				currentAmountPaid: state.amountPaid,
+				totalAmount,
+			});
+
 			setState((prev) => {
+				// CRITICAL FIX: Ensure we're only adding the exact amount being processed
 				const newAmountPaid = prev.amountPaid + amount;
+
+				// Calculate the new remaining amount
+				const newRemainingAmount = totalAmount - newAmountPaid;
+
 				const newTransaction = {
 					method: paymentDetails.method || state.paymentMethod,
 					amount,
@@ -211,17 +242,20 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 								index: currentIndex,
 							},
 						],
+						// Store the calculated remaining amount
+						remainingAmount: newRemainingAmount,
 					};
 
-					// Calculate and store the actual remaining amount
-					const calculatedRemainingAmount = totalAmount - newAmountPaid;
-					updatedSplitDetails.remainingAmount = calculatedRemainingAmount;
-
-					console.log("Updated split details after payment:", {
+					console.log("PAYMENT: Updated split details after payment:", {
+						currentIndex,
+						newCompletedSplit: {
+							method: newTransaction.method,
+							amount,
+							index: currentIndex,
+						},
+						newRemainingAmount,
 						newAmountPaid,
-						originalTotal: totalAmount,
-						calculatedRemainingAmount,
-						completedSplits: updatedSplitDetails.completedSplits,
+						totalAmount,
 					});
 				}
 
@@ -245,19 +279,24 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 
 	const completePaymentFlow = useCallback(async () => {
 		try {
-			// CRITICAL FIX: Add an explicit check to prevent premature completion
+			console.log("FLOW CHAIN: Starting completePaymentFlow");
+
+			// Validation checks with improved precision
 			const epsilon = 0.01;
 			const remainingAmount = totalAmount - state.amountPaid;
 			const isFullyPaid = Math.abs(remainingAmount) < epsilon;
 
+			console.log("FLOW CHAIN: Payment completion check:", {
+				totalAmount,
+				amountPaid: state.amountPaid,
+				remainingAmount,
+				isFullyPaid,
+				epsilon,
+			});
+
 			if (state.splitMode && !isFullyPaid) {
 				console.log(
-					"Preventing premature payment completion - payments not complete",
-					{
-						amountPaid: state.amountPaid,
-						totalAmount,
-						remainingAmount,
-					}
+					"FLOW CHAIN: Preventing premature completion - payments not complete"
 				);
 				return false;
 			}
@@ -268,20 +307,34 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				paymentMethod: state.splitMode ? "split" : state.paymentMethod,
 				splitPayment: state.splitMode,
 				splitDetails: state.splitDetails,
+				orderId: state.orderId, // Explicitly include orderId
 			};
 
-			const success = await onComplete?.(paymentDetails);
+			console.log(
+				"FLOW CHAIN: Calling onComplete with payment details:",
+				paymentDetails
+			);
 
-			if (success) {
-				setState((prev) => ({
-					...prev,
-					currentView: "Completion",
-					previousViews: [...prev.previousViews, prev.currentView],
-				}));
-				return true;
+			// CRITICAL FIX: Ensure we properly await the promise and handle errors
+			try {
+				const success = await onComplete?.(paymentDetails);
+				console.log("FLOW CHAIN: onComplete result:", success);
+
+				if (success) {
+					setState((prev) => ({
+						...prev,
+						currentView: "Completion",
+						previousViews: [...prev.previousViews, prev.currentView],
+					}));
+					return true;
+				}
+				return false;
+			} catch (error) {
+				console.error("FLOW CHAIN: Error in onComplete:", error);
+				throw error; // Re-throw to be caught by outer try/catch
 			}
-			return false;
 		} catch (error) {
+			console.error("FLOW CHAIN: Error in completePaymentFlow:", error);
 			setError(error.message);
 			return false;
 		}
@@ -291,10 +344,10 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 		state.paymentMethod,
 		state.splitMode,
 		state.splitDetails,
+		state.orderId,
 		onComplete,
 		totalAmount,
 	]);
-
 	// Add explicit navigation function
 	const navigateToView = useCallback((viewName) => {
 		console.log(`Explicitly navigating to: ${viewName}`);

@@ -230,19 +230,20 @@ export default function OrderDetails() {
 						</label>
 						<div
 							className={`
-        font-medium text-slate-800 py-1 px-2 rounded-md inline-block
-        ${
-					order.status === "completed"
-						? "bg-emerald-50 text-emerald-700"
-						: order.status === "voided" || order.status === "cancelled"
-						? "bg-red-50 text-red-700"
-						: order.status === "preparing" || order.status === "in_progress"
-						? "bg-blue-50 text-blue-700"
-						: order.status === "pending"
-						? "bg-yellow-50 text-yellow-700"
-						: "bg-amber-50 text-amber-700"
-				}
-      `}
+                font-medium text-slate-800 py-1 px-2 rounded-md inline-block
+                ${
+									order.status === "completed"
+										? "bg-emerald-50 text-emerald-700"
+										: order.status === "voided" || order.status === "cancelled"
+										? "bg-red-50 text-red-700"
+										: order.status === "preparing" ||
+										  order.status === "in_progress"
+										? "bg-blue-50 text-blue-700"
+										: order.status === "pending"
+										? "bg-yellow-50 text-yellow-700"
+										: "bg-amber-50 text-amber-700"
+								}
+              `}
 						>
 							{order.status.replace("_", " ").toUpperCase()}
 						</div>
@@ -295,152 +296,305 @@ export default function OrderDetails() {
 					)}
 				</div>
 
-				{/* Customer Details (for website orders) */}
-				{order.source === "website" && (
-					<div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-						<h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-5 w-5 mr-2 text-slate-500"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-								/>
-							</svg>
-							Customer Information
-						</h3>
-
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<div>
-								<label className="text-sm font-medium text-slate-500 mb-1 block">
-									Customer Name
-								</label>
-								<p className="font-medium text-slate-800">
-									{order.guest_first_name && order.guest_last_name
-										? `${order.guest_first_name} ${order.guest_last_name}`
-										: "Guest Customer"}
-								</p>
-							</div>
-
-							<div>
-								<label className="text-sm font-medium text-slate-500 mb-1 block">
-									Email
-								</label>
-								<p className="font-medium text-slate-800">
-									{order.guest_email || "Not provided"}
-								</p>
-							</div>
-
-							{order.payment_status && (
-								<div>
-									<label className="text-sm font-medium text-slate-500 mb-1 block">
-										Payment Status
-									</label>
-									<div
-										className={`
-            font-medium py-1 px-2 rounded-md inline-block
-            ${
-							order.payment_status === "paid"
-								? "bg-emerald-50 text-emerald-700"
-								: order.payment_status === "refunded"
-								? "bg-red-50 text-red-700"
-								: "bg-amber-50 text-amber-700"
-						}
-          `}
-									>
-										{order.payment_status.toUpperCase()}
-									</div>
-								</div>
-							)}
-
-							<div>
-								<label className="text-sm font-medium text-slate-500 mb-1 block">
-									Order Source
-								</label>
-								<p className="font-medium text-purple-700 bg-purple-50 py-1 px-2 rounded-md inline-block">
-									WEBSITE ORDER
-								</p>
-							</div>
-						</div>
-					</div>
-				)}
+				{/* Order Actions */}
+				{getOrderActions()}
 			</div>
 
-			{/* Order Items */}
-			<div className="bg-white rounded-xl shadow-sm flex-1 flex flex-col">
-				<div className="p-4 border-b border-slate-200 flex items-center">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						className="h-5 w-5 mr-2 text-slate-500"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-						/>
-					</svg>
-					<h2 className="text-lg font-semibold text-slate-800">Order Items</h2>
+			{/* Customer Details (for website orders) */}
+			{order.source === "website" && (
+				<div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+					<h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-5 w-5 mr-2 text-slate-500"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+							/>
+						</svg>
+						Customer Information
+					</h3>
+
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+						<div>
+							<label className="text-sm font-medium text-slate-500 mb-1 block">
+								Customer Name
+							</label>
+							<p className="font-medium text-slate-800">
+								{order.guest_first_name && order.guest_last_name
+									? `${order.guest_first_name} ${order.guest_last_name}`
+									: "Guest Customer"}
+							</p>
+						</div>
+
+						<div>
+							<label className="text-sm font-medium text-slate-500 mb-1 block">
+								Email
+							</label>
+							<p className="font-medium text-slate-800">
+								{order.guest_email || "Not provided"}
+							</p>
+						</div>
+
+						{order.payment_status && (
+							<div>
+								<label className="text-sm font-medium text-slate-500 mb-1 block">
+									Payment Status
+								</label>
+								<div
+									className={`
+                    font-medium py-1 px-2 rounded-md inline-block
+                    ${
+											order.payment_status === "paid"
+												? "bg-emerald-50 text-emerald-700"
+												: order.payment_status === "refunded"
+												? "bg-red-50 text-red-700"
+												: "bg-amber-50 text-amber-700"
+										}
+                  `}
+								>
+									{order.payment_status.toUpperCase()}
+								</div>
+							</div>
+						)}
+
+						<div>
+							<label className="text-sm font-medium text-slate-500 mb-1 block">
+								Order Source
+							</label>
+							<p className="font-medium text-purple-700 bg-purple-50 py-1 px-2 rounded-md inline-block">
+								WEBSITE ORDER
+							</p>
+						</div>
+					</div>
 				</div>
-				<div className="overflow-y-auto max-h-[calc(100vh-460px)]">
-					{order.items.length > 0 ? (
-						order.items.map((item) => (
-							<div
-								key={item.id}
-								className="p-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
-							>
-								<div className="flex justify-between items-center">
-									<div>
-										<h3 className="font-medium text-slate-800 mb-1">
-											{item.product.name}
-										</h3>
-										<p className="text-sm text-slate-500 flex items-center">
-											<span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded mr-2">
-												{item.quantity} × ${item.product.price}
-											</span>
-											{item.discount > 0 && (
-												<span className="text-emerald-600 text-xs">
-													({item.discount}% discount applied)
+			)}
+
+			{/* Split Layout Container */}
+			<div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 overflow-hidden">
+				{/* Order Items (Left Side) */}
+				<div className="bg-white rounded-xl shadow-sm flex flex-col overflow-hidden">
+					<div className="p-4 border-b border-slate-200 flex items-center">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-5 w-5 mr-2 text-slate-500"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+							/>
+						</svg>
+						<h2 className="text-lg font-semibold text-slate-800">
+							Order Items
+						</h2>
+					</div>
+					<div className="overflow-y-auto flex-1">
+						{order.items.length > 0 ? (
+							order.items.map((item) => (
+								<div
+									key={item.id}
+									className="p-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
+								>
+									<div className="flex justify-between items-center">
+										<div>
+											<h3 className="font-medium text-slate-800 mb-1">
+												{item.product.name}
+											</h3>
+											<p className="text-sm text-slate-500 flex items-center">
+												<span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded mr-2">
+													{item.quantity} × ${item.product.price}
 												</span>
+												{item.discount > 0 && (
+													<span className="text-emerald-600 text-xs">
+														({item.discount}% discount applied)
+													</span>
+												)}
+											</p>
+										</div>
+										<p className="font-medium text-slate-800">
+											${(item.quantity * item.product.price).toFixed(2)}
+										</p>
+									</div>
+								</div>
+							))
+						) : (
+							<div className="p-6 text-center text-slate-500">
+								No items in this order
+							</div>
+						)}
+					</div>
+				</div>
+
+				{/* Payment Information (Right Side) */}
+				<div className="bg-white rounded-xl shadow-sm flex flex-col overflow-hidden">
+					<div className="p-4 border-b border-slate-200 flex items-center">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-5 w-5 mr-2 text-slate-500"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+							/>
+						</svg>
+						<h2 className="text-lg font-semibold text-slate-800">
+							Payment Information
+						</h2>
+					</div>
+					<div className="p-4 overflow-y-auto flex-1">
+						{order.payment ? (
+							<div className="space-y-6">
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div>
+										<label className="text-sm font-medium text-slate-500 mb-1 block">
+											Payment Method
+										</label>
+										<p className="font-medium text-slate-800">
+											{order.payment.is_split_payment
+												? "Split Payment"
+												: order.payment.payment_method
+												? order.payment.payment_method
+														.replace("_", " ")
+														.toUpperCase()
+												: "Not specified"}
+										</p>
+									</div>
+
+									<div>
+										<label className="text-sm font-medium text-slate-500 mb-1 block">
+											Payment Status
+										</label>
+										<div
+											className={`
+                        font-medium py-1 px-2 rounded-md inline-block
+                        ${
+													order.payment.status === "completed"
+														? "bg-emerald-50 text-emerald-700"
+														: order.payment.status === "failed" ||
+														  order.payment.status === "refunded"
+														? "bg-red-50 text-red-700"
+														: "bg-amber-50 text-amber-700"
+												}
+                      `}
+										>
+											{order.payment.status.toUpperCase()}
+										</div>
+									</div>
+
+									<div>
+										<label className="text-sm font-medium text-slate-500 mb-1 block">
+											Amount Paid
+										</label>
+										<p className="font-medium text-slate-800">
+											${order.payment.amount || order.total_price}
+										</p>
+									</div>
+
+									<div>
+										<label className="text-sm font-medium text-slate-500 mb-1 block">
+											Payment Date
+										</label>
+										<p className="font-medium text-slate-800">
+											{formatDate(
+												order.payment.updated_at || order.payment.created_at
 											)}
 										</p>
 									</div>
-									<p className="font-medium text-slate-800">
-										${(item.quantity * item.product.price).toFixed(2)}
-									</p>
 								</div>
+
+								{/* Split Payment Details */}
+								{order.payment.is_split_payment &&
+									order.payment.transactions && (
+										<div className="mt-6">
+											<label className="text-sm font-medium text-slate-500 mb-2 block">
+												Split Payment Details
+											</label>
+											<div className="bg-slate-50 p-3 rounded-lg">
+												<table className="w-full text-sm">
+													<thead>
+														<tr className="border-b border-slate-200">
+															<th className="text-left py-2 font-medium text-slate-600">
+																Method
+															</th>
+															<th className="text-right py-2 font-medium text-slate-600">
+																Amount
+															</th>
+														</tr>
+													</thead>
+													<tbody>
+														{order.payment.transactions.map(
+															(transaction, index) => (
+																<tr
+																	key={index}
+																	className="border-b border-slate-200 last:border-0"
+																>
+																	<td className="py-2 text-slate-700">
+																		{transaction.method?.toUpperCase() ||
+																			"Unknown"}
+																	</td>
+																	<td className="py-2 text-right text-slate-700">
+																		${transaction.amount?.toFixed(2) || "0.00"}
+																	</td>
+																</tr>
+															)
+														)}
+													</tbody>
+												</table>
+											</div>
+										</div>
+									)}
+
+								{/* Payment Intent ID (for credit card payments) */}
+								{order.payment.payment_intent_id && (
+									<div className="mt-4">
+										<label className="text-sm font-medium text-slate-500 mb-1 block">
+											Payment Reference
+										</label>
+										<p className="text-xs bg-slate-50 p-2 rounded font-mono text-slate-600 overflow-x-auto">
+											{order.payment.payment_intent_id}
+										</p>
+									</div>
+								)}
 							</div>
-						))
-					) : (
-						<div className="p-6 text-center text-slate-500">
-							No items in this order
-						</div>
-					)}
+						) : (
+							<div className="flex flex-col items-center justify-center h-full text-center p-6">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									className="h-12 w-12 text-slate-300 mb-3"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={1.5}
+										d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+									/>
+								</svg>
+								<p className="text-slate-500">
+									No payment information available
+								</p>
+							</div>
+						)}
+					</div>
 				</div>
-			</div>
-
-			{/* Action Buttons */}
-			{getOrderActions()}
-
-			{/* Status Bar */}
-			<div className="bg-slate-800 text-white px-5 py-2.5 rounded-xl flex justify-between text-xs mt-6">
-				<span className="flex items-center">
-					<span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
-					Status: {order.status.replace("_", " ")}
-				</span>
-				<span>
-					Source: {order.source === "website" ? "Online Order" : "POS Order"}
-				</span>
-				<span>Items: {order.items.length}</span>
 			</div>
 		</div>
 	);

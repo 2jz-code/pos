@@ -54,12 +54,16 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 	// };
 
 	const renderStepContent = () => {
+		// Debug log to track orderId
+		console.log("CustomerFlowView rendering with orderId:", flowData?.orderId);
+
 		// Get order data from the pre-calculated values or use split order data if available
 		const orderData =
 			flowData?.splitOrderData && flowData?.isSplitPayment
 				? {
 						...flowData.splitOrderData,
 						items: flowData?.cartData?.items || [],
+						orderId: flowData?.orderId, // Explicitly add orderId
 				  }
 				: {
 						items: flowData?.cartData?.items || [],
@@ -67,8 +71,11 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 						tax: flowData?.cartData?.taxAmount || 0,
 						total: flowData?.cartData?.total || 0,
 						tipAmount: flowData?.tipAmount || 0,
-						orderId: flowData?.orderId || null,
+						orderId: flowData?.orderId, // Explicitly add orderId
 				  };
+
+		// Debug log to verify orderId in orderData
+		console.log("OrderData prepared with orderId:", orderData.orderId);
 
 		switch (currentStep) {
 			case "cart":

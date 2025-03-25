@@ -21,14 +21,17 @@ export const SplitPaymentView = ({
 	const [numberOfSplits, setNumberOfSplits] = useState(2);
 
 	// Calculate equal split amounts
-	const equalSplitAmount = (remainingAmount / numberOfSplits).toFixed(2);
+	const equalSplitAmount = parseFloat(
+		(remainingAmount / numberOfSplits).toFixed(2)
+	);
 
 	useEffect(() => {
-		// When the split view is mounted after a payment, ensure we're in a clean state
 		if (state.splitMode && state.amountPaid > 0) {
-			console.log(
-				"Split view mounted after partial payment, resetting for next selection"
-			);
+			console.log("SPLIT VIEW: Split view mounted after partial payment", {
+				amountPaid: state.amountPaid,
+				remainingAmount,
+				transactions: state.transactions.length,
+			});
 
 			// Reset any "next" payment values to prevent auto-processing
 			setState((prev) => ({
@@ -41,9 +44,16 @@ export const SplitPaymentView = ({
 
 	useEffect(() => {
 		// Check if payment is already complete (remaining amount is zero)
-		if (remainingAmount <= 0 && state.splitMode) {
+		const epsilon = 0.01;
+		if (remainingAmount < epsilon && state.splitMode) {
 			console.log(
-				"Split payment already complete in SplitPaymentView, redirecting to completion"
+				"SPLIT VIEW: Payment already complete, redirecting to completion",
+				{
+					remainingAmount,
+					amountPaid: state.amountPaid,
+					totalAmount: remainingAmount + state.amountPaid,
+					epsilon,
+				}
 			);
 
 			// Add a slight delay to allow rendering to complete
@@ -53,7 +63,7 @@ export const SplitPaymentView = ({
 
 			return () => clearTimeout(timer);
 		}
-	}, [remainingAmount, state.splitMode, handleNavigation]);
+	}, [remainingAmount, state.splitMode, state.amountPaid, handleNavigation]);
 
 	// Update split mode in parent state
 	useEffect(() => {

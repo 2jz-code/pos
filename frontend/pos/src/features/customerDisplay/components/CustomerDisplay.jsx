@@ -5,6 +5,7 @@ import WelcomePage from "./WelcomePage";
 import CartView from "./cart/CartView";
 import CustomerFlowView from "./flow/CustomerFlowView";
 import { calculateCartTotals } from "../../cart/utils/cartCalculations";
+import { useCartStore } from "../../../store/cartStore";
 
 const CustomerDisplay = () => {
 	const [displayData, setDisplayData] = useState(null);
@@ -61,10 +62,15 @@ const CustomerDisplay = () => {
 				} else if (event.data.type === "SHOW_WELCOME") {
 					setDisplayMode("welcome");
 				} else if (event.data.type === "START_CUSTOMER_FLOW") {
-					// Ensure orderId is properly captured and propagated
-					const orderId = event.data.content.orderId;
+					// Extract orderId from multiple possible sources
+					const orderId =
+						event.data.content.orderId ||
+						cartData?.orderId ||
+						useCartStore.getState().orderId;
+
 					console.log("Starting customer flow with orderId:", orderId);
 
+					// Create a deeply cloned object to avoid reference issues
 					const flowContent = {
 						...event.data.content,
 						cartData: {
@@ -72,8 +78,15 @@ const CustomerDisplay = () => {
 							...event.data.content.cartData,
 							orderId: orderId,
 						},
-						orderId: orderId,
+						orderId: orderId, // Explicitly set at the top level
 					};
+
+					// Log the content to verify
+					console.log(
+						"Flow content prepared with orderId:",
+						flowContent.orderId
+					);
+
 					setDisplayData(flowContent);
 					setDisplayMode("flow");
 				} else if (event.data.type === "UPDATE_CUSTOMER_FLOW") {
@@ -143,6 +156,14 @@ const CustomerDisplay = () => {
 
 	// Handle flow step completion
 	const handleFlowStepComplete = (step, stepData) => {
+		// Ensure we have the orderId from the most reliable source
+		const effectiveOrderId =
+			displayData?.orderId ||
+			processedCartData().orderId ||
+			useCartStore.getState().orderId;
+
+		console.log(`Completing step: ${step} with orderId:`, effectiveOrderId);
+
 		// Send message back to parent window
 		if (window.opener) {
 			window.opener.postMessage(
@@ -152,7 +173,7 @@ const CustomerDisplay = () => {
 						step,
 						data: {
 							...stepData,
-							orderId: displayData?.orderId, // Include orderId in step completion
+							orderId: effectiveOrderId, // Include orderId in step completion
 						},
 					},
 				},
