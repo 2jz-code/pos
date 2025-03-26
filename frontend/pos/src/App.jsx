@@ -12,6 +12,8 @@ import EditProduct from "./pages/products/EditProduct";
 import "./index.css";
 import Orders from "./pages/orders/Orders";
 import OrderDetails from "./pages/orders/OrderDetails";
+import Payments from "./pages/payments/Payments";
+import PaymentDetails from "./pages/payments/PaymentDetails";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Reports from "./pages/reports/Reports";
@@ -142,6 +144,14 @@ function AppContent() {
 						<Route
 							path="/kitchen"
 							element={<KitchenDisplay />}
+						/>
+						<Route
+							path="/payments"
+							element={<Payments />}
+						/>
+						<Route
+							path="/payments/:paymentId"
+							element={<PaymentDetails />}
 						/>
 						<Route
 							path="/reports"

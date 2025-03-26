@@ -1,3 +1,4 @@
+// Updated Dashboard.jsx
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import LogoutButton from "../components/LogoutButton";
@@ -7,8 +8,10 @@ import {
 	ClipboardDocumentListIcon,
 	ClockIcon,
 	ChartBarIcon,
+	CreditCardIcon,
 } from "@heroicons/react/24/outline";
 import { HardwareStatus } from "../components/HardwareStatus";
+
 export default function Dashboard() {
 	const [userStatus, setUserStatus] = useState({
 		authenticated: false,
@@ -54,7 +57,7 @@ export default function Dashboard() {
 					</h2>
 
 					{/* Navigation Grid - Updated with more modern cards */}
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 						<Link
 							to="/pos"
 							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
@@ -70,7 +73,6 @@ export default function Dashboard() {
 							</p>
 						</Link>
 
-						{/* Update remaining cards with the same pattern */}
 						<Link
 							to="/products"
 							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
@@ -98,6 +100,22 @@ export default function Dashboard() {
 							</h3>
 							<p className="text-sm text-slate-500 text-center">
 								View and manage order history and receipts
+							</p>
+						</Link>
+
+						{/* New Payment Management Card */}
+						<Link
+							to="/payments"
+							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
+						>
+							<div className="mb-4 p-3 bg-green-50 rounded-full group-hover:bg-green-100 transition-colors">
+								<CreditCardIcon className="w-10 h-10 text-green-600" />
+							</div>
+							<h3 className="text-lg font-medium text-slate-800 mb-2">
+								Payment Management
+							</h3>
+							<p className="text-sm text-slate-500 text-center">
+								Track payments and process refunds
 							</p>
 						</Link>
 

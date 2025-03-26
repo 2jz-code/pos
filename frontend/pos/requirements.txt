@@ -7,3 +7,6 @@ framer-motion
 @heroicons/react
 react-qr-code
 react-toastify
+recharts
+html2canvas
+jspdf
