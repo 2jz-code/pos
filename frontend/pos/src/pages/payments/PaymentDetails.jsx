@@ -4,6 +4,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { paymentService } from "../../api/services/paymentService";
 import { authService } from "../../api/services/authService";
 import axiosInstance from "../../api/config/axiosConfig";
+import RefundConfirmation from "./RefundConfirmation";
+import RefundSuccessModal from "./RefundSuccessModal";
 
 export default function PaymentDetails() {
 	const { paymentId } = useParams();
@@ -13,6 +15,10 @@ export default function PaymentDetails() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const navigate = useNavigate();
+	const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+	const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+	const [refundSuccess, setRefundSuccess] = useState(false);
+	const [refundData, setRefundData] = useState(null);
 
 	useEffect(() => {
 		const fetchPaymentDetails = async () => {
@@ -63,16 +69,25 @@ export default function PaymentDetails() {
 	// Format date
 	const formatDate = (timestamp) => new Date(timestamp).toLocaleString();
 
-	// Handle refund
-	const handleRefund = async () => {
-		if (!confirm("Are you sure you want to process this refund?")) return;
+	// Handle opening the refund modal
+	const openRefundModal = () => {
+		setIsRefundModalOpen(true);
+	};
 
+	// Handle refund
+	const handleRefund = async (refundData) => {
+		setIsProcessingRefund(true);
 		try {
-			const response = await paymentService.processRefund(paymentId);
+			const response = await paymentService.processRefund(
+				paymentId,
+				refundData
+			);
 
 			if (response.success) {
 				setPayment({ ...payment, status: "refunded" });
-				alert("Refund processed successfully");
+				setIsRefundModalOpen(false);
+				setRefundData(response);
+				setRefundSuccess(true);
 			}
 		} catch (error) {
 			console.error("Error processing refund:", error);
@@ -80,6 +95,8 @@ export default function PaymentDetails() {
 				"Failed to process refund: " +
 					(error.response?.data?.message || error.message)
 			);
+		} finally {
+			setIsProcessingRefund(false);
 		}
 	};
 
@@ -229,7 +246,9 @@ export default function PaymentDetails() {
 							<label className="text-sm font-medium text-slate-500 mb-1 block">
 								Payment ID
 							</label>
-							<p className="font-medium text-slate-800">{payment.id}</p>
+							<p className="font-medium text-slate-800 break-all">
+								{payment.id}
+							</p>
 						</div>
 
 						<div>
@@ -329,7 +348,7 @@ export default function PaymentDetails() {
 						{payment.status === "completed" && isAdmin && (
 							<div className="pt-4 mt-4 border-t border-slate-200">
 								<button
-									onClick={handleRefund}
+									onClick={openRefundModal}
 									className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
 								>
 									<svg
@@ -417,7 +436,7 @@ export default function PaymentDetails() {
 										<label className="text-sm font-medium text-blue-600 mb-1 block">
 											Payment Intent ID
 										</label>
-										<p className="font-mono text-sm bg-white p-2 rounded border border-blue-100 overflow-x-auto">
+										<p className="font-mono text-sm bg-white p-2 rounded border border-blue-100 overflow-x-auto break-all">
 											{payment.payment_intent_id}
 										</p>
 									</div>
@@ -433,19 +452,19 @@ export default function PaymentDetails() {
 								Split Payment Details
 							</h3>
 							<div className="overflow-x-auto">
-								<table className="min-w-full bg-white rounded-lg overflow-hidden">
+								<table className="min-w-full bg-white rounded-lg overflow-hidden table-fixed">
 									<thead className="bg-purple-100 text-purple-700">
 										<tr>
-											<th className="py-2 px-4 text-left text-sm font-medium">
+											<th className="py-2 px-4 text-left text-sm font-medium w-1/4">
 												Method
 											</th>
-											<th className="py-2 px-4 text-left text-sm font-medium">
+											<th className="py-2 px-4 text-left text-sm font-medium w-1/4">
 												Amount
 											</th>
-											<th className="py-2 px-4 text-left text-sm font-medium">
+											<th className="py-2 px-4 text-left text-sm font-medium w-1/4">
 												Status
 											</th>
-											<th className="py-2 px-4 text-left text-sm font-medium">
+											<th className="py-2 px-4 text-left text-sm font-medium w-1/4">
 												Date
 											</th>
 										</tr>
@@ -456,7 +475,7 @@ export default function PaymentDetails() {
 												key={index}
 												className="hover:bg-purple-50"
 											>
-												<td className="py-2 px-4 text-sm">
+												<td className="py-2 px-4 text-sm truncate">
 													<span
 														className={`px-2 py-1 rounded-md text-xs font-medium ${
 															transaction.method === "cash"
@@ -467,10 +486,10 @@ export default function PaymentDetails() {
 														{transaction.method.replace("_", " ").toUpperCase()}
 													</span>
 												</td>
-												<td className="py-2 px-4 text-sm font-medium">
+												<td className="py-2 px-4 text-sm font-medium truncate">
 													{formatCurrency(transaction.amount)}
 												</td>
-												<td className="py-2 px-4 text-sm">
+												<td className="py-2 px-4 text-sm truncate">
 													<span
 														className={`px-2 py-1 rounded-md text-xs font-medium ${
 															transaction.status === "completed"
@@ -483,7 +502,7 @@ export default function PaymentDetails() {
 														{transaction.status?.toUpperCase() || "COMPLETED"}
 													</span>
 												</td>
-												<td className="py-2 px-4 text-sm">
+												<td className="py-2 px-4 text-sm truncate">
 													{formatDate(
 														transaction.created_at || payment.created_at
 													)}
@@ -647,7 +666,7 @@ export default function PaymentDetails() {
 							<h3 className="font-medium text-slate-800 mb-2">
 								Refund History
 							</h3>
-							<div className="border border-slate-200 rounded-lg overflow-hidden">
+							<div className="overflow-x-auto">
 								<table className="min-w-full divide-y divide-slate-200">
 									<thead className="bg-slate-50">
 										<tr>
@@ -671,7 +690,7 @@ export default function PaymentDetails() {
 									<tbody className="bg-white divide-y divide-slate-200">
 										{payment.refunds.map((refund, index) => (
 											<tr key={index}>
-												<td className="px-4 py-3 text-sm text-slate-800">
+												<td className="px-4 py-3 text-sm text-slate-800 truncate max-w-[150px]">
 													{refund.id}
 												</td>
 												<td className="px-4 py-3 text-sm font-medium text-slate-800">
@@ -693,7 +712,7 @@ export default function PaymentDetails() {
 												<td className="px-4 py-3 text-sm text-slate-600">
 													{formatDate(refund.created_at)}
 												</td>
-												<td className="px-4 py-3 text-sm text-slate-600">
+												<td className="px-4 py-3 text-sm text-slate-600 truncate max-w-[200px]">
 													{refund.reason || "Not specified"}
 												</td>
 											</tr>
@@ -771,6 +790,23 @@ export default function PaymentDetails() {
 						))}
 					</div>
 				</div>
+			)}
+			{payment && (
+				<RefundConfirmation
+					isOpen={isRefundModalOpen}
+					onClose={() => setIsRefundModalOpen(false)}
+					payment={payment}
+					onConfirm={handleRefund}
+					isProcessing={isProcessingRefund}
+				/>
+			)}
+			{payment && refundData && (
+				<RefundSuccessModal
+					isOpen={refundSuccess}
+					onClose={() => setRefundSuccess(false)}
+					refundData={refundData}
+					paymentMethod={payment.payment_method || ""}
+				/>
 			)}
 		</div>
 	);

@@ -36,11 +36,11 @@ export const paymentService = {
 	},
 
 	// Process a refund
-	processRefund: async (paymentId, data = {}) => {
+	processRefund: async (paymentId, refundData = {}) => {
 		try {
 			const response = await axiosInstance.post(
 				`payments/${paymentId}/refund/`,
-				data
+				refundData
 			);
 			return response.data;
 		} catch (error) {

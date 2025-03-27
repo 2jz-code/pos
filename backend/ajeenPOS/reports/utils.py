@@ -258,22 +258,32 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
     
     # Different report formats based on group_by
     if group_by == 'payment_method':
-        # MODIFIED: Create a unified query that handles payment methods properly
-        
         # Get non-split payment methods
         non_split_data = query.filter(is_split_payment=False).values('payment_method').annotate(
             count=Count('id'),
             total_amount=Sum('amount'),
+            
+            # Count refunded payments (still track these, but don't use in success rate)
             refund_count=Count('id', filter=Q(status='refunded')),
-            successful_count=Count('id', filter=Q(status='completed'))
+            
+            # Count failed payments - ONLY THESE COUNT AS UNSUCCESSFUL
+            failed_count=Count('id', filter=Q(status='failed')),
+            
+            # Count voided orders (still track these, but don't use in success rate)
+            void_count=Count('id', filter=Q(order__status='voided')),
+            
+            # Count successful transactions (anything not failed)
+            successful_count=Count('id', filter=~Q(status='failed'))
         )
         
-        # Get split payments separately (using is_split_payment flag)
+        # Get split payment data
         split_data = query.filter(is_split_payment=True).aggregate(
             count=Count('id'),
             total_amount=Sum('amount'),
             refund_count=Count('id', filter=Q(status='refunded')),
-            successful_count=Count('id', filter=Q(status='completed'))
+            failed_count=Count('id', filter=Q(status='failed')),
+            void_count=Count('id', filter=Q(order__status='voided')),
+            successful_count=Count('id', filter=~Q(status='failed'))
         )
         
         # Format the data
@@ -282,26 +292,39 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
         # Add non-split payment methods
         for entry in non_split_data:
             payment_method = entry['payment_method'] or 'Unknown'
-            success_rate = (entry['successful_count'] / entry['count']) * 100 if entry['count'] > 0 else 0
+            
+            # MODIFIED: Only consider failed transactions as unsuccessful
+            unsuccessful_count = entry['failed_count']
+            
+            # Calculate success rate based on truly successful transactions
+            success_rate = ((entry['count'] - unsuccessful_count) / entry['count']) * 100 if entry['count'] > 0 else 0
             
             formatted_entry = {
                 'payment_method': payment_method.replace('_', ' ').title(),
                 'transaction_count': entry['count'],
                 'total_amount': float(entry['total_amount'] or 0),
                 'refund_count': entry['refund_count'],
+                'failed_count': entry['failed_count'],
+                'void_count': entry['void_count'],
                 'success_rate': round(success_rate, 2)
             }
             formatted_data.append(formatted_entry)
         
         # Add split payments if they exist
         if split_data['count'] > 0:
-            success_rate = (split_data['successful_count'] / split_data['count']) * 100 if split_data['count'] > 0 else 0
+            # MODIFIED: Only consider failed transactions as unsuccessful
+            unsuccessful_count = split_data['failed_count']
+            
+            # Calculate success rate
+            success_rate = ((split_data['count'] - unsuccessful_count) / split_data['count']) * 100 if split_data['count'] > 0 else 0
             
             formatted_data.append({
                 'payment_method': 'Split Payment',
                 'transaction_count': split_data['count'],
                 'total_amount': float(split_data['total_amount'] or 0),
                 'refund_count': split_data['refund_count'],
+                'failed_count': split_data['failed_count'],
+                'void_count': split_data['void_count'],
                 'success_rate': round(success_rate, 2)
             })
         
@@ -320,8 +343,6 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
             trunc_func = TruncMonth(date_field)
             date_format = '%Y-%m'
         
-        # MODIFIED: Handle non-split and split payments separately for time grouping too
-        
         # Get non-split payments grouped by time
         non_split_data = query.filter(is_split_payment=False).annotate(
             date=trunc_func
@@ -329,7 +350,9 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
             count=Count('id'),
             total_amount=Sum('amount'),
             refund_count=Count('id', filter=Q(status='refunded')),
-            successful_count=Count('id', filter=Q(status='completed'))
+            failed_count=Count('id', filter=Q(status='failed')),
+            void_count=Count('id', filter=Q(order__status='voided')),
+            successful_count=Count('id', filter=~Q(status='failed'))
         ).order_by('date')
         
         # Get split payments grouped by time
@@ -339,7 +362,9 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
             count=Count('id'),
             total_amount=Sum('amount'),
             refund_count=Count('id', filter=Q(status='refunded')),
-            successful_count=Count('id', filter=Q(status='completed'))
+            failed_count=Count('id', filter=Q(status='failed')),
+            void_count=Count('id', filter=Q(order__status='voided')),
+            successful_count=Count('id', filter=~Q(status='failed'))
         ).order_by('date')
         
         # Create a dictionary to combine them by date
@@ -354,12 +379,16 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
                     'transaction_count': 0,
                     'total_amount': 0,
                     'refund_count': 0,
+                    'failed_count': 0,
+                    'void_count': 0,
                     'successful_count': 0
                 }
             
             combined_data[date_str]['transaction_count'] += entry['count']
             combined_data[date_str]['total_amount'] += float(entry['total_amount'] or 0)
             combined_data[date_str]['refund_count'] += entry['refund_count']
+            combined_data[date_str]['failed_count'] += entry['failed_count']
+            combined_data[date_str]['void_count'] += entry['void_count']
             combined_data[date_str]['successful_count'] += entry['successful_count']
         
         # Process split payments
@@ -371,24 +400,34 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
                     'transaction_count': 0,
                     'total_amount': 0,
                     'refund_count': 0,
+                    'failed_count': 0,
+                    'void_count': 0,
                     'successful_count': 0
                 }
             
             combined_data[date_str]['transaction_count'] += entry['count']
             combined_data[date_str]['total_amount'] += float(entry['total_amount'] or 0)
             combined_data[date_str]['refund_count'] += entry['refund_count']
+            combined_data[date_str]['failed_count'] += entry['failed_count']
+            combined_data[date_str]['void_count'] += entry['void_count']
             combined_data[date_str]['successful_count'] += entry['successful_count']
         
         # Convert to list and calculate success rate
         formatted_data = []
         for date_str, data in sorted(combined_data.items()):
-            success_rate = (data['successful_count'] / data['transaction_count']) * 100 if data['transaction_count'] > 0 else 0
+            # MODIFIED: Only consider failed transactions as unsuccessful
+            unsuccessful_count = data['failed_count']
+            
+            # Calculate success rate
+            success_rate = ((data['transaction_count'] - unsuccessful_count) / data['transaction_count']) * 100 if data['transaction_count'] > 0 else 0
             
             formatted_entry = {
                 'date': date_str,
                 'transaction_count': data['transaction_count'],
                 'total_amount': data['total_amount'],
                 'refund_count': data['refund_count'],
+                'failed_count': data['failed_count'],
+                'void_count': data['void_count'],
                 'success_rate': round(success_rate, 2)
             }
             formatted_data.append(formatted_entry)
@@ -397,6 +436,15 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
     total_transactions = sum(entry['transaction_count'] for entry in formatted_data)
     total_amount = sum(entry['total_amount'] for entry in formatted_data)
     total_refunds = sum(entry['refund_count'] for entry in formatted_data)
+    total_failed = sum(entry.get('failed_count', 0) for entry in formatted_data)
+    total_voided = sum(entry.get('void_count', 0) for entry in formatted_data)
+    
+    # Calculate refund and success rates
+    refund_rate = (total_refunds / total_transactions) * 100 if total_transactions > 0 else 0
+    
+    # MODIFIED: Only consider failed transactions as unsuccessful
+    unsuccessful_count = total_failed
+    success_rate = ((total_transactions - unsuccessful_count) / total_transactions) * 100 if total_transactions > 0 else 0
     
     summary = {
         'period_start': start_date.strftime('%Y-%m-%d'),
@@ -404,13 +452,18 @@ def generate_payment_report(start_date, end_date, group_by='payment_method', dat
         'total_transactions': total_transactions,
         'total_amount': total_amount,
         'total_refunds': total_refunds,
-        'refund_rate': round((total_refunds / total_transactions) * 100, 2) if total_transactions > 0 else 0,
+        'total_failed': total_failed,
+        'total_voided': total_voided,
+        'refund_rate': round(refund_rate, 2),
+        'success_rate': round(success_rate, 2),
     }
     
     return {
         'summary': summary,
         'data': formatted_data
     }
+
+
 def generate_operational_insights(start_date, end_date, date_field='updated_at'):
     """
     Generate operational insights report including hourly trends

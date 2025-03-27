@@ -11,6 +11,7 @@ from orders.models import Order
 from .models import Payment
 from .stripe_utils import create_payment_intent
 import stripe
+from django.utils import timezone
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -619,6 +620,7 @@ class PaymentDetailView(APIView):
         
         return refunds
 
+
 class PaymentRefundView(APIView):
     """
     Process a refund for a payment
@@ -653,39 +655,67 @@ class PaymentRefundView(APIView):
             
             # Process refund based on payment method
             if payment.payment_method == 'credit':
-                # Get the charge ID from the payment intent
-                payment_intent = stripe.PaymentIntent.retrieve(payment.payment_intent_id)
-                
-                if not payment_intent.charges.data:
-                    return Response(
-                        {'error': 'No charge found for this payment'},
-                        status=status.HTTP_400_BAD_REQUEST
+                try:
+                    print(f"Processing refund for payment: {payment_id}, intent: {payment.payment_intent_id}")
+                    
+                    # Try to find charges for this payment intent
+                    charges = stripe.Charge.list(payment_intent=payment.payment_intent_id)
+                    
+                    print(f"Found {len(charges.data)} charges for this payment intent")
+                    
+                    if not charges.data:
+                        # If no charges found, try to get latest charges for the customer
+                        if payment.order and payment.order.user:
+                            print("No charges found by payment intent, searching by customer")
+                            customer_email = payment.order.user.email
+                            # Try to find customer
+                            customers = stripe.Customer.list(email=customer_email)
+                            if customers.data:
+                                customer_id = customers.data[0].id
+                                charges = stripe.Charge.list(customer=customer_id, limit=5)
+                                print(f"Found {len(charges.data)} charges for customer {customer_id}")
+                        
+                        # If still no charges, return error
+                        if not charges.data:
+                            return Response(
+                                {'error': 'No charges found for this payment'},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                    
+                    # Get the most recent charge
+                    charge = charges.data[0]
+                    charge_id = charge.id
+                    
+                    print(f"Using charge ID: {charge_id} for refund")
+                    
+                    # Create refund
+                    refund = stripe.Refund.create(
+                        charge=charge_id,
+                        amount=int(float(amount) * 100),  # Convert to cents
+                        reason=reason
                     )
-                
-                charge_id = payment_intent.charges.data[0].id
-                
-                # Create refund in Stripe
-                refund = stripe.Refund.create(
-                    charge=charge_id,
-                    amount=int(float(amount) * 100),  # Convert to cents
-                    reason=reason
-                )
-                
-                # Update payment status
-                payment.status = 'refunded'
-                payment.save()
-                
-                # Update order payment status
-                order = payment.order
-                order.payment_status = 'refunded'
-                order.save()
-                
-                return Response({
-                    'success': True,
-                    'refund_id': refund.id,
-                    'status': refund.status,
-                    'amount': amount
-                })
+                    
+                    # Update payment status
+                    payment.status = 'refunded'
+                    payment.save()
+                    
+                    # Update order payment status
+                    order = payment.order
+                    order.payment_status = 'refunded'
+                    order.save()
+                    
+                    return Response({
+                        'success': True,
+                        'refund_id': refund.id,
+                        'status': refund.status,
+                        'amount': amount
+                    })
+                except Exception as e:
+                    import traceback
+                    print(f"Error in credit card refund: {str(e)}")
+                    print(traceback.format_exc())
+                    raise e
+            
             elif payment.payment_method == 'cash':
                 # For cash payments, just update the status
                 payment.status = 'refunded'
@@ -703,16 +733,22 @@ class PaymentRefundView(APIView):
                 })
             else:
                 return Response(
-                    {'error': 'Unsupported payment method for refund'},
+                    {'error': f'Unsupported payment method for refund: {payment.payment_method}'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
                 
         except stripe.error.StripeError as e:
+            import traceback
+            print(f"Stripe error: {str(e)}")
+            print(traceback.format_exc())
             return Response(
                 {'error': f'Stripe error: {str(e)}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            import traceback
+            print(f"General error in refund: {str(e)}")
+            print(traceback.format_exc())
             return Response(
                 {'error': f'Failed to process refund: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

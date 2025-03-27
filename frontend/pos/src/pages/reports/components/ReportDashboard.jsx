@@ -1,10 +1,53 @@
 // src/components/reports/ReportDashboard.jsx
-// import { useState } from "react";
 import { motion } from "framer-motion";
 import LoadingSpinner from "./LoadingSpinner";
 import PropTypes from "prop-types";
 
 const ReportDashboard = ({ data, isLoading, error }) => {
+	// Calculate the correct success rate by excluding refunded and voided transactions
+	const calculateCorrectSuccessRate = (method) => {
+		// Check if we have the necessary data
+		if (!method || typeof method.transaction_count !== "number") {
+			return 0;
+		}
+
+		// MODIFIED: Only use failed_count as unsuccessful
+		const failedCount = method.failed_count || 0;
+
+		// Calculate success rate
+		if (method.transaction_count === 0) {
+			return 0;
+		}
+
+		const successRate =
+			((method.transaction_count - failedCount) / method.transaction_count) *
+			100;
+		return Math.round(successRate * 100) / 100; // Round to 2 decimal places
+	};
+
+	// Success rate tooltip component
+	const SuccessRateTooltip = () => (
+		<div className="group relative inline-block ml-1">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				className="h-4 w-4 text-slate-400 cursor-help"
+				viewBox="0 0 20 20"
+				fill="currentColor"
+			>
+				<path
+					fillRule="evenodd"
+					d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
+					clipRule="evenodd"
+				/>
+			</svg>
+			<div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-300 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg z-10">
+				Success rate is calculated by counting only failed transactions as
+				unsuccessful. Refunded and voided transactions still count as
+				successful.
+			</div>
+		</div>
+	);
+
 	if (isLoading) {
 		return (
 			<div className="flex items-center justify-center h-full">
@@ -364,8 +407,9 @@ const ReportDashboard = ({ data, isLoading, error }) => {
 
 					{/* Payment Success Rate */}
 					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-						<h3 className="text-lg font-medium text-slate-800 mb-4">
+						<h3 className="text-lg font-medium text-slate-800 mb-4 flex items-center">
 							Success Rate
+							<SuccessRateTooltip />
 						</h3>
 						<div className="grid grid-cols-2 gap-4">
 							{data.payment_methods.map((method) => (
@@ -374,13 +418,30 @@ const ReportDashboard = ({ data, isLoading, error }) => {
 									className="bg-slate-50 rounded-lg p-4 text-center"
 								>
 									<div className="text-3xl font-bold text-slate-800 mb-1">
-										{method.success_rate}%
+										{calculateCorrectSuccessRate(method)}%
 									</div>
 									<div className="text-sm text-slate-500">
 										{method.payment_method}
 									</div>
 									<div className="text-xs text-slate-400 mt-2">
 										{method.transaction_count} transactions
+										<div className="flex flex-wrap gap-1 mt-1">
+											{method.refund_count > 0 && (
+												<span className="text-amber-500">
+													({method.refund_count} refunded)
+												</span>
+											)}
+											{method.void_count > 0 && (
+												<span className="text-red-500 ml-1">
+													({method.void_count} voided)
+												</span>
+											)}
+											{method.failed_count > 0 && (
+												<span className="text-red-500 ml-1">
+													({method.failed_count} failed)
+												</span>
+											)}
+										</div>
 									</div>
 								</div>
 							))}
@@ -424,6 +485,8 @@ ReportDashboard.propTypes = {
 				transaction_count: PropTypes.number,
 				total_amount: PropTypes.number,
 				success_rate: PropTypes.number,
+				refund_count: PropTypes.number,
+				void_count: PropTypes.number,
 			})
 		),
 	}),

@@ -73,7 +73,6 @@ export const CreditPaymentView = ({
 	const [splitOrderData, setSplitOrderData] = useState(null);
 
 	// References for tracking component state
-	const previousStepRef = useRef({ rewards: null, tip: null });
 	const isCompletingPaymentRef = useRef(false);
 	const hasNavigatedRef = useRef(false);
 

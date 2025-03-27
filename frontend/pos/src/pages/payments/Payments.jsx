@@ -3,7 +3,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { paymentService } from "../../api/services/paymentService";
 import { authService } from "../../api/services/authService";
-
+import RefundConfirmation from "./RefundConfirmation";
+import RefundSuccessModal from "./RefundSuccessModal";
 export default function Payments() {
 	const [payments, setPayments] = useState([]);
 	const [activeTab, setActiveTab] = useState("all"); // Default tab
@@ -13,7 +14,10 @@ export default function Payments() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const navigate = useNavigate();
-
+	const [refundModalPayment, setRefundModalPayment] = useState(null);
+	const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+	const [refundSuccess, setRefundSuccess] = useState(false);
+	const [refundData, setRefundData] = useState(null);
 	// Fetch payments from backend
 	useEffect(() => {
 		const fetchPaymentsAndUser = async () => {
@@ -78,21 +82,35 @@ export default function Payments() {
 
 	// Payment refund handler
 	const handleRefund = async (paymentId) => {
-		if (!confirm("Are you sure you want to process this refund?")) return;
+		// Find the payment to refund
+		const paymentToRefund = payments.find((p) => p.id === paymentId);
+		if (paymentToRefund) {
+			setRefundModalPayment(paymentToRefund);
+		}
+	};
 
+	const processRefund = async (refundData) => {
+		if (!refundModalPayment) return;
+
+		setIsProcessingRefund(true);
 		try {
-			const response = await paymentService.processRefund(paymentId);
+			const response = await paymentService.processRefund(
+				refundModalPayment.id,
+				refundData
+			);
 
 			if (response.success) {
 				// Update the payment in the state
 				setPayments(
 					payments.map((payment) =>
-						payment.id === paymentId
+						payment.id === refundModalPayment.id
 							? { ...payment, status: "refunded" }
 							: payment
 					)
 				);
-				alert("Refund processed successfully");
+				setRefundData(response);
+				setRefundModalPayment(null);
+				setRefundSuccess(true);
 			}
 		} catch (error) {
 			console.error("Error processing refund:", error);
@@ -100,6 +118,8 @@ export default function Payments() {
 				"Failed to process refund: " +
 					(error.response?.data?.message || error.message)
 			);
+		} finally {
+			setIsProcessingRefund(false);
 		}
 	};
 
@@ -310,31 +330,31 @@ export default function Payments() {
 								key={payment.id}
 								className="grid grid-cols-12 gap-4 p-4 border-b border-slate-200 hover:bg-slate-50 transition-colors"
 							>
-								<div className="col-span-1 font-medium text-slate-800">
+								<div className="col-span-1 font-medium text-slate-800 truncate">
 									#{payment.id}
 								</div>
-								<div className="col-span-2 text-slate-600">
+								<div className="col-span-2 text-slate-600 truncate">
 									{formatDate(payment.created_at)}
 								</div>
-								<div className="col-span-2">
+								<div className="col-span-2 overflow-hidden">
 									{payment.is_split_payment ? (
-										<span className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-xs font-medium">
+										<span className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-xs font-medium inline-block">
 											SPLIT PAYMENT
 										</span>
 									) : (
-										<span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-medium">
+										<span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-medium inline-block">
 											{payment.payment_method
 												? payment.payment_method.replace("_", " ").toUpperCase()
 												: "N/A"}
 										</span>
 									)}
 								</div>
-								<div className="col-span-1 font-medium">
+								<div className="col-span-1 font-medium truncate">
 									{formatCurrency(payment.amount)}
 								</div>
-								<div className="col-span-2">
+								<div className="col-span-2 overflow-hidden">
 									<span
-										className={`px-2 py-1 rounded-md text-xs font-medium ${
+										className={`px-2 py-1 rounded-md text-xs font-medium inline-block ${
 											payment.status === "completed"
 												? "bg-emerald-50 text-emerald-700"
 												: payment.status === "refunded"
@@ -347,14 +367,14 @@ export default function Payments() {
 										{payment.status.toUpperCase()}
 									</span>
 								</div>
-								<div className="col-span-2">
+								<div className="col-span-2 truncate">
 									<button
 										onClick={() => viewAssociatedOrder(payment.order_id)}
 										className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
 									>
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
-											className="h-4 w-4 mr-1"
+											className="h-4 w-4 mr-1 flex-shrink-0"
 											fill="none"
 											viewBox="0 0 24 24"
 											stroke="currentColor"
@@ -366,7 +386,7 @@ export default function Payments() {
 												d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
 											/>
 										</svg>
-										Order #{payment.order_id}
+										<span className="truncate">Order #{payment.order_id}</span>
 									</button>
 								</div>
 								<div className="col-span-2 text-right">
@@ -402,6 +422,23 @@ export default function Payments() {
 					User: {userName} ({isAdmin ? "Admin" : "Staff"})
 				</span>
 			</div>
+			{refundModalPayment && (
+				<RefundConfirmation
+					isOpen={!!refundModalPayment}
+					onClose={() => setRefundModalPayment(null)}
+					payment={refundModalPayment}
+					onConfirm={processRefund}
+					isProcessing={isProcessingRefund}
+				/>
+			)}
+			{refundData && (
+				<RefundSuccessModal
+					isOpen={refundSuccess}
+					onClose={() => setRefundSuccess(false)}
+					refundData={refundData}
+					paymentMethod={refundModalPayment?.payment_method || ""}
+				/>
+			)}
 		</div>
 	);
 }
