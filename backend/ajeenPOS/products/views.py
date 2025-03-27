@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import generics
 from .models import Product, Category
 from .serializers import ProductSerializer, CategorySerializer
-from users.permissions import IsAdminGroup
+from users.permissions import IsAdminUser
 import logging
 
 # Categories (Anyone can view, Admins & Managers can add)
@@ -13,7 +13,7 @@ class CategoryList(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method == "POST":  # Restrict adding categories
-            return [IsAdminGroup()]
+            return [IsAdminUser()]
         return []  # Allow anyone to GET categories
 
 # Products (Anyone can view, Admins & Managers can add)
@@ -33,7 +33,7 @@ class ProductList(generics.ListCreateAPIView):
             print(f"User Authenticated: {is_authenticated}")
             print(f"User Admin Status: {is_admin}")
 
-            return [IsAuthenticated(), IsAdminGroup()]
+            return [IsAuthenticated(), IsAdminUser()]
 
         return [AllowAny()]
 
@@ -57,5 +57,5 @@ class ProductDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method in ["PUT", "DELETE"]:  # ✅ Restrict updates/deletions to Admins
-            return [IsAdminGroup()]
+            return [IsAdminUser()]
         return []  # ✅ Allow anyone to GET a product

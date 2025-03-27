@@ -6,6 +6,11 @@ export const ENDPOINTS = {
 		LOGIN: "auth/login/",
 		LOGOUT: "auth/logout/",
 		REFRESH_TOKEN: "auth/token/refresh/",
+		USERS: "auth/users/",
+		USER_DETAIL: (id) => `auth/users/${id}/`,
+		USER_UPDATE: (id) => `auth/users/${id}/update/`,
+		USER_DELETE: (id) => `auth/users/${id}/delete/`,
+		REGISTER: "auth/register/",
 	},
 
 	// Order endpoints

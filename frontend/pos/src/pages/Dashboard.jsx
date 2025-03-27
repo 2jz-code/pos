@@ -1,4 +1,4 @@
-// Updated Dashboard.jsx
+// Updated Dashboard.jsx with User Management button for admins
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import LogoutButton from "../components/LogoutButton";
@@ -9,6 +9,7 @@ import {
 	ClockIcon,
 	ChartBarIcon,
 	CreditCardIcon,
+	UserGroupIcon, // Add this import
 } from "@heroicons/react/24/outline";
 import { HardwareStatus } from "../components/HardwareStatus";
 
@@ -103,7 +104,7 @@ export default function Dashboard() {
 							</p>
 						</Link>
 
-						{/* New Payment Management Card */}
+						{/* Payment Management Card */}
 						<Link
 							to="/payments"
 							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
@@ -118,21 +119,40 @@ export default function Dashboard() {
 								Track payments and process refunds
 							</p>
 						</Link>
+						{userStatus.is_admin && (
+							<Link
+								to="/reports"
+								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
+							>
+								<div className="mb-4 p-3 bg-emerald-50 rounded-full group-hover:bg-emerald-100 transition-colors">
+									<ChartBarIcon className="w-10 h-10 text-emerald-600" />
+								</div>
+								<h3 className="text-lg font-medium text-slate-800 mb-2">
+									Reports
+								</h3>
+								<p className="text-sm text-slate-500 text-center">
+									Generate sales reports and analytics
+								</p>
+							</Link>
+						)}
 
-						<Link
-							to="/reports"
-							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-						>
-							<div className="mb-4 p-3 bg-emerald-50 rounded-full group-hover:bg-emerald-100 transition-colors">
-								<ChartBarIcon className="w-10 h-10 text-emerald-600" />
-							</div>
-							<h3 className="text-lg font-medium text-slate-800 mb-2">
-								Reports
-							</h3>
-							<p className="text-sm text-slate-500 text-center">
-								Generate sales reports and analytics
-							</p>
-						</Link>
+						{/* User Management Card - Only visible to admins */}
+						{userStatus.is_admin && (
+							<Link
+								to="/users"
+								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
+							>
+								<div className="mb-4 p-3 bg-purple-50 rounded-full group-hover:bg-purple-100 transition-colors">
+									<UserGroupIcon className="w-10 h-10 text-purple-600" />
+								</div>
+								<h3 className="text-lg font-medium text-slate-800 mb-2">
+									User Management
+								</h3>
+								<p className="text-sm text-slate-500 text-center">
+									Manage system users and permissions
+								</p>
+							</Link>
+						)}
 					</div>
 				</div>
 			</div>

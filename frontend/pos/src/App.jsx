@@ -24,6 +24,10 @@ import { CustomerDisplayProvider } from "./features/customerDisplay/contexts/Cus
 import { useCustomerDisplayNavigation } from "./features/customerDisplay/hooks/useCustomerDisplayNavigation";
 import TerminalSimulation from "./features/customerDisplay/components/terminal/TerminalSimulation";
 import { TerminalSimulationProvider } from "./features/customerDisplay/contexts/TerminalSimulationProvider";
+import Users from "./pages/users/Users";
+import AddUser from "./pages/users/AddUser";
+import EditUser from "./pages/users/EditUser";
+import UserDetail from "./pages/users/UserDetail";
 
 window.customerDisplayManager = customerDisplayManager;
 
@@ -158,6 +162,24 @@ function AppContent() {
 							element={<Reports />}
 						/>
 					</Route>
+
+					{/* New User Management Routes */}
+					<Route
+						path="/users"
+						element={<Users />}
+					/>
+					<Route
+						path="/users/add"
+						element={<AddUser />}
+					/>
+					<Route
+						path="/users/edit/:userId"
+						element={<EditUser />}
+					/>
+					<Route
+						path="/users/:userId"
+						element={<UserDetail />}
+					/>
 				</Routes>
 				<ToastContainer
 					position="top-right"

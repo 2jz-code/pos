@@ -6,7 +6,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework import status, generics
 from django.contrib.auth import get_user_model, authenticate
 from .serializers import UserSerializer
-from .permissions import IsAdminGroup  # Import custom permission
+from .permissions import IsAdminUser  # Import custom permission
 
 User = get_user_model()
 
@@ -87,7 +87,7 @@ class CheckAuthView(APIView):
             return Response({
                 "authenticated": True,
                 "username": user.username,
-                "is_admin": user.groups.filter(name="Admin").exists()  # ✅ Check if user is in Admin group
+                "is_admin": user.role == 'admin'  # Check role field directly
             }, status=status.HTTP_200_OK)
         except Exception:
             return Response({"authenticated": False, "is_admin": False}, status=status.HTTP_401_UNAUTHORIZED)
@@ -119,10 +119,25 @@ class LogoutView(APIView):
 class RegisterUserView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminGroup() or IsAdminGroup()]
+    permission_classes = [IsAdminUser]
 
 # Get All Users (Only Admins can view users)
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminGroup()]
+    permission_classes = [IsAdminUser]
+
+class UserDetailView(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]
+
+class UserUpdateView(generics.UpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]
+
+class UserDeleteView(generics.DestroyAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]
