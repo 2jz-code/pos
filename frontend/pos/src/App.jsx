@@ -28,6 +28,7 @@ import Users from "./pages/users/Users";
 import AddUser from "./pages/users/AddUser";
 import EditUser from "./pages/users/EditUser";
 import UserDetail from "./pages/users/UserDetail";
+import Settings from "./pages/settings/Settings";
 
 window.customerDisplayManager = customerDisplayManager;
 
@@ -179,6 +180,10 @@ function AppContent() {
 					<Route
 						path="/users/:userId"
 						element={<UserDetail />}
+					/>
+					<Route
+						path="/settings"
+						element={<Settings />}
 					/>
 				</Routes>
 				<ToastContainer

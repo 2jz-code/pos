@@ -120,6 +120,24 @@ class RegisterUserView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
+    
+    def create(self, request, *args, **kwargs):
+        # Get the request data
+        data = request.data.copy()
+        
+        # If confirm_password is missing but password exists, add it
+        if 'password' in data and 'confirm_password' not in data:
+            data['confirm_password'] = data['password']
+        
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        # Return appropriate response
+        return Response(
+            {"message": "User created successfully", "id": user.id, "username": user.username},
+            status=status.HTTP_201_CREATED
+        )
 
 # Get All Users (Only Admins can view users)
 class UserListView(generics.ListAPIView):

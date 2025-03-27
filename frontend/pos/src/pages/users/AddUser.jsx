@@ -100,8 +100,10 @@ export default function AddUser() {
 		setIsSubmitting(true);
 
 		try {
-			// Remove confirm_password from data sent to API
-			const { confirm_password, ...userData } = formData;
+			// Send both password fields to the API
+			const userData = { ...formData };
+
+			console.log("Sending user data:", userData); // For debugging
 
 			await userService.createUser(userData);
 			toast.success("User created successfully");

@@ -1,11 +1,12 @@
 // src/api/services/userService.js
 import axiosInstance from "../config/axiosConfig";
+import { ENDPOINTS } from "../config/apiEndpoints";
 
 export const userService = {
 	// Get all users
 	getUsers: async () => {
 		try {
-			const response = await axiosInstance.get("auth/users/");
+			const response = await axiosInstance.get(ENDPOINTS.AUTH.USERS);
 			return response.data;
 		} catch (error) {
 			console.error("Error fetching users:", error);
@@ -16,7 +17,9 @@ export const userService = {
 	// Get a single user by ID
 	getUserById: async (userId) => {
 		try {
-			const response = await axiosInstance.get(`auth/users/${userId}/`);
+			const response = await axiosInstance.get(
+				ENDPOINTS.AUTH.USER_DETAIL(userId)
+			);
 			return response.data;
 		} catch (error) {
 			console.error(`Error fetching user #${userId}:`, error);
@@ -27,7 +30,16 @@ export const userService = {
 	// Create a new user
 	createUser: async (userData) => {
 		try {
-			const response = await axiosInstance.post("auth/register/", userData);
+			// Ensure password is included in the request
+			if (!userData.password) {
+				throw new Error("Password is required");
+			}
+
+			// Create a new object with all the user data including password
+			const response = await axiosInstance.post(
+				ENDPOINTS.AUTH.REGISTER,
+				userData
+			);
 			return response.data;
 		} catch (error) {
 			console.error("Error creating user:", error);
@@ -38,9 +50,17 @@ export const userService = {
 	// Update a user
 	updateUser: async (userId, userData) => {
 		try {
+			// For updates, only include password if it's provided
+			const dataToSend = { ...userData };
+
+			// If empty password, remove it from the request
+			if (dataToSend.password === "") {
+				delete dataToSend.password;
+			}
+
 			const response = await axiosInstance.put(
-				`auth/users/${userId}/update/`,
-				userData
+				ENDPOINTS.AUTH.USER_UPDATE(userId),
+				dataToSend
 			);
 			return response.data;
 		} catch (error) {
@@ -53,7 +73,7 @@ export const userService = {
 	deleteUser: async (userId) => {
 		try {
 			const response = await axiosInstance.delete(
-				`auth/users/${userId}/delete/`
+				ENDPOINTS.AUTH.USER_DELETE(userId)
 			);
 			return response.data;
 		} catch (error) {

@@ -1,13 +1,14 @@
-// pages/settings/LocationManagement.jsx
 import { useState, useEffect } from "react";
-import axiosInstance from "../../api/config/axiosConfig";
+import { settingsService } from "../../api/services/settingsService";
 import { TrashIcon, PencilSquareIcon } from "@heroicons/react/24/solid";
-import { MapPinIcon, PlusCircleIcon } from "@heroicons/react/24/outline";
+import { PlusCircleIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 export default function LocationManagement() {
 	const [locations, setLocations] = useState([]);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isSyncing, setIsSyncing] = useState(false);
 	const [error, setError] = useState(null);
+	const [successMessage, setSuccessMessage] = useState(null);
 	const [isAddingLocation, setIsAddingLocation] = useState(false);
 	const [editingLocation, setEditingLocation] = useState(null);
 
@@ -27,17 +28,38 @@ export default function LocationManagement() {
 		fetchLocations();
 	}, []);
 
-	const fetchLocations = async () => {
+	const fetchLocations = async (syncWithStripe = false) => {
 		setIsLoading(true);
+		setError(null);
 		try {
-			const response = await axiosInstance.get("payments/terminal/locations/");
-			setLocations(response.data);
-			setError(null);
+			const data = await settingsService.getLocations(syncWithStripe);
+			setLocations(data);
 		} catch (err) {
 			console.error("Error fetching locations:", err);
 			setError("Failed to load locations. Please try again.");
 		} finally {
 			setIsLoading(false);
+		}
+	};
+
+	const syncWithStripe = async () => {
+		setIsSyncing(true);
+		setError(null);
+		setSuccessMessage(null);
+
+		try {
+			const result = await settingsService.syncLocations();
+			setSuccessMessage(result.message);
+			// Fetch the updated list
+			await fetchLocations();
+		} catch (err) {
+			console.error("Error syncing with Stripe:", err);
+			setError(
+				err.response?.data?.error ||
+					"Failed to sync with Stripe. Please try again."
+			);
+		} finally {
+			setIsSyncing(false);
 		}
 	};
 
@@ -57,13 +79,10 @@ export default function LocationManagement() {
 		try {
 			if (editingLocation) {
 				// Update existing location
-				await axiosInstance.put(
-					`/terminal/locations/${editingLocation.id}/`,
-					formData
-				);
+				await settingsService.updateLocation(editingLocation.id, formData);
 			} else {
 				// Create new location
-				await axiosInstance.post("payments/terminal/locations/", formData);
+				await settingsService.createLocation(formData);
 			}
 
 			// Reset form and refresh locations
@@ -101,7 +120,7 @@ export default function LocationManagement() {
 
 		setIsLoading(true);
 		try {
-			await axiosInstance.delete(`payments/terminal/locations/${locationId}/`);
+			await settingsService.deleteLocation(locationId);
 			fetchLocations();
 		} catch (err) {
 			console.error("Error deleting location:", err);
@@ -128,21 +147,33 @@ export default function LocationManagement() {
 	};
 
 	return (
-		<div className="p-6 h-full flex flex-col">
+		<div className="p-6">
+			{/* Page header with actions */}
 			<div className="flex justify-between items-center mb-6">
-				<h2 className="text-xl font-semibold text-slate-800 flex items-center">
-					<MapPinIcon className="h-6 w-6 mr-2 text-blue-600" />
+				<h2 className="text-xl font-semibold text-slate-800">
 					Location Management
 				</h2>
 
-				<button
-					onClick={() => setIsAddingLocation(true)}
-					className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
-					disabled={isAddingLocation}
-				>
-					<PlusCircleIcon className="h-5 w-5" />
-					Add Location
-				</button>
+				<div className="flex space-x-2">
+					<button
+						onClick={syncWithStripe}
+						className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+						disabled={isSyncing || isLoading}
+					>
+						<ArrowPathIcon
+							className={`h-5 w-5 ${isSyncing ? "animate-spin" : ""}`}
+						/>
+						{isSyncing ? "Syncing..." : "Sync with Stripe"}
+					</button>
+					<button
+						onClick={() => setIsAddingLocation(true)}
+						className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+						disabled={isAddingLocation || isSyncing}
+					>
+						<PlusCircleIcon className="h-5 w-5" />
+						Add Location
+					</button>
+				</div>
 			</div>
 
 			{error && (
@@ -162,6 +193,26 @@ export default function LocationManagement() {
 						/>
 					</svg>
 					{error}
+				</div>
+			)}
+
+			{successMessage && (
+				<div className="mb-4 p-3 bg-green-50 text-green-700 rounded-lg flex items-center">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						className="h-5 w-5 mr-2"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M5 13l4 4L19 7"
+						/>
+					</svg>
+					{successMessage}
 				</div>
 			)}
 

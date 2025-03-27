@@ -125,13 +125,15 @@ export default function EditUser() {
 		setIsSubmitting(true);
 
 		try {
-			// Remove confirm_password from data sent to API
-			const { confirm_password, ...userData } = formData;
+			// Create a new object from formData without confirm_password
+			const { ...userData } = formData;
 
-			// Only include password if it's provided
-			if (!userData.password) {
+			// Only include password if it's provided and not empty
+			if (userData.password === "") {
 				delete userData.password;
 			}
+
+			console.log("Sending user update data:", userData); // For debugging
 
 			await userService.updateUser(userId, userData);
 			toast.success("User updated successfully");

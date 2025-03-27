@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "reports",
     'channels',
     'hardware.apps.HardwareConfig',
+    'settings.apps.SettingsConfig',
 ]
 
 MIDDLEWARE = [

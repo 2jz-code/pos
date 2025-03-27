@@ -9,7 +9,8 @@ import {
 	ClockIcon,
 	ChartBarIcon,
 	CreditCardIcon,
-	UserGroupIcon, // Add this import
+	UserGroupIcon,
+	CogIcon,
 } from "@heroicons/react/24/outline";
 import { HardwareStatus } from "../components/HardwareStatus";
 
@@ -150,6 +151,23 @@ export default function Dashboard() {
 								</h3>
 								<p className="text-sm text-slate-500 text-center">
 									Manage system users and permissions
+								</p>
+							</Link>
+						)}
+						{/* Settings Card - Only visible to admins */}
+						{userStatus.is_admin && (
+							<Link
+								to="/settings"
+								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
+							>
+								<div className="mb-4 p-3 bg-slate-50 rounded-full group-hover:bg-slate-100 transition-colors">
+									<CogIcon className="w-10 h-10 text-slate-600" />
+								</div>
+								<h3 className="text-lg font-medium text-slate-800 mb-2">
+									Admin Settings
+								</h3>
+								<p className="text-sm text-slate-500 text-center">
+									Configure system and application settings
 								</p>
 							</Link>
 						)}

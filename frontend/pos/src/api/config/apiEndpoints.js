@@ -39,4 +39,28 @@ export const ENDPOINTS = {
 			SIMULATE_DELAY: "hardware/debug/simulate-delay/",
 		},
 	},
+
+	// Settings endpoints
+	SETTINGS: {
+		SECURITY: "settings/security/",
+		TERMINAL: {
+			LOCATIONS: "settings/terminal/locations/",
+			LOCATION_DETAIL: (id) => `settings/terminal/locations/${id}/`,
+			LOCATIONS_SYNC: "settings/terminal/locations/sync/",
+			READERS: "settings/terminal/readers/",
+			READERS_SYNC: "settings/terminal/readers/sync/",
+		},
+	},
+
+	// Payment Terminal endpoints
+	PAYMENT_TERMINAL: {
+		CONNECTION_TOKEN: "payments/terminal/connection-token/",
+		READER_STATUS: "payments/terminal/reader-status/",
+		CREATE_PAYMENT_INTENT: "payments/terminal/create-payment-intent/",
+		CAPTURE_PAYMENT: "payments/terminal/capture-payment/",
+		PRESENT_PAYMENT_METHOD: "payments/terminal/present-payment-method/",
+		PROCESS_PAYMENT_METHOD: "payments/terminal/process-payment-method/",
+		CHECK_PAYMENT_COMPLETION: (id) =>
+			`payments/terminal/check-payment-completion/${id}/`,
+	},
 };
