@@ -7,10 +7,11 @@ from django.db import models
 
 class CustomUser(AbstractUser):
     ROLE_CHOICES = [
+        ('owner', 'Owner'),  # Add the owner role at the top
         ('admin', 'Admin'),
-        ('cashier', 'Cashier'),
         ('manager', 'Manager'),
-        ('customer', 'Website Customer'),  # Add website customer role
+        ('cashier', 'Cashier'),
+        ('customer', 'Website Customer'),
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='cashier')
     

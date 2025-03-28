@@ -81,4 +81,14 @@ export const userService = {
 			throw error;
 		}
 	},
+
+	getCurrentUser: async () => {
+		try {
+			const response = await axiosInstance.get("auth/current-user/");
+			return response.data;
+		} catch (error) {
+			console.error("Error fetching current user:", error);
+			throw error;
+		}
+	},
 };

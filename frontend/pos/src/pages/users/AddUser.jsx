@@ -1,5 +1,5 @@
 // src/pages/users/AddUser.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { userService } from "../../api/services/userService";
 import { toast } from "react-toastify";
@@ -20,6 +20,21 @@ export default function AddUser() {
 	});
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [errors, setErrors] = useState({});
+	const [currentUserRole, setCurrentUserRole] = useState("");
+
+	useEffect(() => {
+		// Get the current user's role (this would come from your auth context or API)
+		const fetchCurrentUserRole = async () => {
+			try {
+				const userData = await userService.getCurrentUser();
+				setCurrentUserRole(userData.role);
+			} catch (error) {
+				console.error("Error fetching current user:", error);
+			}
+		};
+
+		fetchCurrentUserRole();
+	}, []);
 
 	const handleChange = (e) => {
 		const { name, value, type, checked } = e.target;
@@ -44,6 +59,11 @@ export default function AddUser() {
 					[name]: checked,
 					role: "customer",
 				});
+				return;
+			}
+
+			if (name === "role" && value === "admin" && currentUserRole === "admin") {
+				toast.warning("Only owners can create admin users");
 				return;
 			}
 
@@ -313,7 +333,15 @@ export default function AddUser() {
 									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 									required
 								>
-									<option value="admin">Admin</option>
+									{/* Only show owner option if the current user is an owner */}
+									{currentUserRole === "owner" && (
+										<option value="owner">Owner</option>
+									)}
+									{/* Only show admin option if the current user is an owner */}
+									{currentUserRole === "owner" && (
+										<option value="admin">Admin</option>
+									)}
+									{/* Always show these options */}
 									<option value="manager">Manager</option>
 									<option value="cashier">Cashier</option>
 									<option value="customer">Customer</option>

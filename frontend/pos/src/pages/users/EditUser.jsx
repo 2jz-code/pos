@@ -23,6 +23,7 @@ export default function EditUser() {
 		first_name: "",
 		last_name: "",
 	});
+	const [currentUserRole, setCurrentUserRole] = useState("");
 
 	useEffect(() => {
 		const fetchUser = async () => {
@@ -41,8 +42,17 @@ export default function EditUser() {
 				setIsLoading(false);
 			}
 		};
+		const fetchCurrentUserRole = async () => {
+			try {
+				const userData = await userService.getCurrentUser();
+				setCurrentUserRole(userData.role);
+			} catch (error) {
+				console.error("Error fetching current user:", error);
+			}
+		};
 
 		fetchUser();
+		fetchCurrentUserRole();
 	}, [userId, navigate]);
 
 	const handleChange = (e) => {
@@ -125,12 +135,25 @@ export default function EditUser() {
 		setIsSubmitting(true);
 
 		try {
-			// Create a new object from formData without confirm_password
-			const { ...userData } = formData;
+			// Create a copy of the form data
+			const userData = { ...formData };
 
-			// Only include password if it's provided and not empty
+			// Password update logic
 			if (userData.password === "") {
+				// If not updating password, remove both password fields
 				delete userData.password;
+				delete userData.confirm_password;
+			} else if (userData.password) {
+				// If updating password, ensure confirm_password matches
+				if (userData.password !== userData.confirm_password) {
+					setErrors({
+						...errors,
+						confirm_password: "Passwords do not match",
+					});
+					setIsSubmitting(false);
+					return;
+				}
+				// Both fields are present and match, so we're good to go
 			}
 
 			console.log("Sending user update data:", userData); // For debugging
@@ -140,13 +163,32 @@ export default function EditUser() {
 			navigate("/users");
 		} catch (error) {
 			console.error("Error updating user:", error);
-			const errorMessage =
-				error.response?.data?.message || "Failed to update user";
-			toast.error(errorMessage);
 
-			// Handle validation errors from the server
-			if (error.response?.data?.errors) {
-				setErrors(error.response.data.errors);
+			// Enhanced error handling
+			if (error.response?.data) {
+				// If we have a structured error response
+				if (typeof error.response.data === "object") {
+					// Handle field errors (like confirm_password errors)
+					setErrors((prev) => ({
+						...prev,
+						...error.response.data,
+					}));
+
+					// Create a readable error message
+					const errorMessages = Object.entries(error.response.data)
+						.map(
+							([field, msgs]) =>
+								`${field}: ${Array.isArray(msgs) ? msgs[0] : msgs}`
+						)
+						.join("; ");
+
+					toast.error(errorMessages || "Validation failed");
+				} else {
+					// Handle string error messages
+					toast.error(error.response.data.message || "Failed to update user");
+				}
+			} else {
+				toast.error("Failed to update user. Please try again.");
 			}
 		} finally {
 			setIsSubmitting(false);
@@ -354,6 +396,10 @@ export default function EditUser() {
 									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 									required
 								>
+									{/* Only show owner option if the current user is an owner */}
+									{currentUserRole === "owner" && (
+										<option value="owner">Owner</option>
+									)}
 									<option value="admin">Admin</option>
 									<option value="manager">Manager</option>
 									<option value="cashier">Cashier</option>

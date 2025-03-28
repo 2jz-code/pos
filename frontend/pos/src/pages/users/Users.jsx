@@ -13,10 +13,25 @@ export default function Users() {
 	const [error, setError] = useState(null);
 	const [userToDelete, setUserToDelete] = useState(null);
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [currentUserRole, setCurrentUserRole] = useState("");
+	const [currentUserId, setCurrentUserId] = useState(null);
 	const navigate = useNavigate();
 
 	useEffect(() => {
 		fetchUsers();
+
+		// Get the current user's role and ID
+		const fetchCurrentUser = async () => {
+			try {
+				const userData = await userService.getCurrentUser();
+				setCurrentUserRole(userData.role);
+				setCurrentUserId(userData.id);
+			} catch (error) {
+				console.error("Error fetching current user:", error);
+			}
+		};
+
+		fetchCurrentUser();
 	}, []);
 
 	const fetchUsers = async () => {
@@ -95,7 +110,14 @@ export default function Users() {
 					</button>
 				</div>
 			</div>
-
+			{currentUserRole === "admin" && (
+				<div className="px-6 py-2 bg-blue-50 text-blue-800 text-sm border-b border-slate-200">
+					<p>
+						<strong>Note:</strong> As an admin, you can only edit your own
+						account and non-admin users. Only owners can edit other admins.
+					</p>
+				</div>
+			)}
 			{/* Main Content */}
 			<div className="flex-1 bg-white rounded-xl shadow-sm overflow-hidden">
 				{isLoading ? (
@@ -148,7 +170,15 @@ export default function Users() {
 									users.map((user) => (
 										<tr
 											key={user.id}
-											className="hover:bg-slate-50"
+											className={`hover:bg-slate-50 ${
+												user.role === "owner"
+													? "bg-amber-50"
+													: user.role === "admin" &&
+													  currentUserRole === "admin" &&
+													  user.id !== currentUserId
+													? "bg-purple-50"
+													: ""
+											}`}
 										>
 											<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
 												{user.username}
@@ -159,7 +189,9 @@ export default function Users() {
 											<td className="px-6 py-4 whitespace-nowrap text-sm">
 												<span
 													className={`px-2 py-1 rounded-full text-xs font-medium ${
-														user.role === "admin"
+														user.role === "owner"
+															? "bg-amber-100 text-amber-800"
+															: user.role === "admin"
 															? "bg-purple-100 text-purple-800"
 															: user.role === "manager"
 															? "bg-blue-100 text-blue-800"
@@ -185,13 +217,43 @@ export default function Users() {
 											<td className="px-6 py-4 whitespace-nowrap text-sm text-right">
 												<button
 													onClick={() => handleEdit(user.id)}
-													className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs hover:bg-blue-100 transition-colors mr-2"
+													className={`px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs hover:bg-blue-100 transition-colors mr-2 ${
+														(user.role === "owner" &&
+															currentUserRole !== "owner") ||
+														(user.role === "admin" &&
+															currentUserRole === "admin" &&
+															user.id !== currentUserId)
+															? "opacity-50 cursor-not-allowed"
+															: ""
+													}`}
+													disabled={
+														(user.role === "owner" &&
+															currentUserRole !== "owner") ||
+														(user.role === "admin" &&
+															currentUserRole === "admin" &&
+															user.id !== currentUserId)
+													}
 												>
 													Edit
 												</button>
 												<button
 													onClick={() => handleDelete(user)}
-													className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs hover:bg-red-100 transition-colors"
+													className={`px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs hover:bg-red-100 transition-colors ${
+														(user.role === "owner" &&
+															currentUserRole !== "owner") ||
+														(user.role === "admin" &&
+															currentUserRole === "admin" &&
+															user.id !== currentUserId)
+															? "opacity-50 cursor-not-allowed"
+															: ""
+													}`}
+													disabled={
+														(user.role === "owner" &&
+															currentUserRole !== "owner") ||
+														(user.role === "admin" &&
+															currentUserRole === "admin" &&
+															user.id !== currentUserId)
+													}
 												>
 													Delete
 												</button>
