@@ -7,6 +7,11 @@ export const useCartStore = create(
 		(set, get) => ({
 			cart: [],
 			orderId: null,
+			rewardsProfile: null, // Add this state property
+			showOverlay: true,
+
+			// Add this function to set the rewards profile
+			setRewardsProfile: (profile) => set({ rewardsProfile: profile }),
 
 			// ✅ Format Cart Data Before Saving
 			normalizeCart: (cart) => {

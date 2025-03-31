@@ -33,7 +33,8 @@ class Order(models.Model):
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="saved")
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default="pending")
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    
+    rewards_profile_id = models.IntegerField(null=True, blank=True)
+
     # Fields for website orders (guest checkout)
     guest_id = models.CharField(max_length=255, blank=True, null=True)
     guest_first_name = models.CharField(max_length=100, blank=True, null=True)

@@ -183,7 +183,7 @@ class CompleteOrder(APIView):
 
     def post(self, request, pk, *args, **kwargs):
         """
-        Completes an order by setting the status to "completed".
+        Completes an order by setting the status to "completed" and processes rewards.
         """
         try:
             # Log the incoming request data for debugging
@@ -192,16 +192,39 @@ class CompleteOrder(APIView):
             order = get_object_or_404(Order, id=pk, user=request.user, status="in_progress")
             order.status = "completed"
             order.payment_status = request.data.get("payment_status", "paid")
+            
+            # Process rewards profile information if provided
+            rewards_profile_data = request.data.get("rewards_profile")
+            if rewards_profile_data:
+                # Attach rewards profile info to the order metadata or a dedicated field
+                from rewards.models import RewardsProfile
+                try:
+                    # Try to find the profile by ID first
+                    if rewards_profile_data.get('id'):
+                        profile = RewardsProfile.objects.get(id=rewards_profile_data['id'])
+                        # Store profile ID in order metadata or a new field
+                        order.rewards_profile_id = profile.id
+                    # Or by phone if ID is not available
+                    elif rewards_profile_data.get('phone'):
+                        phone = rewards_profile_data['phone']
+                        # Find user with this phone number
+                        from users.models import CustomUser
+                        user = CustomUser.objects.filter(phone_number=phone).first()
+                        if user and hasattr(user, 'rewards_profile'):
+                            profile = user.rewards_profile
+                            order.rewards_profile_id = profile.id
+                except (RewardsProfile.DoesNotExist, CustomUser.DoesNotExist):
+                    print(f"Failed to find rewards profile: {rewards_profile_data}")
+            
             order.save()
 
             # Get or create payment
             payment, created = Payment.objects.get_or_create(order=order)
             
-            # Get payment data from request
+            # Update payment record
             payment_data = request.data.get("payment_details") or request.data.get("paymentDetails", {})
             payment_method = payment_data.get("paymentMethod") or request.data.get("payment_method")
             
-            # Update payment record
             payment.payment_method = payment_method
             payment.status = "completed"
             payment.amount = payment_data.get("totalPaid") or order.total_price
@@ -236,13 +259,6 @@ class CompleteOrder(APIView):
                         payment.set_transactions(transactions)
             
             payment.save()
-            
-            # Log the payment object after saving
-            print(f"Payment saved: id={payment.id}, method={payment.payment_method}, is_split={payment.is_split_payment}")
-            if payment.transactions_json:
-                print(f"Transaction data length: {len(payment.transactions_json)}")
-            else:
-                print("No transaction data stored")
             
             return Response({
                 "status": "success",

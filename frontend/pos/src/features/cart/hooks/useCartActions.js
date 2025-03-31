@@ -48,18 +48,38 @@ export const useCartActions = () => {
 				"Starting order completion with payment details:",
 				paymentDetails
 			);
-			const response = await axiosInstance.post(`orders/${orderId}/complete/`, {
+
+			// Get the rewards profile from the store
+			const rewardsProfile = useCartStore.getState().rewardsProfile;
+
+			// Create the payload with payment details
+			const payload = {
 				payment_status: "paid",
 				payment_method:
 					paymentDetails.paymentMethod ||
-					(paymentDetails.transactions.length > 0
+					(paymentDetails.transactions?.length > 0
 						? paymentDetails.transactions[0].method
 						: "cash"),
 				payment_details: {
 					...paymentDetails,
 					completed_at: new Date().toISOString(),
 				},
-			});
+			};
+
+			// Add rewards profile information if available - at the root level of the payload
+			if (rewardsProfile) {
+				payload.rewards_profile = {
+					id: rewardsProfile.id,
+					phone: rewardsProfile.phone,
+				};
+			}
+
+			console.log("Sending payload to complete order:", payload);
+
+			const response = await axiosInstance.post(
+				`orders/${orderId}/complete/`,
+				payload
+			);
 
 			console.log("Order completion response:", response);
 

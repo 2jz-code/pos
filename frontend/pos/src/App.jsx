@@ -29,6 +29,10 @@ import AddUser from "./pages/users/AddUser";
 import EditUser from "./pages/users/EditUser";
 import UserDetail from "./pages/users/UserDetail";
 import Settings from "./pages/settings/Settings";
+import RewardsDashboard from "./pages/rewards/RewardsDashboard";
+import RewardItems from "./pages/rewards/RewardItems";
+import PointsRules from "./pages/rewards/PointsRules";
+import VerifyRedemption from "./pages/rewards/VerifyRedemption";
 
 window.customerDisplayManager = customerDisplayManager;
 
@@ -184,6 +188,22 @@ function AppContent() {
 					<Route
 						path="/settings"
 						element={<Settings />}
+					/>
+					<Route
+						path="/rewards"
+						element={<RewardsDashboard />}
+					/>
+					<Route
+						path="/rewards/reward-items"
+						element={<RewardItems />}
+					/>
+					<Route
+						path="/rewards/rules"
+						element={<PointsRules />}
+					/>
+					<Route
+						path="/rewards/verify"
+						element={<VerifyRedemption />}
 					/>
 				</Routes>
 				<ToastContainer

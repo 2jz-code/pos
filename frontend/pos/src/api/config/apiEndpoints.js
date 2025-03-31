@@ -63,4 +63,24 @@ export const ENDPOINTS = {
 		CHECK_PAYMENT_COMPLETION: (id) =>
 			`payments/terminal/check-payment-completion/${id}/`,
 	},
+	// Rewards endpoints
+	REWARDS: {
+		PROFILES: {
+			LIST: "rewards/admin/profiles/",
+			DETAIL: (id) => `rewards/admin/profiles/${id}/`,
+			BY_USER: (userId) => `rewards/admin/profiles/by-user/${userId}/`,
+			ADJUST_POINTS: (id) => `rewards/admin/profiles/${id}/adjust_points/`,
+			TRANSACTIONS: (id) => `rewards/admin/profiles/${id}/transactions/`,
+			REDEMPTIONS: (id) => `rewards/admin/profiles/${id}/redemptions/`,
+		},
+		REWARDS: {
+			LIST: "rewards/admin/rewards/",
+			DETAIL: (id) => `rewards/admin/rewards/${id}/`,
+		},
+		RULES: {
+			LIST: "rewards/admin/rules/",
+			DETAIL: (id) => `rewards/admin/rules/${id}/`,
+		},
+		VERIFY_CODE: "rewards/verify-code/",
+	},
 };

@@ -6,7 +6,8 @@ from .views_website import (
     website_user_profile,
     check_website_authentication,
     has_website_refresh_token,
-    website_logout_view
+    website_logout_view,
+    toggle_rewards_opt_in
 )
 
 urlpatterns = [
@@ -16,5 +17,6 @@ urlpatterns = [
     path('website/profile/', website_user_profile, name='website_profile'),
     path('website/auth/', check_website_authentication, name='check-auth'),
     path('website/refresh-check/', has_website_refresh_token, name='refresh-token-check'),
-    path('website/logout/', website_logout_view, name='logout')
+    path('website/logout/', website_logout_view, name='logout'),
+    path('website/rewards-opt-in/', toggle_rewards_opt_in, name='rewards-opt-in'),
 ]

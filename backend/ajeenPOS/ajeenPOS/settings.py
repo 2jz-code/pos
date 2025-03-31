@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'payments',
     "reports",
     'channels',
+    "rewards",
     'hardware.apps.HardwareConfig',
     'settings.apps.SettingsConfig',
 ]

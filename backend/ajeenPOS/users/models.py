@@ -25,6 +25,9 @@ class CustomUser(AbstractUser):
     # Add website-specific fields
     website_profile_created = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     
+    is_rewards_opted_in = models.BooleanField(default=False, 
+                          help_text="Whether the user has opted into the rewards program")
+
     groups = models.ManyToManyField(Group, related_name="customuser_groups", blank=True)
     user_permissions = models.ManyToManyField(
         Permission, related_name="customuser_permissions", blank=True

@@ -11,8 +11,9 @@ import {
 	CreditCardIcon,
 	UserGroupIcon,
 	CogIcon,
+	GiftIcon,
 } from "@heroicons/react/24/outline";
-import { HardwareStatus } from "../components/HardwareStatus";
+// import { HardwareStatus } from "../components/HardwareStatus";
 
 export default function Dashboard() {
 	const [userStatus, setUserStatus] = useState({
@@ -36,7 +37,7 @@ export default function Dashboard() {
 	// Updated Dashboard with more modern UI
 	return (
 		<div className="w-screen h-screen flex flex-col bg-slate-50 text-slate-800 p-6">
-			<HardwareStatus />
+			{/* <HardwareStatus /> */}
 			{/* Header Section - Updated with cleaner design */}
 			<header className="bg-white shadow-sm rounded-xl p-5 flex justify-between items-center mb-8">
 				<div className="flex items-center space-x-4">
@@ -151,6 +152,22 @@ export default function Dashboard() {
 								</h3>
 								<p className="text-sm text-slate-500 text-center">
 									Manage system users and permissions
+								</p>
+							</Link>
+						)}
+						{userStatus.is_admin && (
+							<Link
+								to="/rewards"
+								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
+							>
+								<div className="mb-4 p-3 bg-pink-50 rounded-full group-hover:bg-pink-100 transition-colors">
+									<GiftIcon className="w-10 h-10 text-pink-600" />
+								</div>
+								<h3 className="text-lg font-medium text-slate-800 mb-2">
+									Rewards Program
+								</h3>
+								<p className="text-sm text-slate-500 text-center">
+									Manage rewards program, points rules and redemptions
 								</p>
 							</Link>
 						)}

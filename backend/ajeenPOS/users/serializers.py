@@ -13,7 +13,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
                  'role', 'is_pos_user', 'is_website_user', 'password', 
-                 'confirm_password', 'date_joined', 'last_login', 'is_active']
+                 'confirm_password', 'date_joined', 'last_login', 'is_active',
+                 'is_rewards_opted_in', 'phone_number']  # Add the new field
         read_only_fields = ['id', 'date_joined', 'last_login']
     
     def validate(self, data):
@@ -64,7 +65,7 @@ class WebsiteUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                  'phone_number', 'password']
+                  'phone_number', 'password', 'is_rewards_opted_in']
         
     def create(self, validated_data):
         password = validated_data.pop('password')

@@ -209,3 +209,31 @@ def website_logout_view(request):
     response.delete_cookie('website_session_token', path='/api/')
 
     return response
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsWebsiteUser])
+def toggle_rewards_opt_in(request):
+    """Toggle the user's rewards opt-in status"""
+    user = request.user
+    
+    # Get the desired opt-in status from the request
+    opt_in = request.data.get('opt_in')
+    
+    if opt_in is None:
+        return Response(
+            {'error': 'opt_in parameter is required (true/false)'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Update the user's opt-in status
+    user.is_rewards_opted_in = opt_in
+    user.save()
+    
+    # If opting in and no rewards profile exists, one will be created via the signal
+    
+    return Response({
+        'message': f"Rewards opt-in status updated to {opt_in}",
+        'is_rewards_opted_in': user.is_rewards_opted_in,
+        'has_rewards_profile': hasattr(user, 'rewards_profile')
+    })

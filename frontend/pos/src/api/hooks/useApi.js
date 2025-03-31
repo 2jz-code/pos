@@ -2,6 +2,7 @@
 import { useState, useCallback } from "react";
 import { toast } from "react-toastify";
 
+// src/api/hooks/useApi.js
 export const useApi = () => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState(null);
@@ -15,17 +16,19 @@ export const useApi = () => {
 			setError(null);
 
 			try {
-				const response = await apiFunc();
+				const result = await apiFunc();
+				console.log("API function returned:", result); // Debug log
 
 				if (successMessage) {
 					toast.success(successMessage);
 				}
 
 				if (onSuccess) {
-					onSuccess(response.data);
+					onSuccess(result);
 				}
 
-				return response.data;
+				// Return the result directly without trying to access .data
+				return result;
 			} catch (err) {
 				const message =
 					errorMessage || err.response?.data?.message || "An error occurred";

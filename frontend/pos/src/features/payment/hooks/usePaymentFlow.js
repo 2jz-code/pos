@@ -1,6 +1,6 @@
 // src/features/payment/hooks/usePaymentFlow.js
 import { useState, useCallback } from "react";
-// import { hardwareService } from "../../../api/services/hardwareService";
+import { useCartStore } from "../../../store/cartStore";
 
 export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 	// Add onNewOrder prop
@@ -326,6 +326,7 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 						currentView: "Completion",
 						previousViews: [...prev.previousViews, prev.currentView],
 					}));
+					useCartStore.getState().setRewardsProfile(null);
 					return true;
 				}
 				return false;
