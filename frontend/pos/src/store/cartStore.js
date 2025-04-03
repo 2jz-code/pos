@@ -19,12 +19,16 @@ export const useCartStore = create(
 					// Parse numbers and provide fallbacks
 					const price = parseFloat(item.product?.price || item.price) || 0;
 					const quantity = parseInt(item.quantity, 10) || 1;
+					// Preserve discount if it exists, or default to 0
+					const discount =
+						item.discount !== undefined ? parseFloat(item.discount) : 0;
 
 					return {
 						id: item.product?.id || item.id,
 						name: item.product?.name || item.name,
 						price: Number.isFinite(price) ? price : 0,
 						quantity: Number.isFinite(quantity) ? quantity : 1,
+						discount: Number.isFinite(discount) ? discount : 0,
 					};
 				});
 			},
@@ -38,8 +42,24 @@ export const useCartStore = create(
 				get().saveCartToBackend(normalizedCart);
 			},
 
-			// In cartStore.js
 			updateItemQuantity: (itemId, quantityUpdate) => {
+				console.log("updateItemQuantity called with:", {
+					itemId,
+					quantityUpdate,
+				});
+
+				// If it's an object with a discount property but no quantity,
+				// redirect to updateItem instead
+				if (
+					typeof quantityUpdate === "object" &&
+					"discount" in quantityUpdate &&
+					!("quantity" in quantityUpdate)
+				) {
+					console.log("Redirecting discount update to updateItem");
+					get().updateItem(itemId, quantityUpdate);
+					return;
+				}
+
 				// Extract the quantity value, whether it's direct or from an object
 				const newQuantity =
 					typeof quantityUpdate === "object"
@@ -75,7 +95,26 @@ export const useCartStore = create(
 				const updatedCart = get().cart;
 				get().saveCartToBackend(updatedCart);
 			},
+			updateItem: (itemId, updates) => {
+				console.log("Store updateItem called:", { itemId, updates });
 
+				set((state) => {
+					const updatedCart = state.cart.map((item) => {
+						if (item.id === itemId) {
+							const updatedItem = { ...item, ...updates };
+							return updatedItem;
+						}
+						return item;
+					});
+
+					// Return updated cart immediately
+					return { cart: updatedCart };
+				});
+
+				// After state update, sync with backend
+				const updatedCart = get().cart;
+				get().saveCartToBackend(updatedCart);
+			},
 			// ✅ Add Item & Sync with Backend
 			addToCart: (product) =>
 				set((state) => {
@@ -129,11 +168,12 @@ export const useCartStore = create(
 
 				// Validate cart items before sending
 				const validatedItems = cart
-					.filter((item) => item && item.id && item.quantity > 0)
+					.filter((item) => get().validateCartItem(item))
 					.map((item) => ({
 						id: parseInt(item.id, 10),
 						quantity: parseInt(item.quantity, 10),
 						price: parseFloat(item.price) || 0,
+						discount: parseFloat(item.discount || 0), // Include discount in the backend save
 					}));
 
 				try {
@@ -172,6 +212,7 @@ export const useCartStore = create(
 
 				const price = parseFloat(item.price);
 				const quantity = parseInt(item.quantity, 10);
+				const discount = parseFloat(item.discount || 0);
 
 				return (
 					item.id &&
@@ -179,7 +220,10 @@ export const useCartStore = create(
 					Number.isFinite(price) &&
 					price >= 0 &&
 					Number.isFinite(quantity) &&
-					quantity > 0
+					quantity > 0 &&
+					Number.isFinite(discount) &&
+					discount >= 0 &&
+					discount <= 100 // Assuming discount is a percentage
 				);
 			},
 		}),

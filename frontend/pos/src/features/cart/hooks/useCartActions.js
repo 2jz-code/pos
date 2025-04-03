@@ -7,13 +7,15 @@ import { toast } from "react-toastify";
 export const useCartActions = () => {
 	// Add updateItemQuantity function
 	const updateItemQuantity = useCallback((itemId, updates) => {
-		useCartStore
-			.getState()
-			.updateItemQuantity(
-				itemId,
-				typeof updates === "object" ? updates.quantity : updates
-			);
+		if (typeof updates === "object") {
+			// Handle object updates (can include discount or quantity)
+			useCartStore.getState().updateItem(itemId, updates);
+		} else {
+			// Handle direct quantity updates (backward compatibility)
+			useCartStore.getState().updateItemQuantity(itemId, updates);
+		}
 	}, []);
+
 	const startOrder = useCallback(async () => {
 		try {
 			const response = await axiosInstance.post("orders/start/");

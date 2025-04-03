@@ -5,7 +5,8 @@ from .views_website import (
     WebsiteCheckoutView,
     WebsiteOrderListView,
     WebsiteOrderDetailView,
-    GuestOrderDetailView
+    GuestOrderDetailView,
+    ReorderView,
 )
 
 urlpatterns = [
@@ -20,6 +21,8 @@ urlpatterns = [
     # Order endpoints
     path('orders/', WebsiteOrderListView.as_view(), name='website-orders'),
     path('orders/<int:order_id>/', WebsiteOrderDetailView.as_view(), name='website-order-detail'),
+    path('reorder/', ReorderView.as_view(), name='reorder'),
+
     
     # Guest order lookup
     path('guest-order/', GuestOrderDetailView.as_view(), name='website-guest-order'),

@@ -281,6 +281,24 @@ class WebsiteCheckoutView(APIView):
         cart.checked_out = True
         cart.save()
         
+        # Get payment method from request data
+        payment_method = request.data.get('payment_method', 'cash')
+        
+        # Map frontend payment method to backend payment method
+        backend_payment_method = {
+            'cash': 'cash',
+            'card': 'credit'
+        }.get(payment_method, 'cash')  # Default to cash if not specified
+        
+        # Create Payment record for the order
+        from payments.models import Payment
+        Payment.objects.create(
+            order=order,
+            payment_method=backend_payment_method,
+            amount=order.total_price,
+            status='pending'
+        )
+        
         # Return order data with explicit order_id in the response
         serializer = WebsiteOrderSerializer(order)
         response_data = serializer.data
@@ -375,4 +393,51 @@ class GuestOrderDetailView(APIView):
             return Response(
                 {'error': 'Order not found'}, 
                 status=status.HTTP_404_NOT_FOUND
+            )
+
+class ReorderView(APIView):
+    """
+    API endpoint to reorder a past order
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        order_id = request.data.get('order_id')
+        
+        if not order_id:
+            return Response({'error': 'Order ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            # Get the original order
+            original_order = Order.objects.get(id=order_id, user=request.user)
+            
+            # Clear current cart
+            Cart.objects.filter(user=request.user, checked_out=False).delete()
+            
+            # Create new cart
+            new_cart = Cart.objects.create(user=request.user, checked_out=False)
+            
+            # Add items from original order to the new cart
+            for item in original_order.items.all():
+                CartItem.objects.create(
+                    cart=new_cart,
+                    product=item.product,
+                    quantity=item.quantity
+                )
+                
+            return Response({
+                'success': True,
+                'message': 'Items added to cart',
+                'cart_id': new_cart.id
+            })
+            
+        except Order.DoesNotExist:
+            return Response(
+                {'error': 'Order not found or you do not have permission to access it'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to reorder: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

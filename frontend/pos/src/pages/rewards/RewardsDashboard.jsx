@@ -1,13 +1,10 @@
 // src/pages/rewards/RewardsDashboard.jsx - Updated version
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { rewardsService } from "../../api/services/rewardsService";
 import { useApi } from "../../api/hooks/useApi";
-import {
-	ChevronRightIcon,
-	GiftIcon,
-	ArrowLeftIcon,
-} from "@heroicons/react/24/outline";
+import { ChevronRightIcon, GiftIcon } from "@heroicons/react/24/outline";
 import LoadingSpinner from "../reports/components/LoadingSpinner";
 import { toast } from "react-toastify";
 
@@ -17,6 +14,7 @@ export default function RewardsDashboard() {
 		totalPointsIssued: 0,
 		activeRewards: 0,
 	});
+	const navigate = useNavigate();
 
 	const { execute, isLoading } = useApi();
 
@@ -90,10 +88,23 @@ export default function RewardsDashboard() {
 				</h1>
 				<button
 					className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5"
-					onClick={() => (window.location.href = "/dashboard")}
+					onClick={() => navigate("/dashboard")}
 				>
-					<ArrowLeftIcon className="h-5 w-5" />
-					Back to Dashboard
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						className="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							strokeWidth={2}
+							d="M4 6h16M4 12h16M4 18h7"
+						/>
+					</svg>
+					Dashboard
 				</button>
 			</div>
 

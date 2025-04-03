@@ -3,9 +3,8 @@ import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/config/axiosConfig";
 import { authService } from "../../api/services/authService";
 import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/solid";
-import CategoryModal from "../../components/CategoryModal";
-// import { PlusIcon } from "@heroicons/react/24/solid";
-import { GoPlusCircle } from "react-icons/go";
+import CategoryManagementModal from "../../components/CategoryManagementModal"; // Import the new component
+import { AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
 
 export default function Products() {
 	const [categories, setCategories] = useState([]);
@@ -14,10 +13,36 @@ export default function Products() {
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [userName, setUserName] = useState("");
 	const navigate = useNavigate();
-	const [isAddingCategory, setIsAddingCategory] = useState(false);
+	const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
-	const handleCategorySubmit = (newCategory) => {
-		setCategories([...categories, newCategory]);
+	const handleCategoryChange = (action, data) => {
+		switch (action) {
+			case "add":
+				setCategories([...categories, data]);
+				break;
+			case "edit":
+				setCategories(
+					categories.map((category) =>
+						category.id === data.id
+							? { ...category, name: data.name }
+							: category
+					)
+				);
+				break;
+			case "delete":
+				// Remove the deleted category from the state
+				setCategories(
+					categories.filter((category) => category.id !== parseInt(data))
+				);
+
+				// If the deleted category was selected, reset to show all products
+				if (selectedCategory === data.toString()) {
+					setSelectedCategory("");
+				}
+				break;
+			default:
+				console.error("Unknown category action:", action);
+		}
 	};
 
 	useEffect(() => {
@@ -26,7 +51,7 @@ export default function Products() {
 				const [categoriesRes, productsRes, authRes] = await Promise.all([
 					axiosInstance.get("products/categories/"),
 					axiosInstance.get("products/"),
-					authService.checkStatus(), // Changed to use checkStatus method
+					authService.checkStatus(),
 				]);
 
 				setCategories(categoriesRes.data);
@@ -116,11 +141,11 @@ export default function Products() {
 				{/* All Categories Button */}
 				<button
 					className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors
-				${
-					!selectedCategory
-						? "bg-blue-600 text-white"
-						: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-				}`}
+          ${
+						!selectedCategory
+							? "bg-blue-600 text-white"
+							: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+					}`}
 					onClick={() => setSelectedCategory("")}
 				>
 					All Products
@@ -131,27 +156,27 @@ export default function Products() {
 					<button
 						key={category.id}
 						className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors
-					${
-						selectedCategory === category.name
-							? "bg-blue-600 text-white"
-							: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-					}`}
-						onClick={() => setSelectedCategory(category.name)}
+            ${
+							selectedCategory === category.id.toString()
+								? "bg-blue-600 text-white"
+								: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+						}`}
+						onClick={() => setSelectedCategory(category.id.toString())}
 					>
 						{category.name}
 					</button>
 				))}
 
-				{/* Add Category Button - Only visible for admin */}
+				{/* Admin Actions */}
 				{isAdmin && (
 					<button
-						onClick={() => setIsAddingCategory(true)}
-						className="px-3 py-2 text-sm font-medium rounded-lg transition-colors
-					bg-emerald-500 text-white hover:bg-emerald-600
-					flex items-center gap-1 whitespace-nowrap ml-auto"
+						onClick={() => setIsCategoryModalOpen(true)}
+						className="ml-auto px-3 py-2 text-sm font-medium rounded-lg transition-colors
+            bg-indigo-600 text-white hover:bg-indigo-700
+            flex items-center gap-1 whitespace-nowrap"
 					>
-						<GoPlusCircle className="h-5 w-5" />
-						<span className="hidden sm:inline">Add Category</span>
+						<AdjustmentsHorizontalIcon className="h-5 w-5" />
+						<span className="hidden sm:inline">Manage Categories</span>
 					</button>
 				)}
 			</div>
@@ -159,9 +184,20 @@ export default function Products() {
 			{/* Product Grid */}
 			<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 flex-1 overflow-y-auto">
 				{products
-					.filter((product) =>
-						selectedCategory ? product.category_name === selectedCategory : true
-					)
+					.filter((product) => {
+						if (!selectedCategory) return true;
+
+						// First try to match by category ID if available
+						if (product.category) {
+							return product.category.toString() === selectedCategory;
+						}
+
+						// Fall back to matching by category_name if that's what we have
+						const selectedCategoryObj = categories.find(
+							(cat) => cat.id.toString() === selectedCategory
+						);
+						return product.category_name === selectedCategoryObj?.name;
+					})
 					.map((product) => (
 						<div
 							key={product.name}
@@ -236,11 +272,12 @@ export default function Products() {
 				</span>
 			</div>
 
-			{/* Category Modal */}
-			<CategoryModal
-				isOpen={isAddingCategory}
-				onClose={() => setIsAddingCategory(false)}
-				onSubmit={handleCategorySubmit}
+			{/* Category Management Modal */}
+			<CategoryManagementModal
+				isOpen={isCategoryModalOpen}
+				onClose={() => setIsCategoryModalOpen(false)}
+				onCategoryChange={handleCategoryChange}
+				categories={categories}
 				axiosInstance={axiosInstance}
 			/>
 		</div>

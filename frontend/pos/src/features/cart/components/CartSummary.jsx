@@ -1,9 +1,13 @@
-// src/features/cart/components/CartSummary.jsx
+import { useMemo } from "react";
 import PropTypes from "prop-types";
 import { calculateCartTotals } from "../utils/cartCalculations";
 
 export const CartSummary = ({ cart, onHoldOrder, onCharge, canHoldOrder }) => {
-	const { subtotal, taxAmount, total } = calculateCartTotals(cart);
+	// Use useMemo to efficiently recalculate totals when cart changes
+	const { subtotal, taxAmount, total } = useMemo(() => {
+		console.log("Recalculating cart totals with cart:", cart);
+		return calculateCartTotals(cart);
+	}, [cart]);
 
 	return (
 		<div className="sticky bottom-0 bg-white border-t border-slate-200 p-4 space-y-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
@@ -25,10 +29,14 @@ export const CartSummary = ({ cart, onHoldOrder, onCharge, canHoldOrder }) => {
 			<div className="grid grid-cols-2 gap-3">
 				<button
 					className={`
-			  bg-slate-100 text-slate-700 px-4 py-2.5 rounded-lg 
-			  transition-colors flex items-center justify-center
-			  ${!canHoldOrder ? "opacity-50 cursor-not-allowed" : "hover:bg-slate-200"}
-			`}
+          bg-slate-100 text-slate-700 px-4 py-2.5 rounded-lg 
+          transition-colors flex items-center justify-center
+          ${
+						!canHoldOrder
+							? "opacity-50 cursor-not-allowed"
+							: "hover:bg-slate-200"
+					}
+        `}
 					onClick={onHoldOrder}
 					disabled={!canHoldOrder}
 				>

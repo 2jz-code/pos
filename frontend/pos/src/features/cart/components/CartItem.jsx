@@ -1,11 +1,22 @@
-// src/features/cart/components/CartItem.jsx
-import { memo } from "react";
+import { memo, useState, useEffect } from "react";
 import { ChevronRightIcon, XCircleIcon } from "@heroicons/react/24/solid";
 import PropTypes from "prop-types";
 import { ensureNumber, formatPrice } from "../../../utils/numberUtils";
 
 export const CartItem = memo(
 	({ item, isExpanded, onExpand, onUpdate, onRemove }) => {
+		// Local state for discount input
+		const [localDiscount, setLocalDiscount] = useState(
+			item.discount !== undefined ? item.discount.toString() : ""
+		);
+
+		// Update local state when item.discount changes from outside
+		useEffect(() => {
+			if (item.discount !== undefined) {
+				setLocalDiscount(item.discount.toString());
+			}
+		}, [item.discount]);
+
 		// Add validation and safe number conversion
 		const calculateItemTotal = () => {
 			const price = ensureNumber(item.price);
@@ -17,7 +28,13 @@ export const CartItem = memo(
 			return formatPrice(basePrice - discount);
 		};
 
-		// Add debugging for item updates
+		const getFormattedDiscount = () => {
+			if (localDiscount === "") return "";
+			const numericDiscount = parseInt(localDiscount, 10);
+			return Number.isFinite(numericDiscount) ? numericDiscount : 0;
+		};
+
+		// Handle quantity updates
 		const handleQuantityUpdate = (newQuantity) => {
 			// Ensure we're working with numbers
 			const updatedQuantity = parseInt(newQuantity, 10);
@@ -25,6 +42,48 @@ export const CartItem = memo(
 			if (Number.isFinite(updatedQuantity) && updatedQuantity > 0) {
 				onUpdate(item.id, updatedQuantity); // Pass the number directly
 			}
+		};
+
+		// Handle discount input changes
+		const handleDiscountChange = (e) => {
+			const inputValue = e.target.value;
+
+			// Only allow digits and limit input length to 3 characters
+			if (/^\d{0,3}$/.test(inputValue)) {
+				// Always update local state for responsive UI
+				setLocalDiscount(inputValue);
+
+				// Only update the actual discount when we have valid input
+				if (inputValue !== "") {
+					// Apply maximum limit during input
+					const numericValue = Math.min(100, parseInt(inputValue) || 0);
+
+					// If user tries to enter >100, cap the displayed value too
+					if (parseInt(inputValue) > 100) {
+						setLocalDiscount("100");
+					}
+
+					// Update the discount in the store - be explicit about the object structure
+					console.log("Updating discount to:", numericValue);
+					onUpdate(item.id, { discount: numericValue });
+				} else {
+					// If field is empty, set discount to 0 but don't update yet
+					// This allows user to clear the field and type a new value
+					console.log("Empty discount field");
+				}
+			}
+		};
+
+		// Ensure valid value on blur
+		const handleDiscountBlur = () => {
+			let finalValue = 0;
+			if (localDiscount !== "") {
+				finalValue = Math.min(100, Math.max(0, parseInt(localDiscount) || 0));
+			}
+
+			// Update both local state and store
+			setLocalDiscount(finalValue.toString());
+			onUpdate(item.id, { discount: finalValue });
 		};
 
 		return (
@@ -77,8 +136,8 @@ export const CartItem = memo(
 										}}
 										disabled={item.quantity <= 1}
 										className="px-3 py-1 bg-white rounded-md border border-slate-200 hover:bg-slate-50 
-						   transition-colors disabled:opacity-50 
-						   disabled:cursor-not-allowed"
+                    transition-colors disabled:opacity-50 
+                    disabled:cursor-not-allowed"
 									>
 										-
 									</button>
@@ -92,7 +151,7 @@ export const CartItem = memo(
 											handleQuantityUpdate(currentQuantity + 1);
 										}}
 										className="px-3 py-1 bg-white border border-slate-200 rounded-md hover:bg-slate-50 
-						   transition-colors"
+                    transition-colors"
 									>
 										+
 									</button>
@@ -104,23 +163,31 @@ export const CartItem = memo(
 									Discount (%)
 								</label>
 								<input
-									type="number"
-									min="0"
-									max="100"
+									type="text"
+									pattern="\d*"
+									inputMode="numeric"
 									className="w-full px-3 py-2 border border-slate-200 rounded-md 
-								 focus:ring-2 focus:ring-blue-500"
-									value={item.discount || ""}
+                  focus:ring-2 focus:ring-blue-500"
+									value={localDiscount}
 									onClick={(e) => e.stopPropagation()}
-									onChange={(e) => {
-										const value = Math.min(
-											100,
-											Math.max(0, parseInt(e.target.value) || 0)
-										);
-										onUpdate(item.id, { discount: value });
-									}}
+									onChange={handleDiscountChange}
+									onBlur={handleDiscountBlur}
+									placeholder="0"
+									maxLength={3}
 								/>
 							</div>
 						</div>
+
+						{/* Add discount preview */}
+						{getFormattedDiscount() > 0 && (
+							<div className="mt-2 text-sm text-green-600">
+								Discount: $
+								{(
+									(item.price * item.quantity * getFormattedDiscount()) /
+									100
+								).toFixed(2)}
+							</div>
+						)}
 					</div>
 				)}
 			</div>
