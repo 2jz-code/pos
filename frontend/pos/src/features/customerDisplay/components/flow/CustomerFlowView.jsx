@@ -3,13 +3,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import PropTypes from "prop-types";
-// import FlowProgressMeter from "./FlowProgressMeter";
-// import { CUSTOMER_FLOW_STEPS } from "../../../payment/constants/paymentFlowSteps";
 import CartView from "../cart/CartView";
 import RewardsRegistrationView from "../rewards/RewardsRegistrationView";
 import TipSelectionView from "../tip/TipSelectionView";
 import PaymentView from "../payment/PaymentView";
-import ReceiptView from "../receipt/ReceiptView"; // Import the new receipt component
+import ReceiptView from "../receipt/ReceiptView";
 import CashFlowView from "../payment/CashFlowView";
 
 const CustomerFlowView = ({ flowData, onStepComplete }) => {
@@ -31,27 +29,6 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 			onStepComplete(currentStep, stepData);
 		}
 	};
-
-	// // Get cart data from the pre-calculated values
-	// const getOrderData = () => {
-	// 	// Ensure we have valid cart data
-	// 	const cartData = flowData?.cartData || {
-	// 		items: [],
-	// 		subtotal: 0,
-	// 		taxAmount: 0,
-	// 		total: 0,
-	// 	};
-
-	// 	// Return a standardized structure
-	// 	return {
-	// 		items: cartData.items || [],
-	// 		subtotal: cartData.subtotal || 0,
-	// 		tax: cartData.taxAmount || 0, // Note: taxAmount from calculateCartTotals
-	// 		total: cartData.total || 0,
-	// 		tipAmount: flowData?.tipAmount || 0, // Add tip amount from flow data
-	// 		orderId: flowData?.orderId || null, // Explicitly include the order ID
-	// 	};
-	// };
 
 	const renderStepContent = () => {
 		// Debug log to track orderId
@@ -124,28 +101,39 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 	};
 
 	return (
-		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
-			{/* Top colored band */}
+		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
+			{/* Subtle gradient background */}
+			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
+
+			{/* Top accent line */}
 			<motion.div
-				className="h-3 bg-gradient-to-r from-blue-500 to-indigo-600 w-full flex-shrink-0"
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
 			></motion.div>
 
 			{/* Step content */}
-			<div className="flex-1 overflow-auto">
+			<div className="flex-1 overflow-auto relative z-10">
 				<motion.div
 					key={currentStep}
-					initial={{ opacity: 0, y: 20 }}
+					initial={{ opacity: 0, y: 15 }}
 					animate={{ opacity: 1, y: 0 }}
-					exit={{ opacity: 0, y: -20 }}
+					exit={{ opacity: 0, y: -15 }}
 					transition={{ duration: 0.3 }}
 					className="h-full"
 				>
 					{renderStepContent()}
 				</motion.div>
 			</div>
+
+			{/* Bottom accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+			></motion.div>
 		</div>
 	);
 };

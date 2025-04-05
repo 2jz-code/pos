@@ -361,3 +361,40 @@ class CheckPaymentCompletionView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+# Add to terminal_views.py
+class CancelTerminalActionView(APIView):
+    """
+    Cancel an ongoing action on a terminal reader
+    """
+    def post(self, request, *args, **kwargs):
+        try:
+            # Get the reader ID from the request
+            reader_id = request.data.get('reader_id')
+            
+            if not reader_id:
+                return Response(
+                    {'error': 'Reader ID is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Cancel the action on the reader
+            result = stripe.terminal.Reader.cancel_action(reader_id)
+            
+            return Response({
+                'success': True,
+                'reader_id': reader_id,
+                'status': result.status,
+                'action': result.action
+            })
+            
+        except stripe.error.StripeError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

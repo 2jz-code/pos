@@ -33,7 +33,7 @@ import RewardsDashboard from "./pages/rewards/RewardsDashboard";
 import RewardItems from "./pages/rewards/RewardItems";
 import PointsRules from "./pages/rewards/PointsRules";
 import VerifyRedemption from "./pages/rewards/VerifyRedemption";
-
+import TerminalProvider from "./features/payment/contexts/TerminalProvider";
 window.customerDisplayManager = customerDisplayManager;
 
 function App() {
@@ -89,15 +89,17 @@ function App() {
 
 	// Otherwise render the main POS application
 	return (
-		<WebSocketProvider>
-			<CustomerDisplayProvider>
-				<TerminalSimulationProvider>
-					<Router>
-						<AppContent />
-					</Router>
-				</TerminalSimulationProvider>
-			</CustomerDisplayProvider>
-		</WebSocketProvider>
+		<TerminalProvider>
+			<WebSocketProvider>
+				<CustomerDisplayProvider>
+					<TerminalSimulationProvider>
+						<Router>
+							<AppContent />
+						</Router>
+					</TerminalSimulationProvider>
+				</CustomerDisplayProvider>
+			</WebSocketProvider>
+		</TerminalProvider>
 	);
 }
 

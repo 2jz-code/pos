@@ -21,17 +21,17 @@ const RewardsRegistrationView = ({ onComplete }) => {
 			opacity: 1,
 			transition: {
 				when: "beforeChildren",
-				staggerChildren: 0.1,
+				staggerChildren: 0.08,
 			},
 		},
 	};
 
 	const itemVariants = {
-		hidden: { y: 20, opacity: 0 },
+		hidden: { y: 15, opacity: 0 },
 		visible: {
 			y: 0,
 			opacity: 1,
-			transition: { type: "spring", stiffness: 300, damping: 24 },
+			transition: { type: "spring", stiffness: 250, damping: 20 },
 		},
 	};
 
@@ -74,9 +74,9 @@ const RewardsRegistrationView = ({ onComplete }) => {
 		>
 			<motion.div
 				variants={itemVariants}
-				className="mb-6"
+				className="mb-8"
 			>
-				<div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+				<div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						className="h-10 w-10 text-blue-600"
@@ -92,11 +92,11 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						/>
 					</svg>
 				</div>
-				<h2 className="text-2xl font-bold text-slate-800 mb-2">
+				<h2 className="text-2xl font-semibold text-gray-800 tracking-tight mb-2">
 					Join Our Rewards Program
 				</h2>
-				<p className="text-slate-600 mb-4">
-					Earn points with every purchase and get exclusive offers!
+				<p className="text-gray-600 font-light">
+					Earn points with every purchase and receive exclusive offers!
 				</p>
 			</motion.div>
 
@@ -106,13 +106,13 @@ const RewardsRegistrationView = ({ onComplete }) => {
 			>
 				<button
 					onClick={startRegistration}
-					className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+					className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm font-medium"
 				>
 					Sign Up Now
 				</button>
 				<button
 					onClick={handleSkip}
-					className="w-full py-3 bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+					className="w-full py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
 				>
 					No Thanks
 				</button>
@@ -128,7 +128,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 		>
 			<motion.h2
 				variants={itemVariants}
-				className="text-xl font-bold text-slate-800 mb-4 text-center"
+				className="text-xl font-semibold text-gray-800 tracking-tight mb-5 text-center"
 			>
 				Create Your Rewards Account
 			</motion.h2>
@@ -142,7 +142,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 					<div>
 						<label
 							htmlFor="firstName"
-							className="block text-sm font-medium text-slate-700 mb-1"
+							className="block text-sm font-medium text-gray-700 mb-1"
 						>
 							First Name
 						</label>
@@ -153,13 +153,13 @@ const RewardsRegistrationView = ({ onComplete }) => {
 							value={formData.firstName}
 							onChange={handleChange}
 							required
-							className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
 						/>
 					</div>
 					<div>
 						<label
 							htmlFor="lastName"
-							className="block text-sm font-medium text-slate-700 mb-1"
+							className="block text-sm font-medium text-gray-700 mb-1"
 						>
 							Last Name
 						</label>
@@ -170,7 +170,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 							value={formData.lastName}
 							onChange={handleChange}
 							required
-							className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
 						/>
 					</div>
 				</div>
@@ -178,7 +178,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 				<div>
 					<label
 						htmlFor="email"
-						className="block text-sm font-medium text-slate-700 mb-1"
+						className="block text-sm font-medium text-gray-700 mb-1"
 					>
 						Email Address
 					</label>
@@ -189,14 +189,14 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						value={formData.email}
 						onChange={handleChange}
 						required
-						className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+						className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
 					/>
 				</div>
 
 				<div>
 					<label
 						htmlFor="phone"
-						className="block text-sm font-medium text-slate-700 mb-1"
+						className="block text-sm font-medium text-gray-700 mb-1"
 					>
 						Phone Number
 					</label>
@@ -207,7 +207,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						value={formData.phone}
 						onChange={handleChange}
 						required
-						className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+						className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
 					/>
 				</div>
 
@@ -219,11 +219,11 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						checked={formData.acceptTerms}
 						onChange={handleChange}
 						required
-						className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+						className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 					/>
 					<label
 						htmlFor="acceptTerms"
-						className="ml-2 block text-sm text-slate-700"
+						className="ml-2 block text-sm text-gray-700"
 					>
 						I agree to the terms and conditions
 					</label>
@@ -232,14 +232,14 @@ const RewardsRegistrationView = ({ onComplete }) => {
 				<div className="flex space-x-3 pt-2">
 					<button
 						type="submit"
-						className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+						className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm font-medium"
 					>
 						Create Account
 					</button>
 					<button
 						type="button"
 						onClick={handleSkip}
-						className="flex-1 py-3 bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+						className="flex-1 py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
 					>
 						Skip
 					</button>
@@ -259,7 +259,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 				variants={itemVariants}
 				className="mb-6"
 			>
-				<div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+				<div className="w-20 h-20 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						className="h-10 w-10 text-emerald-600"
@@ -275,10 +275,10 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						/>
 					</svg>
 				</div>
-				<h2 className="text-2xl font-bold text-slate-800 mb-2">
+				<h2 className="text-2xl font-semibold text-gray-800 tracking-tight mb-2">
 					Welcome to Rewards!
 				</h2>
-				<p className="text-slate-600">
+				<p className="text-gray-600 font-light">
 					Your account has been created successfully.
 					<br />
 					You have earned 100 bonus points for signing up!
@@ -288,15 +288,34 @@ const RewardsRegistrationView = ({ onComplete }) => {
 	);
 
 	return (
-		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
+		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
+			{/* Subtle gradient background */}
+			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
+
+			{/* Top accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut" }}
+			></motion.div>
+
 			{/* Main content */}
-			<div className="flex-1 flex flex-col p-6 justify-center">
-				<div className="max-w-md w-full mx-auto">
+			<div className="flex-1 flex flex-col p-6 justify-center relative z-10">
+				<div className="max-w-md w-full mx-auto bg-white p-8 rounded-lg shadow-sm">
 					{step === "intro" && renderIntroStep()}
 					{step === "form" && renderFormStep()}
 					{step === "success" && renderSuccessStep()}
 				</div>
 			</div>
+
+			{/* Bottom accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+			></motion.div>
 		</div>
 	);
 };

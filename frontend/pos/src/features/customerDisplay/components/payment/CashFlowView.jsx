@@ -1,3 +1,5 @@
+// features/customerDisplay/components/payment/CashFlowView.jsx
+
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import PropTypes from "prop-types";
@@ -55,17 +57,30 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 	} = cashData || {};
 
 	return (
-		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
+		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
+			{/* Subtle gradient background */}
+			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
+
+			{/* Top accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut" }}
+			></motion.div>
+
 			{/* Main content */}
-			<div className="flex-1 flex flex-col p-6 overflow-hidden">
+			<div className="flex-1 flex flex-col p-6 overflow-hidden relative z-10">
 				<motion.div
 					className="mb-6 text-center"
-					initial={{ y: -20, opacity: 0 }}
+					initial={{ y: -15, opacity: 0 }}
 					animate={{ y: 0, opacity: 1 }}
-					transition={{ delay: 0.2 }}
+					transition={{ duration: 0.4 }}
 				>
-					<h1 className="text-3xl font-bold text-slate-800">Cash Payment</h1>
-					<p className="text-slate-500 mt-2">
+					<h1 className="text-2xl font-semibold text-gray-800 tracking-tight">
+						Cash Payment
+					</h1>
+					<p className="text-gray-500 mt-1 font-light">
 						{isSplitPayment
 							? "Split Payment - Transaction Details"
 							: "Transaction Details"}
@@ -76,39 +91,54 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 					{stage === "processing" ? (
 						<motion.div
 							className="text-center w-full max-w-md"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
+							initial={{ opacity: 0, y: 15 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ duration: 0.4 }}
 						>
 							{/* Order summary */}
-							<div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm mb-6">
+							<motion.div
+								className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm mb-6"
+								initial={{ opacity: 0, y: 15 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ delay: 0.1, duration: 0.4 }}
+							>
 								<div className="space-y-2 mb-3">
 									<div className="flex justify-between">
-										<span className="text-slate-600">Subtotal:</span>
-										<span className="font-medium">
+										<span className="text-gray-600">Subtotal:</span>
+										<span className="font-medium text-gray-800">
 											${formatPrice(subtotal)}
 										</span>
 									</div>
 									<div className="flex justify-between">
-										<span className="text-slate-600">Tax:</span>
-										<span className="font-medium">${formatPrice(tax)}</span>
+										<span className="text-gray-600">Tax:</span>
+										<span className="font-medium text-gray-800">
+											${formatPrice(tax)}
+										</span>
 									</div>
-									<div className="flex justify-between pt-2 border-t border-slate-200">
-										<span className="font-semibold">Total:</span>
-										<span className="font-bold">${formatPrice(total)}</span>
+									<div className="flex justify-between pt-2 border-t border-gray-200">
+										<span className="font-medium text-gray-800">Total:</span>
+										<span className="font-semibold text-gray-800">
+											${formatPrice(total)}
+										</span>
 									</div>
 
 									{/* Show original total if this is a split payment */}
 									{isSplitPayment && originalTotal && (
-										<div className="flex justify-between text-sm text-slate-500 mt-1">
+										<div className="flex justify-between text-sm text-gray-500 mt-1">
 											<span>Original Transaction Total:</span>
 											<span>${formatPrice(originalTotal)}</span>
 										</div>
 									)}
 								</div>
-							</div>
+							</motion.div>
 
 							{/* Payment status - improved to show accurate state */}
-							<div className="bg-green-50 p-4 rounded-lg border border-green-100">
+							<motion.div
+								className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-lg border border-green-100 shadow-sm"
+								initial={{ opacity: 0, y: 15 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ delay: 0.2, duration: 0.4 }}
+							>
 								{cashTendered > 0 ? (
 									<>
 										<div className="flex justify-between text-green-700 mb-2">
@@ -118,19 +148,19 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 											</span>
 										</div>
 										{change > 0 && (
-											<div className="flex justify-between text-green-700 font-bold mb-2">
+											<div className="flex justify-between text-green-700 font-semibold mb-2">
 												<span>Change:</span>
 												<span>${formatPrice(change)}</span>
 											</div>
 										)}
 										{!isFullyPaid && remainingAmount > 0 && (
-											<div className="flex justify-between text-amber-600 font-bold border-t border-green-200 pt-2">
+											<div className="flex justify-between text-amber-600 font-semibold border-t border-green-200 pt-2">
 												<span>Remaining:</span>
 												<span>${formatPrice(remainingAmount)}</span>
 											</div>
 										)}
 										{isFullyPaid && (
-											<div className="flex justify-between text-green-700 font-bold border-t border-green-200 pt-2">
+											<div className="flex justify-between text-green-700 font-semibold border-t border-green-200 pt-2">
 												<span>Status:</span>
 												<span>Fully Paid</span>
 											</div>
@@ -141,16 +171,21 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 										<div className="text-green-700 font-medium mb-1">
 											Awaiting Payment
 										</div>
-										<div className="text-sm text-green-600">
+										<div className="text-sm text-green-600 font-light">
 											Please provide payment to the cashier
 										</div>
 									</div>
 								)}
-							</div>
+							</motion.div>
 
 							{/* Partial payment warning or completion message */}
 							{remainingAmount > 0 && cashTendered > 0 && (
-								<div className="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-100">
+								<motion.div
+									className="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-100 shadow-sm"
+									initial={{ opacity: 0, y: 15 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ delay: 0.3, duration: 0.4 }}
+								>
 									<div className="flex items-center text-amber-700">
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -166,14 +201,19 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 										</svg>
 										<span className="font-medium">Partial Payment</span>
 									</div>
-									<p className="text-sm text-amber-600 mt-1 ml-7">
+									<p className="text-sm text-amber-600 mt-1 ml-7 font-light">
 										Additional payment required: ${formatPrice(remainingAmount)}
 									</p>
-								</div>
+								</motion.div>
 							)}
 
 							{isFullyPaid && (
-								<div className="mt-4 bg-green-100 p-3 rounded-lg border border-green-200">
+								<motion.div
+									className="mt-4 bg-gradient-to-br from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200 shadow-sm"
+									initial={{ opacity: 0, y: 15 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ delay: 0.3, duration: 0.4 }}
+								>
 									<div className="flex items-center text-green-700">
 										<svg
 											xmlns="http://www.w3.org/2000/svg"
@@ -189,26 +229,33 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 										</svg>
 										<span className="font-medium">Payment Complete</span>
 									</div>
-									<p className="text-sm text-green-600 mt-1 ml-7">
+									<p className="text-sm text-green-600 mt-1 ml-7 font-light">
 										Waiting for cashier to close drawer and complete transaction
 									</p>
-								</div>
+								</motion.div>
 							)}
 
 							{/* Instructions */}
-							<div className="mt-6 text-center text-sm text-slate-500">
-								<p>The cashier will process your payment</p>
-							</div>
+							<motion.div
+								className="mt-6 text-center text-sm text-gray-500"
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								transition={{ delay: 0.4, duration: 0.4 }}
+							>
+								<p className="font-light">
+									The cashier will process your payment
+								</p>
+							</motion.div>
 						</motion.div>
 					) : (
 						<motion.div
 							className="text-center w-full max-w-md"
-							initial={{ opacity: 0, scale: 0.9 }}
+							initial={{ opacity: 0, scale: 0.95 }}
 							animate={{ opacity: 1, scale: 1 }}
 							transition={{ type: "spring", stiffness: 300, damping: 25 }}
 						>
-							<div className="mb-6">
-								<div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+							<motion.div className="mb-6">
+								<div className="w-16 h-16 bg-gradient-to-br from-green-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										className="h-8 w-8 text-green-600"
@@ -224,52 +271,76 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 										/>
 									</svg>
 								</div>
-								<h2 className="text-xl font-bold text-slate-800 mb-2">
+								<h2 className="text-xl font-semibold text-gray-800 mb-2 tracking-tight">
 									Payment Complete
 								</h2>
-								<p className="text-slate-600">Thank you for your purchase!</p>
-							</div>
+								<p className="text-gray-600 font-light">
+									Thank you for your purchase!
+								</p>
+							</motion.div>
 
-							<div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+							<motion.div
+								className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm"
+								initial={{ opacity: 0, y: 15 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ delay: 0.1, duration: 0.3 }}
+							>
 								<div className="space-y-2 mb-4">
 									<div className="flex justify-between">
-										<span className="text-slate-600">Subtotal:</span>
-										<span className="font-medium">
+										<span className="text-gray-600">Subtotal:</span>
+										<span className="font-medium text-gray-800">
 											${formatPrice(subtotal)}
 										</span>
 									</div>
 									<div className="flex justify-between">
-										<span className="text-slate-600">Tax:</span>
-										<span className="font-medium">${formatPrice(tax)}</span>
+										<span className="text-gray-600">Tax:</span>
+										<span className="font-medium text-gray-800">
+											${formatPrice(tax)}
+										</span>
 									</div>
-									<div className="flex justify-between pt-2 border-t border-slate-200">
-										<span className="font-semibold">Total:</span>
-										<span className="font-bold">${formatPrice(total)}</span>
+									<div className="flex justify-between pt-2 border-t border-gray-200">
+										<span className="font-medium text-gray-800">Total:</span>
+										<span className="font-semibold text-gray-800">
+											${formatPrice(total)}
+										</span>
 									</div>
 								</div>
 
-								<div className="pt-3 border-t border-slate-200">
+								<div className="pt-3 border-t border-gray-200">
 									<div className="flex justify-between text-green-700">
 										<span className="font-medium">Cash Tendered:</span>
 										<span className="font-medium">
 											${formatPrice(cashTendered)}
 										</span>
 									</div>
-									<div className="flex justify-between text-green-700 font-bold">
+									<div className="flex justify-between text-green-700 font-semibold">
 										<span>Change:</span>
 										<span>${formatPrice(change)}</span>
 									</div>
 								</div>
-							</div>
+							</motion.div>
 
-							<div className="mt-6 text-center text-sm text-slate-500">
-								<p>Your receipt has been printed</p>
-								<p className="mt-1">Thank you for your business!</p>
-							</div>
+							<motion.div
+								className="mt-6 text-center text-sm text-gray-500"
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								transition={{ delay: 0.3, duration: 0.4 }}
+							>
+								<p className="font-light">Your receipt has been printed</p>
+								<p className="mt-1 font-light">Thank you for your business!</p>
+							</motion.div>
 						</motion.div>
 					)}
 				</div>
 			</div>
+
+			{/* Bottom accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+			></motion.div>
 		</div>
 	);
 };

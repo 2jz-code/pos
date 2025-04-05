@@ -6,7 +6,7 @@ from .views import (
 from .terminal_views import (
     CheckPaymentCompletionView, SimulateCardPresentationView, TerminalPaymentCaptureView,
     ReaderStatusView, TerminalPaymentIntentView, ConnectionTokenView, PaymentIntentStatusView,
-    ProcessPaymentMethodView
+    ProcessPaymentMethodView, CancelTerminalActionView
 )
 
 urlpatterns = [
@@ -25,7 +25,8 @@ urlpatterns = [
     path('terminal/payment-status/<str:payment_intent_id>/', PaymentIntentStatusView.as_view(), name='terminal-payment-status'),
     path('terminal/process-payment-method/', ProcessPaymentMethodView.as_view(), name='terminal-process-payment-method'),
     path('terminal/check-payment-completion/<str:payment_intent_id>/', CheckPaymentCompletionView.as_view(), name='check-payment-completion'),
-    
+    path('terminal/cancel-action/', CancelTerminalActionView.as_view(), name='terminal-cancel-action'),
+
     # New endpoints for payment management
     path('', PaymentListView.as_view(), name='payment-list'),
     path('<int:payment_id>/', PaymentDetailView.as_view(), name='payment-detail'),

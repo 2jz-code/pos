@@ -1,6 +1,7 @@
 // src/components/payment/views/CompletionView.jsx
-import { motion } from "framer-motion";
+import { motion, usePresence } from "framer-motion";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
+import { useEffect } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
@@ -10,16 +11,65 @@ import customerDisplayManager from "../../../features/customerDisplay/utils/wind
 const { pageVariants, pageTransition } = paymentAnimations;
 
 export const CompletionView = ({ onStartNewOrder }) => {
+	const [isPresent] = usePresence();
+
+	// Force welcome screen immediately when this component mounts
+	useEffect(() => {
+		console.log(
+			"CompletionView mounted - forcing welcome screen on customer display"
+		);
+
+		// Ensure we have a valid display window
+		try {
+			if (
+				!customerDisplayManager.displayWindow ||
+				customerDisplayManager.displayWindow.closed
+			) {
+				customerDisplayManager.openWindow();
+
+				// Give it time to initialize
+				setTimeout(() => {
+					customerDisplayManager.showWelcome();
+					console.log(
+						"Customer display welcome screen shown (delayed after opening)"
+					);
+				}, 500);
+			} else {
+				// Window exists, show welcome immediately
+				customerDisplayManager.showWelcome();
+				console.log("Customer display welcome screen shown immediately");
+			}
+		} catch (err) {
+			console.error("Error showing welcome screen on completion:", err);
+		}
+
+		// Return cleanup function that also ensures welcome screen
+		return () => {
+			if (isPresent) {
+				try {
+					customerDisplayManager.showWelcome();
+					console.log(
+						"Customer display welcome screen forced on CompletionView unmount"
+					);
+				} catch (err) {
+					console.error("Error showing welcome screen on cleanup:", err);
+				}
+			}
+		};
+	}, [isPresent]);
+
 	const handleStartNew = async () => {
 		console.log("Starting new order from completion view");
 
-		// Tell the customer display to return to welcome screen
+		// Tell the customer display to return to welcome screen (redundant but ensures consistency)
 		try {
 			if (
 				customerDisplayManager.displayWindow &&
 				!customerDisplayManager.displayWindow.closed
 			) {
-				console.log("Sending welcome command to customer display");
+				console.log(
+					"Sending welcome command to customer display before starting new order"
+				);
 				customerDisplayManager.showWelcome();
 			}
 		} catch (err) {

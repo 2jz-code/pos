@@ -11,6 +11,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 	const { processPayment, paymentStatus, paymentResult, error } =
 		useTerminalSimulation();
 	const hasStartedPaymentRef = useRef(false);
+
 	useEffect(() => {
 		console.log("PaymentView received orderData:", {
 			total: orderData.total,
@@ -30,7 +31,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 		const timer = setTimeout(() => {
 			setIsInitiating(false);
 
-			// Get the orderId from multiple possible sources to ensure we have it
+			// Get the orderId from multiple possible sources
 			const effectiveOrderId =
 				orderData.orderId || useCartStore.getState().orderId;
 
@@ -117,56 +118,83 @@ const PaymentView = ({ orderData, onComplete }) => {
 	const finalTotal = orderData.total + tipAmount;
 
 	return (
-		<div className="flex flex-col h-full">
-			{/* Order summary section */}
-			<div className="flex-1 p-6 bg-white overflow-auto">
-				<h1 className="text-2xl font-bold text-slate-800 mb-6">
-					Payment Details
-				</h1>
+		<div className="flex flex-col h-full bg-gray-50">
+			{/* Subtle gradient background */}
+			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
 
-				<div className="bg-slate-50 rounded-lg p-6 mb-6">
-					<h2 className="text-lg font-semibold text-slate-700 mb-4">
+			{/* Top accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut" }}
+			></motion.div>
+
+			{/* Order summary section */}
+			<div className="flex-1 p-6 overflow-auto relative z-10">
+				<motion.h1
+					className="text-2xl font-semibold text-gray-800 tracking-tight mb-6"
+					initial={{ opacity: 0, y: -10 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.4 }}
+				>
+					Payment Details
+				</motion.h1>
+
+				<motion.div
+					className="bg-white rounded-lg p-6 mb-6 shadow-sm"
+					initial={{ opacity: 0, y: 15 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ delay: 0.1, duration: 0.4 }}
+				>
+					<h2 className="text-lg font-medium text-gray-800 mb-4">
 						Order Summary
 					</h2>
 
 					<div className="space-y-3 mb-4">
 						<div className="flex justify-between">
-							<span className="text-slate-600">Subtotal</span>
-							<span className="font-medium">
+							<span className="text-gray-600">Subtotal</span>
+							<span className="font-medium text-gray-800">
 								{formatCurrency(orderData.subtotal)}
 							</span>
 						</div>
 
 						<div className="flex justify-between">
-							<span className="text-slate-600">Tax</span>
-							<span className="font-medium">
+							<span className="text-gray-600">Tax</span>
+							<span className="font-medium text-gray-800">
 								{formatCurrency(orderData.tax)}
 							</span>
 						</div>
 
 						{tipAmount > 0 && (
 							<div className="flex justify-between">
-								<span className="text-slate-600">Tip</span>
-								<span className="font-medium">{formatCurrency(tipAmount)}</span>
+								<span className="text-gray-600">Tip</span>
+								<span className="font-medium text-gray-800">
+									{formatCurrency(tipAmount)}
+								</span>
 							</div>
 						)}
 
-						<div className="border-t border-slate-200 pt-3 flex justify-between">
-							<span className="text-slate-800 font-semibold">Total</span>
-							<span className="text-xl font-bold text-blue-600">
+						<div className="border-t border-gray-200 pt-3 flex justify-between">
+							<span className="text-gray-800 font-medium">Total</span>
+							<span className="text-xl font-semibold text-blue-600">
 								{formatCurrency(finalTotal)}
 							</span>
 						</div>
 					</div>
-				</div>
+				</motion.div>
 			</div>
 
 			{/* Terminal instruction section */}
-			<div className="p-6 bg-slate-50 border-t border-slate-200">
+			<div className="p-6 bg-white border-t border-gray-200 shadow-sm relative z-10">
 				<div className="max-w-md mx-auto text-center">
 					{isInitiating ? (
-						<>
-							<div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							transition={{ duration: 0.4 }}
+						>
+							<div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-8 w-8 text-blue-600"
@@ -182,26 +210,30 @@ const PaymentView = ({ orderData, onComplete }) => {
 									/>
 								</svg>
 							</div>
-							<h2 className="text-xl font-bold text-slate-800 mb-2">
+							<h2 className="text-xl font-semibold text-gray-800 mb-2">
 								Initializing Payment
 							</h2>
-							<p className="text-slate-600 mb-2">
+							<p className="text-gray-600 font-light mb-2">
 								Preparing secure payment terminal...
 							</p>
-						</>
+						</motion.div>
 					) : paymentStatus === "processing" ? (
-						<>
-							<div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							transition={{ duration: 0.4 }}
+						>
+							<div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
 								<motion.div
-									className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"
+									className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full"
 									animate={{ rotate: 360 }}
 									transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
 								/>
 							</div>
-							<h2 className="text-xl font-bold text-slate-800 mb-2">
+							<h2 className="text-xl font-semibold text-gray-800 mb-2">
 								Processing Payment
 							</h2>
-							<p className="text-slate-600 mb-6">
+							<p className="text-gray-600 font-light mb-6">
 								Please complete payment on the physical terminal.
 							</p>
 
@@ -217,13 +249,17 @@ const PaymentView = ({ orderData, onComplete }) => {
 							>
 								Follow the instructions on the terminal →
 							</motion.div>
-						</>
+						</motion.div>
 					) : paymentStatus === "success" ? (
-						<>
-							<div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+						<motion.div
+							initial={{ opacity: 0, scale: 0.9 }}
+							animate={{ opacity: 1, scale: 1 }}
+							transition={{ type: "spring", stiffness: 300, damping: 25 }}
+						>
+							<div className="w-16 h-16 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									className="h-8 w-8 text-green-600"
+									className="h-8 w-8 text-emerald-600"
 									fill="none"
 									viewBox="0 0 24 24"
 									stroke="currentColor"
@@ -236,19 +272,23 @@ const PaymentView = ({ orderData, onComplete }) => {
 									/>
 								</svg>
 							</div>
-							<h2 className="text-xl font-bold text-slate-800 mb-2">
+							<h2 className="text-xl font-semibold text-gray-800 mb-2">
 								Payment Successful
 							</h2>
-							<p className="text-slate-600">
+							<p className="text-gray-600 font-light">
 								Transaction ID: {paymentResult?.transactionId}
 								<br />
 								{paymentResult?.cardInfo?.brand} ••••{" "}
 								{paymentResult?.cardInfo?.last4}
 							</p>
-						</>
+						</motion.div>
 					) : paymentStatus === "error" ? (
-						<>
-							<div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							transition={{ duration: 0.4 }}
+						>
+							<div className="w-16 h-16 bg-gradient-to-br from-red-50 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-8 w-8 text-red-600"
@@ -264,22 +304,30 @@ const PaymentView = ({ orderData, onComplete }) => {
 									/>
 								</svg>
 							</div>
-							<h2 className="text-xl font-bold text-slate-800 mb-2">
+							<h2 className="text-xl font-semibold text-gray-800 mb-2">
 								Payment Failed
 							</h2>
-							<p className="text-slate-600 mb-4">
+							<p className="text-gray-600 font-light mb-4">
 								{error || "There was an error processing your payment."}
 							</p>
 							<button
 								onClick={handleRetry}
-								className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+								className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors shadow-sm font-medium"
 							>
 								Try Again
 							</button>
-						</>
+						</motion.div>
 					) : null}
 				</div>
 			</div>
+
+			{/* Bottom accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+			></motion.div>
 		</div>
 	);
 };

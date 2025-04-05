@@ -1,86 +1,12 @@
 // src/features/payment/components/TerminalStatusIndicator.jsx
-
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import axiosInstance from "../../../api/config/axiosConfig";
 import { DeviceTabletIcon } from "@heroicons/react/24/solid";
+import { useTerminal } from "../hooks/useTerminal";
 
 const TerminalStatusIndicator = () => {
-	const [status, setStatus] = useState("unknown");
-	const [deviceInfo, setDeviceInfo] = useState(null);
-	const [lastChecked, setLastChecked] = useState(null);
-	const [isChecking, setIsChecking] = useState(false);
-
-	// Check terminal status
-	const checkStatus = async () => {
-		if (isChecking) return; // Prevent multiple simultaneous checks
-
-		setIsChecking(true);
-		try {
-			const response = await axiosInstance.get(
-				"payments/terminal/reader-status/"
-			);
-			const responseData = response.data;
-
-			if (responseData.success === true && responseData.reader) {
-				const reader = responseData.reader;
-				setStatus(reader.status);
-				setDeviceInfo({
-					type: reader.device_type || "Terminal",
-					label: reader.label || "Card Reader",
-					id: reader.id,
-				});
-
-				console.log(
-					`Terminal status: ${reader.status}, Device: ${reader.device_type}`
-				);
-			} else {
-				setStatus("not_found");
-				setDeviceInfo(null);
-			}
-
-			setLastChecked(new Date());
-		} catch (error) {
-			handleStatusCheckError(error);
-		} finally {
-			setIsChecking(false);
-		}
-	};
-
-	const handleStatusCheckError = (error) => {
-		if (error.response) {
-			if (error.response.status === 404) {
-				setStatus("not_found");
-			} else if (
-				error.response.status === 401 ||
-				error.response.status === 403
-			) {
-				setStatus("unauthorized");
-			} else {
-				setStatus("error");
-			}
-			console.error(
-				`Terminal status check failed: ${error.response.status}`,
-				error.response.data
-			);
-		} else if (error.request) {
-			setStatus("network_error");
-			console.error("Network error when checking terminal status");
-		} else {
-			setStatus("error");
-			console.error("Error setting up terminal status check:", error.message);
-		}
-
-		setDeviceInfo(null);
-		setLastChecked(new Date());
-	};
-
-	// Check status on mount and every 30 seconds
-	useEffect(() => {
-		checkStatus();
-		const interval = setInterval(checkStatus, 30000);
-		return () => clearInterval(interval);
-	}, []);
+	// Use the terminal context instead of local state
+	const { status, deviceInfo, lastChecked, isChecking, checkStatus } =
+		useTerminal();
 
 	// Get status configuration based on current state
 	const getStatusConfig = () => {

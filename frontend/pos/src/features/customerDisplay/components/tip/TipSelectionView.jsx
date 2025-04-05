@@ -68,35 +68,48 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 	};
 
 	return (
-		<div className="w-full h-screen bg-white flex flex-col">
-			{/* Main content - using flex with justify-between to maximize space usage */}
-			<div className="flex-1 flex flex-col px-4 py-2">
-				{/* Header - reduced vertical padding */}
-				<div className="text-center py-3">
+		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
+			{/* Subtle gradient background */}
+			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
+
+			{/* Top accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut" }}
+			></motion.div>
+
+			{/* Main content */}
+			<div className="flex-1 flex flex-col px-6 py-4 relative z-10">
+				{/* Header */}
+				<div className="text-center py-4">
 					<motion.h2
-						className="text-xl font-bold text-slate-800 mb-1"
+						className="text-2xl font-semibold text-gray-800 tracking-tight mb-1"
 						initial={{ opacity: 0, y: -10 }}
 						animate={{ opacity: 1, y: 0 }}
+						transition={{ duration: 0.4 }}
 					>
 						Would You Like to Add a Tip?
 					</motion.h2>
 					<motion.p
-						className="text-sm text-slate-600"
+						className="text-sm text-gray-600 font-light"
 						initial={{ opacity: 0 }}
-						animate={{ opacity: 1, transition: { delay: 0.1 } }}
+						animate={{ opacity: 1 }}
+						transition={{ delay: 0.1, duration: 0.4 }}
 					>
 						Your support is appreciated by our staff.
 					</motion.p>
 				</div>
 
 				{/* Content container with equal spacing */}
-				<div className="flex-1 flex flex-col justify-evenly">
-					{/* Total display - moved closer to tip options */}
-					<div className="text-center mt-2 mb-3">
-						<div className="text-sm text-slate-500 mb-1">Total</div>
+				<div className="flex-1 flex flex-col justify-evenly max-w-md mx-auto w-full">
+					{/* Total display */}
+					<div className="text-center mt-2 mb-4 bg-white rounded-lg shadow-sm py-4 px-6">
+						<div className="text-sm text-gray-500 mb-1 font-light">Total</div>
 						<div className="flex items-center justify-center">
 							<motion.div
-								className="text-2xl font-bold text-slate-800"
+								className="text-2xl font-semibold text-gray-800"
 								key={totalWithTip}
 								initial={{ opacity: 0.7, scale: 0.95 }}
 								animate={{ opacity: 1, scale: 1 }}
@@ -109,7 +122,7 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 							<AnimatePresence>
 								{tipAmount > 0 && (
 									<motion.div
-										className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"
+										className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-full"
 										initial={{ opacity: 0, x: -10 }}
 										animate={{ opacity: 1, x: 0 }}
 										exit={{ opacity: 0, x: -10 }}
@@ -122,23 +135,23 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 					</div>
 
 					{/* Tip options container */}
-					<div className="max-w-lg mx-auto w-full">
-						{/* Tip percentage buttons - reduced bottom margin */}
+					<div className="w-full">
+						{/* Tip percentage buttons */}
 						<motion.div
-							className="grid grid-cols-4 gap-2 mb-3"
-							initial={{ opacity: 0, y: 20 }}
+							className="grid grid-cols-4 gap-3 mb-5"
+							initial={{ opacity: 0, y: 15 }}
 							animate={{ opacity: 1, y: 0 }}
-							transition={{ delay: 0.2 }}
+							transition={{ delay: 0.15 }}
 						>
 							{tipPercentages.map((tip) => (
 								<button
 									key={tip.label}
 									onClick={() => handleTipSelection(tip.value)}
-									className={`py-2 px-2 rounded-lg border ${
+									className={`py-3 px-2 rounded-lg border transition-all duration-200 ${
 										selectedPercentage === tip.value
-											? "bg-blue-50 border-blue-400 text-blue-700"
-											: "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-									} transition-colors`}
+											? "bg-blue-50 border-blue-300 text-blue-700 shadow-sm"
+											: "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+									}`}
 								>
 									<div className="font-medium">{tip.label}</div>
 									<div className="text-sm">
@@ -148,22 +161,22 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 							))}
 						</motion.div>
 
-						{/* Custom tip input - reduced margin */}
+						{/* Custom tip input */}
 						<motion.div
-							className="mb-4"
-							initial={{ opacity: 0, y: 20 }}
+							className="mb-6"
+							initial={{ opacity: 0, y: 15 }}
 							animate={{ opacity: 1, y: 0 }}
-							transition={{ delay: 0.3 }}
+							transition={{ delay: 0.25 }}
 						>
 							<label
 								htmlFor="customTip"
-								className="block text-sm font-medium text-slate-700 mb-1"
+								className="block text-sm font-medium text-gray-700 mb-2"
 							>
 								Custom Amount
 							</label>
 							<div className="relative">
 								<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-									<span className="text-slate-500">$</span>
+									<span className="text-gray-500">$</span>
 								</div>
 								<input
 									type="number"
@@ -173,27 +186,27 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 									value={selectedPercentage === null ? tipAmount : ""}
 									onChange={handleCustomTipChange}
 									placeholder="Enter amount"
-									className="block w-full pl-8 pr-12 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+									className="block w-full pl-8 pr-12 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
 								/>
 							</div>
 						</motion.div>
 
-						{/* Action buttons - adjusted to be closer to input */}
+						{/* Action buttons */}
 						<motion.div
-							className="grid grid-cols-2 gap-3"
-							initial={{ opacity: 0, y: 20 }}
+							className="grid grid-cols-2 gap-4"
+							initial={{ opacity: 0, y: 15 }}
 							animate={{ opacity: 1, y: 0 }}
-							transition={{ delay: 0.4 }}
+							transition={{ delay: 0.35 }}
 						>
 							<button
 								onClick={handleSkip}
-								className="py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+								className="py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
 							>
 								No Tip
 							</button>
 							<button
 								onClick={handleComplete}
-								className="py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+								className="py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm font-medium"
 							>
 								{tipAmount > 0 ? `Add Tip` : "Continue"}
 							</button>
@@ -201,6 +214,14 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 					</div>
 				</div>
 			</div>
+
+			{/* Bottom accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+			></motion.div>
 		</div>
 	);
 };

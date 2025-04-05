@@ -14,6 +14,8 @@ import { useCartStore } from "../../../store/cartStore";
 import customerDisplayManager from "../../customerDisplay/utils/windowManager";
 import { useReceiptPrinter } from "../../../hooks/useReceiptPrinter";
 import { calculateCartTotals } from "../../cart/utils/cartCalculations";
+import { useTerminal } from "../hooks/useTerminal";
+
 // import { formatReceiptData } from "../../../utils/receiptUtils";
 const { pageVariants, pageTransition } = paymentAnimations;
 
@@ -79,6 +81,7 @@ export const CreditPaymentView = ({
 	const hasNavigatedRef = useRef(false);
 	const { printReceipt } = useReceiptPrinter();
 	const processedReceiptIds = useRef(new Set());
+	const { cancelTerminalAction } = useTerminal();
 
 	// Use the customer flow hook
 	const {
@@ -523,6 +526,23 @@ export const CreditPaymentView = ({
 			// Get the current cart data
 			const cart = useCartStore.getState().cart;
 
+			// First try to cancel any ongoing reader action using the terminal context
+			let terminalCancelled = false;
+
+			// Attempt to cancel using the context's cancelTerminalAction function
+			// This will use the deviceInfo from context instead of stepData
+			const cancelResult = await cancelTerminalAction();
+			terminalCancelled = cancelResult.success;
+
+			if (cancelResult.success) {
+				console.log(
+					"Terminal action cancelled successfully:",
+					cancelResult.data
+				);
+			} else if (cancelResult.error) {
+				console.error("Error cancelling terminal action:", cancelResult.error);
+			}
+
 			// If we're in an active flow, complete/reset it
 			if (flowActive) {
 				completeFlow();
@@ -552,8 +572,12 @@ export const CreditPaymentView = ({
 			if (state.splitMode) {
 				handleNavigation("Split", -1);
 			} else {
-				// Show cancellation message
-				setError("Payment process cancelled");
+				// Show cancellation message with info about terminal status
+				setError(
+					terminalCancelled
+						? "Payment process cancelled. Terminal operation stopped."
+						: "Payment process cancelled."
+				);
 			}
 		} catch (err) {
 			console.error("Error cancelling payment:", err);

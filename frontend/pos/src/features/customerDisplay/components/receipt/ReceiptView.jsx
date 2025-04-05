@@ -5,263 +5,195 @@ import PropTypes from "prop-types";
 import { motion } from "framer-motion";
 
 const ReceiptView = ({ orderData, paymentData, onComplete }) => {
-	const [isAnimating, setIsAnimating] = useState(true);
+	const [animationStage, setAnimationStage] = useState("initial"); // initial, checkmark, message, complete
 
-	// Automatically complete after animation finishes
+	// Control the animation sequence and timing
 	useEffect(() => {
-		const timer = setTimeout(() => {
-			setIsAnimating(false);
+		// Start the animation sequence
+		const checkmarkTimer = setTimeout(() => {
+			setAnimationStage("checkmark");
+		}, 500);
 
-			// Add this: Call onComplete to signal receipt view is done
+		// Show the first message after the checkmark animation
+		const messageTimer = setTimeout(() => {
+			setAnimationStage("message");
+		}, 2000);
+
+		// Show the second message and prepare to complete
+		const completeTimer = setTimeout(() => {
+			setAnimationStage("complete");
+		}, 4000);
+
+		// Notify parent component that we're done
+		const finalTimer = setTimeout(() => {
 			if (onComplete) {
 				onComplete({
 					status: "complete",
 					timestamp: new Date().toISOString(),
 				});
 			}
-		}, 3000);
+		}, 6000);
 
-		return () => clearTimeout(timer);
+		// Clean up timers
+		return () => {
+			clearTimeout(checkmarkTimer);
+			clearTimeout(messageTimer);
+			clearTimeout(completeTimer);
+			clearTimeout(finalTimer);
+		};
 	}, [onComplete]);
 
-	// Format currency for display
-	const formatCurrency = (amount) => {
+	// Format the total amount for display
+	const formatTotal = () => {
+		const tipAmount = orderData?.tipAmount || 0;
+		const total = (orderData?.total || 0) + tipAmount;
+
 		return new Intl.NumberFormat("en-US", {
 			style: "currency",
 			currency: "USD",
-		}).format(amount);
+		}).format(total);
 	};
-
-	// Format date for display
-	const formatDate = (dateString) => {
-		const date = new Date(dateString || Date.now());
-		return new Intl.DateTimeFormat("en-US", {
-			year: "numeric",
-			month: "short",
-			day: "numeric",
-			hour: "numeric",
-			minute: "numeric",
-		}).format(date);
-	};
-
-	// Calculate totals
-	const subtotal = orderData?.subtotal || 0;
-	const tax = orderData?.tax || 0;
-	const tipAmount = orderData?.tipAmount || 0;
-	const total = (orderData?.total || 0) + tipAmount;
-
-	// Get transaction info
-	const transactionId = paymentData?.transactionId || "TXN-UNKNOWN";
-	const cardInfo = paymentData?.cardInfo || { brand: "Card", last4: "****" };
-	const timestamp = paymentData?.timestamp || new Date().toISOString();
 
 	return (
-		<div className="flex flex-col h-full overflow-hidden bg-white">
-			{/* Receipt content */}
-			<div className="flex-1 p-6 overflow-auto">
-				<div className="max-w-md mx-auto bg-white">
-					{/* Header with success animation */}
-					<div className="text-center mb-8">
-						<motion.div
-							className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"
-							initial={{ scale: 0 }}
-							animate={{ scale: 1 }}
-							transition={{ duration: 0.5 }}
-						>
-							<motion.svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-10 w-10 text-green-600"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								initial={{ pathLength: 0 }}
-								animate={{ pathLength: 1 }}
-								transition={{ duration: 1, delay: 0.5 }}
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M5 13l4 4L19 7"
-								/>
-							</motion.svg>
-						</motion.div>
-						<h2 className="text-2xl font-bold text-slate-800 mb-2">
-							Payment Successful
-						</h2>
-						<p className="text-slate-600">
-							Your transaction has been processed
-						</p>
-					</div>
+		<div className="flex flex-col h-full bg-gray-50">
+			{/* Subtle gradient background */}
+			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
 
-					{/* Receipt paper effect */}
+			{/* Top accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut" }}
+			></motion.div>
+
+			{/* Main content - centered both vertically and horizontally */}
+			<div className="flex-1 flex items-center justify-center p-6 relative z-10">
+				<div className="max-w-md w-full flex flex-col items-center">
+					{/* Checkmark animation */}
 					<motion.div
-						className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden relative"
-						initial={{ y: 50, opacity: 0 }}
-						animate={{ y: 0, opacity: 1 }}
-						transition={{ duration: 0.5, delay: 0.3 }}
+						className="w-32 h-32 bg-gradient-to-br from-green-50 to-emerald-100 rounded-full flex items-center justify-center shadow-lg mb-8"
+						initial={{ scale: 0, opacity: 0 }}
+						animate={{
+							scale: animationStage !== "initial" ? 1 : 0,
+							opacity: animationStage !== "initial" ? 1 : 0,
+						}}
+						transition={{
+							type: "spring",
+							stiffness: 300,
+							damping: 20,
+							duration: 0.8,
+						}}
 					>
-						{/* Zigzag top edge */}
-						<div className="absolute top-0 left-0 right-0 h-3 overflow-hidden">
-							<div
-								className="h-4 bg-white"
-								style={{
-									backgroundImage:
-										"linear-gradient(135deg, transparent 25%, #f1f5f9 25%, #f1f5f9 50%, transparent 50%, transparent 75%, #f1f5f9 75%)",
-									backgroundSize: "8px 8px",
-								}}
-							></div>
-						</div>
-
-						{/* Store info */}
-						<div className="pt-6 pb-3 px-6 text-center border-b border-dashed border-slate-200">
-							<h3 className="text-lg font-bold text-slate-800 mb-1">
-								Cafe POS System
-							</h3>
-							<p className="text-sm text-slate-500">
-								123 Main Street, Anytown, USA
-							</p>
-						</div>
-
-						{/* Order info */}
-						<div className="p-6">
-							<div className="mb-4 text-sm">
-								<div className="flex justify-between mb-1">
-									<span className="text-slate-500">Date:</span>
-									<span className="text-slate-700">
-										{formatDate(timestamp)}
-									</span>
-								</div>
-								<div className="flex justify-between">
-									<span className="text-slate-500">Transaction ID:</span>
-									<span className="text-slate-700">{transactionId}</span>
-								</div>
-								<div className="flex justify-between">
-									<span className="text-slate-500">Payment Method:</span>
-									<span className="text-slate-700">
-										{cardInfo.brand} •••• {cardInfo.last4}
-									</span>
-								</div>
-							</div>
-
-							{/* Order items */}
-							<div className="border-t border-b border-slate-200 py-4 mb-4">
-								<h4 className="font-medium text-slate-800 mb-3">Order Items</h4>
-								<div className="space-y-2">
-									{orderData?.items?.map((item, index) => (
-										<div
-											key={index}
-											className="flex justify-between text-sm"
-										>
-											<div>
-												<span className="text-slate-700">
-													{item.quantity || 1}x{" "}
-												</span>
-												<span className="text-slate-800">{item.name}</span>
-											</div>
-											<span className="text-slate-700">
-												{formatCurrency(item.price * (item.quantity || 1))}
-											</span>
-										</div>
-									))}
-
-									{(!orderData?.items || orderData.items.length === 0) && (
-										<div className="text-sm text-slate-500 italic">
-											No items available
-										</div>
-									)}
-								</div>
-							</div>
-
-							{/* Order totals */}
-							<div className="space-y-2 text-sm mb-4">
-								<div className="flex justify-between">
-									<span className="text-slate-600">Subtotal</span>
-									<span className="text-slate-700">
-										{formatCurrency(subtotal)}
-									</span>
-								</div>
-								<div className="flex justify-between">
-									<span className="text-slate-600">Tax</span>
-									<span className="text-slate-700">{formatCurrency(tax)}</span>
-								</div>
-								{tipAmount > 0 && (
-									<div className="flex justify-between">
-										<span className="text-slate-600">Tip</span>
-										<span className="text-slate-700">
-											{formatCurrency(tipAmount)}
-										</span>
-									</div>
-								)}
-								<div className="flex justify-between pt-2 border-t border-slate-200 text-base font-medium">
-									<span className="text-slate-800">Total</span>
-									<span className="text-slate-800">
-										{formatCurrency(total)}
-									</span>
-								</div>
-							</div>
-
-							{/* Thank you message */}
-							<div className="text-center text-slate-500 text-sm pt-2 border-t border-dashed border-slate-200">
-								<p className="mb-1">Thank you for your purchase!</p>
-								<p>Please visit again soon</p>
-							</div>
-						</div>
-
-						{/* Zigzag bottom edge */}
-						<div className="absolute bottom-0 left-0 right-0 h-3 overflow-hidden">
-							<div
-								className="h-4 bg-white"
-								style={{
-									backgroundImage:
-										"linear-gradient(135deg, transparent 25%, #f1f5f9 25%, #f1f5f9 50%, transparent 50%, transparent 75%, #f1f5f9 75%)",
-									backgroundSize: "8px 8px",
-								}}
-							></div>
-						</div>
+						<motion.svg
+							xmlns="http://www.w3.org/2000/svg"
+							className="h-16 w-16 text-green-600"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							initial={{ pathLength: 0, opacity: 0 }}
+							animate={{
+								pathLength: animationStage !== "initial" ? 1 : 0,
+								opacity: animationStage !== "initial" ? 1 : 0,
+							}}
+							transition={{ duration: 1, delay: 0.3 }}
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={3}
+								d="M5 13l4 4L19 7"
+							/>
+						</motion.svg>
 					</motion.div>
 
-					{/* Message about physical receipt */}
-					<div className="mt-6 text-center text-sm text-slate-500">
-						<p>A copy of this receipt has been printed</p>
+					{/* Success title */}
+					<motion.h1
+						className="text-3xl font-semibold text-gray-800 tracking-tight mb-3 text-center"
+						initial={{ opacity: 0, y: 20 }}
+						animate={{
+							opacity: animationStage !== "initial" ? 1 : 0,
+							y: animationStage !== "initial" ? 0 : 20,
+						}}
+						transition={{ delay: 1, duration: 0.5 }}
+					>
+						Thank You!
+					</motion.h1>
+
+					{/* Transaction amount */}
+					<motion.div
+						className="text-xl text-gray-600 font-light mb-6 text-center"
+						initial={{ opacity: 0 }}
+						animate={{
+							opacity: animationStage !== "initial" ? 1 : 0,
+						}}
+						transition={{ delay: 1.2, duration: 0.5 }}
+					>
+						Your payment of {formatTotal()} has been processed successfully.
+					</motion.div>
+
+					{/* Messages that appear sequentially */}
+					<div className="space-y-5 w-full">
+						<motion.div
+							className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 text-center"
+							initial={{ opacity: 0, y: 20 }}
+							animate={{
+								opacity:
+									animationStage === "message" || animationStage === "complete"
+										? 1
+										: 0,
+								y:
+									animationStage === "message" || animationStage === "complete"
+										? 0
+										: 20,
+							}}
+							transition={{ delay: 0.2, duration: 0.5 }}
+						>
+							<p className="text-gray-700">
+								Your receipt has been printed and will be provided to you.
+							</p>
+						</motion.div>
+
+						<motion.div
+							className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 text-center"
+							initial={{ opacity: 0, y: 20 }}
+							animate={{
+								opacity: animationStage === "complete" ? 1 : 0,
+								y: animationStage === "complete" ? 0 : 20,
+							}}
+							transition={{ delay: 0.3, duration: 0.5 }}
+						>
+							<p className="text-gray-700 font-medium">
+								We hope to see you again soon!
+							</p>
+							<p className="text-gray-500 text-sm mt-1 font-light">
+								Ajeen Bakery appreciates your business.
+							</p>
+						</motion.div>
 					</div>
 				</div>
 			</div>
 
-			{/* Footer with animation */}
-			<div className="p-6 bg-slate-50 border-t border-slate-200">
-				<div className="max-w-md mx-auto">
-					{isAnimating ? (
-						<div className="flex items-center justify-center">
-							<motion.div
-								className="w-4 h-4 bg-blue-600 rounded-full mr-2"
-								animate={{
-									scale: [1, 1.5, 1],
-									opacity: [1, 0.5, 1],
-								}}
-								transition={{
-									duration: 1.5,
-									repeat: Infinity,
-									repeatType: "loop",
-								}}
-							/>
-							<span className="text-slate-600 font-medium">
-								Completing transaction...
-							</span>
-						</div>
-					) : (
-						<motion.div
-							className="text-center text-slate-600"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							transition={{ duration: 0.5 }}
-						>
-							<p className="font-medium">Transaction complete</p>
-							<p className="text-sm mt-1">Returning to home screen shortly</p>
-						</motion.div>
-					)}
-				</div>
+			{/* Footer - shows transaction ID in a subtle way */}
+			<div className="p-4 bg-white border-t border-gray-200 shadow-sm relative z-10">
+				<motion.div
+					className="text-center text-xs text-gray-400 font-light"
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					transition={{ delay: 2, duration: 1 }}
+				>
+					Transaction ID: {paymentData?.transactionId || "TXN-UNKNOWN"} •{" "}
+					{new Date().toLocaleDateString()}
+				</motion.div>
 			</div>
+
+			{/* Bottom accent line */}
+			<motion.div
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				initial={{ scaleX: 0 }}
+				animate={{ scaleX: 1 }}
+				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+			></motion.div>
 		</div>
 	);
 };

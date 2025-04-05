@@ -89,7 +89,7 @@ TEMPLATES = [
 # Hardware-specific settings
 HARDWARE_CONFIG = {
     'USE_REAL_HARDWARE': {
-        'RECEIPT_PRINTER': True,  # Set to True to use real printer even in debug mode
+        'RECEIPT_PRINTER': False,  # Set to True to use real printer even in debug mode
         'CASH_DRAWER': False,     # Use mock implementation for cash drawer
         'CARD_READER': False,     # Use mock implementation for card reader
     },

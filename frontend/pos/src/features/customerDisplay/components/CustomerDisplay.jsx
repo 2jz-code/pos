@@ -206,8 +206,10 @@ const CustomerDisplay = () => {
 			case "custom":
 			default:
 				return (
-					<div className="customer-data">
-						<pre>{JSON.stringify(displayData, null, 2)}</pre>
+					<div className="customer-data p-6 bg-gray-50">
+						<pre className="bg-white p-4 rounded-lg shadow-sm overflow-auto text-xs font-mono">
+							{JSON.stringify(displayData, null, 2)}
+						</pre>
 					</div>
 				);
 		}
