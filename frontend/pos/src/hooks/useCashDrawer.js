@@ -175,6 +175,8 @@ export const useCashDrawer = () => {
 		});
 	}, [isConnected, sendMessage]);
 
+	// src/hooks/useCashDrawer.js (modified printReceipt function)
+
 	const printReceipt = useCallback(
 		(receiptData) => {
 			if (!isConnected) {
@@ -194,15 +196,14 @@ export const useCashDrawer = () => {
 				}, 5000);
 
 				let processingReceived = false;
-				console.log(processingReceived);
 
 				const handleResponse = (event) => {
 					const message = event.detail;
 
-					// Filter for cash drawer messages
+					// Filter for receipt printer messages
 					if (
 						message._source?.category !== "HARDWARE" ||
-						message._source?.endpoint !== "CASH_DRAWER"
+						message._source?.endpoint !== "RECEIPT_PRINTER"
 					) {
 						return;
 					}
@@ -238,7 +239,9 @@ export const useCashDrawer = () => {
 				try {
 					window.addEventListener("websocket-message", handleResponse);
 					console.log("Sending print receipt message", receiptData);
-					sendMessage("HARDWARE", "CASH_DRAWER", {
+
+					// IMPORTANT: Send to RECEIPT_PRINTER endpoint instead of CASH_DRAWER
+					sendMessage("HARDWARE", "RECEIPT_PRINTER", {
 						type: "print_receipt",
 						receipt_data: receiptData,
 					});

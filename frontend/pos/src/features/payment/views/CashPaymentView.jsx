@@ -10,6 +10,7 @@ import { useCashDrawer } from "../../../hooks/useCashDrawer";
 import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCustomerFlow";
 import customerDisplayManager from "../../../features/customerDisplay/utils/windowManager";
 import { useCartStore } from "../../../store/cartStore";
+import { calculateCartTotals } from "../../cart/utils/cartCalculations";
 
 const commonMotionProps = {
 	variants: pageVariants,
@@ -37,7 +38,8 @@ export const CashPaymentView = ({
 	} = useCashDrawer();
 	const [error, setError] = useState(null);
 	const [paymentInProgress, setPaymentInProgress] = useState(false);
-	const { goToStep, updateFlowData, flowActive, startFlow } = useCustomerFlow();
+	const { goToStep, updateFlowData, flowActive, startFlow, completeFlow } =
+		useCustomerFlow();
 	const displayError = drawerError || error;
 	const [hasBeenMounted, setHasBeenMounted] = useState(false);
 	const epsilon = 0.01; // Small threshold for floating point comparison
@@ -111,11 +113,29 @@ export const CashPaymentView = ({
 			0
 		);
 
+		// For split payments, we need two different checks:
+		// 1. Is the current split amount fully paid? (for closing drawer)
+		// 2. Is the total payment fully paid? (for receipt printing)
+
+		// The amount relevant to THIS split payment
+		const relevantAmount = state.splitMode
+			? currentPaymentAmount
+			: remainingAmount;
+
+		// Is THIS split payment fully paid?
+		const isCurrentSplitPaid = totalAmount >= relevantAmount;
+
+		// Is the TOTAL payment fully paid? (for determining if we should print receipt)
+		const isFullyPaid = totalAmount >= remainingAmount || remainingAmount <= 0;
+
 		return {
 			totalTendered,
 			totalChange,
 			totalAmount,
-			isFullyPaid: totalAmount >= remainingAmount || remainingAmount <= 0,
+			isCurrentSplitPaid, // For drawer closing
+			isFullyPaid, // For receipt printing
+			relevantAmount, // For debugging
+			totalRemainingAmount: remainingAmount, // For debugging
 		};
 	};
 
@@ -380,9 +400,37 @@ export const CashPaymentView = ({
 		}
 	};
 
+	const navigateToSplitView = () => {
+		console.log("DIRECT NAVIGATION: Force navigating back to split view");
+
+		// First complete any active flow to prevent state conflicts
+		if (flowActive) {
+			// Use the completeFlow from useCustomerFlow hook
+			completeFlow();
+		}
+
+		// Clean up any pending UI state
+		setPaymentInProgress(false);
+		setError(null);
+
+		// Set a short timeout to allow state updates to settle
+		setTimeout(() => {
+			console.log("DIRECT NAVIGATION: Executing navigation to split view now");
+			handleNavigation("Split", -1);
+		}, 1000); // Longer timeout for more reliable navigation
+	};
+
 	const handleDrawerClose = async () => {
 		setError(null);
 		try {
+			console.log("=== CASH DRAWER CLOSE START ===");
+			console.log("State:", {
+				splitMode: state.splitMode,
+				remainingAmount,
+				currentPaymentAmount,
+				amountPaid: state.amountPaid,
+			});
+
 			console.log("Attempting to close drawer...");
 			const result = await closeDrawer();
 			console.log("Close drawer result:", result);
@@ -391,25 +439,42 @@ export const CashPaymentView = ({
 				console.log("Drawer closed successfully");
 
 				const transactionTotals = getTransactionTotals();
+				console.log("Transaction totals:", transactionTotals);
 
+				// This is the KEY FIX - we need to check against the TOTAL remaining amount
+				// not just the current payment amount for receipt printing
+				const epsilon = 0.01;
+
+				// We need to check if ALL payments are complete (for receipt printing)
+				// This should compare against the TOTAL remaining amount
+				const isAllPaymentsComplete = remainingAmount <= epsilon;
+
+				console.log("Cash payment completion check:", {
+					isAllPaymentsComplete,
+					remainingAmount,
+					currentPaymentAmount,
+					transactionAmount: transactionTotals?.totalAmount || 0,
+					epsilon,
+					isSplitMode: state.splitMode,
+				});
+
+				// Update flow data for customer display
 				updateFlowData({
 					cashPaymentComplete: true,
 					cashData: {
 						cashTendered: transactionTotals?.totalTendered || 0,
 						change: transactionTotals?.totalChange || 0,
 						amountPaid: state.amountPaid,
-						remainingAmount: state.splitMode
-							? currentPaymentAmount - (transactionTotals?.totalAmount || 0)
-							: remainingAmount,
-						isFullyPaid:
-							(state.splitMode ? currentPaymentAmount : remainingAmount) <= 0 ||
-							transactionTotals?.isFullyPaid,
+						remainingAmount: remainingAmount,
+						isFullyPaid: isAllPaymentsComplete,
 						isSplitPayment: state.splitMode,
 					},
 					isSplitPayment: state.splitMode,
 					splitDetails: state.splitDetails,
+					skipReceiptPrinting: state.splitMode && !isAllPaymentsComplete,
 				});
 
+				// Update customer display to receipt step
 				setTimeout(() => {
 					goToStep("receipt", {
 						paymentMethod: "cash",
@@ -417,72 +482,141 @@ export const CashPaymentView = ({
 							cashTendered: transactionTotals?.totalTendered || 0,
 							change: transactionTotals?.totalChange || 0,
 							amountPaid: state.amountPaid,
-							remainingAmount: state.splitMode
-								? currentPaymentAmount - (transactionTotals?.totalAmount || 0)
-								: remainingAmount,
-							isFullyPaid:
-								(state.splitMode ? currentPaymentAmount : remainingAmount) <=
-									0 || transactionTotals?.isFullyPaid,
+							remainingAmount: remainingAmount,
+							isFullyPaid: isAllPaymentsComplete,
 						},
 						cashPaymentComplete: true,
 						isSplitPayment: state.splitMode,
 						splitDetails: state.splitDetails,
+						skipReceiptPrinting: state.splitMode && !isAllPaymentsComplete,
 					});
 				}, 1000);
 
-				const receiptData = {
-					items: state.transactions,
-					total: state.amountPaid,
-					payment_method: "cash",
-					amount_tendered: getTransactionTotals()?.totalTendered || 0,
-					change: getTransactionTotals()?.totalChange || 0,
-					is_split_payment: state.splitMode,
-				};
-
-				try {
-					await printReceipt(receiptData);
-					console.log("Receipt printed successfully");
-
-					const isAllPaymentsComplete = remainingAmount <= 0;
+				// CRITICAL FIX: Use a direct check against the total remaining amount
+				// not the calculated value from transaction totals
+				if (state.splitMode && remainingAmount > epsilon) {
+					// This is a partial split payment
 					console.log(
-						"Is all payments complete:",
-						isAllPaymentsComplete,
-						"Remaining amount:",
-						remainingAmount
+						"SPLIT PAYMENT: Partial payment detected, skipping receipt printing"
+					);
+					console.log(
+						"SPLIT PAYMENT: Scheduling navigation back to split view"
 					);
 
-					if (state.splitMode && !isAllPaymentsComplete) {
-						console.log(
-							"Split payment portion complete, returning to split view"
-						);
-						setTimeout(() => {
-							handleReturnToSplitView();
-						}, 2000);
-					} else {
-						console.log("Payment is complete, proceeding to completion");
+					// IMPORTANT: Wait for customer display to update before navigating
+					navigateToSplitView();
+				} else {
+					// This is a complete payment (either not split or final split payment)
+					console.log(
+						"COMPLETE PAYMENT: Printing receipt and completing payment"
+					);
+
+					try {
+						// Get cart items from the cart store
+						const cartItems = useCartStore.getState().cart;
+
+						// Calculate the cart totals including tax
+						const { subtotal, taxAmount, total } =
+							calculateCartTotals(cartItems);
+
+						// Prepare receipt data
+						const receiptData = {
+							id: state.orderId || Math.floor(Date.now() / 1000),
+							timestamp: new Date().toISOString(),
+							items: cartItems.map((item) => ({
+								product_name: item.name,
+								quantity: item.quantity,
+								unit_price: item.price,
+							})),
+							total_price: total,
+							subtotal: subtotal,
+							tax: taxAmount,
+							payment: {
+								method: "cash",
+								amount_tendered: transactionTotals?.totalTendered || 0,
+								change: transactionTotals?.totalChange || 0,
+							},
+							open_drawer: false,
+							is_split_payment: state.splitMode,
+							store_name: "Ajeen Restaurant",
+							store_address: "123 Main Street",
+							store_phone: "(123) 456-7890",
+							receipt_footer: "Thank you for your purchase!",
+						};
+
+						// Print the receipt
+						console.log("Printing receipt for complete payment");
+						await printReceipt(receiptData);
+						console.log("Receipt printed successfully");
+
+						// Only complete the payment flow for the final payment
+						console.log("Completing payment flow");
 						const success = await completePaymentFlow();
+
 						if (success) {
+							console.log("Payment completed, navigating to completion screen");
 							handleNavigation("Completion");
+						} else {
+							console.error("Failed to complete payment flow");
+						}
+					} catch (printError) {
+						console.error("Receipt printing failed:", printError);
+						setError("Receipt printing failed - " + printError.message);
+
+						// Try to complete payment even if receipt printing fails
+						try {
+							const success = await completePaymentFlow();
+							if (success) {
+								handleNavigation("Completion");
+							}
+						} catch (completionError) {
+							console.error(
+								"Failed to complete payment after print error:",
+								completionError
+							);
 						}
 					}
-				} catch (printError) {
-					console.error("Receipt printing failed:", printError);
-					setError("Receipt printing failed - " + printError.message);
 				}
+				console.log("=== CASH DRAWER CLOSE END ===");
 			}
 		} catch (err) {
 			console.error("Drawer close error:", err);
 			setError(err.message || "Failed to close drawer");
+			console.log("=== CASH DRAWER CLOSE END - ERROR ===");
 		}
 	};
-
 	const canCloseDrawer = () => {
-		return (
-			shouldShowChangeCalculation() &&
+		// For split payments, we should be able to close the drawer after a partial payment
+		const hasValidTransaction = shouldShowChangeCalculation();
+
+		// Get transaction totals which includes the isCurrentSplitPaid flag
+		const transactionTotals = getTransactionTotals();
+
+		// In split mode, allow closing if the current split amount is paid
+		const isCurrentSplitPaid =
+			state.splitMode && transactionTotals?.isCurrentSplitPaid;
+
+		// For non-split payments, require full payment
+		const isFullPayment = !state.splitMode && isFullyPaid;
+
+		const canClose =
+			(isCurrentSplitPaid || isFullPayment) &&
+			hasValidTransaction &&
 			drawerState === "open" &&
-			!isProcessing &&
-			isFullyPaid
-		);
+			!isProcessing;
+
+		console.log("canCloseDrawer check:", {
+			isCurrentSplitPaid,
+			isFullPayment,
+			hasValidTransaction,
+			drawerState,
+			isProcessing,
+			relevantAmount: transactionTotals?.relevantAmount,
+			transactionAmount: transactionTotals?.totalAmount,
+			totalRemainingAmount: remainingAmount,
+		});
+
+		return canClose;
 	};
 
 	// Validate if the custom amount is valid
@@ -689,7 +823,9 @@ export const CashPaymentView = ({
 				{/* Close drawer button */}
 				<PaymentButton
 					label={
-						isFullyPaid
+						state.splitMode
+							? "Close Drawer & Continue Split"
+							: isFullyPaid
 							? "Close Drawer"
 							: `Pay $${remainingAmount.toFixed(2)} More`
 					}
@@ -699,6 +835,46 @@ export const CashPaymentView = ({
 					className={`w-full mt-4 ${
 						!canCloseDrawer() ? "opacity-50 cursor-not-allowed" : ""
 					}`}
+				/>
+				<PaymentButton
+					label="Print Receipt (Manual)"
+					variant="primary"
+					onClick={() => {
+						// For test purposes, create a simple item
+						const testItem = {
+							product_name: "Test Item",
+							quantity: 1,
+							unit_price: 1.0,
+						};
+						const testSubtotal = 1.0;
+						const testTax = testSubtotal * 0.1; // Assuming 10% tax rate
+						const testTotal = testSubtotal + testTax;
+
+						const manualReceiptData = {
+							id: state.orderId || Math.floor(Date.now() / 1000),
+							timestamp: new Date().toISOString(),
+							items: [testItem],
+							subtotal: testSubtotal,
+							tax: testTax,
+							total_price: testTotal,
+							payment: {
+								method: "cash",
+								amount_tendered: testTotal,
+								change: 0,
+							},
+							open_drawer: false,
+							store_name: "Test Store",
+							store_address: "Test Address",
+							store_phone: "Test Phone",
+						};
+
+						printReceipt(manualReceiptData)
+							.then(() => console.log("Manual receipt print successful"))
+							.catch((err) =>
+								console.error("Manual receipt print failed:", err)
+							);
+					}}
+					className="mt-2"
 				/>
 			</ScrollableViewWrapper>
 		</motion.div>
@@ -743,6 +919,7 @@ CashPaymentView.propTypes = {
 	isPaymentComplete: PropTypes.func.isRequired,
 	completePaymentFlow: PropTypes.func.isRequired,
 	handleNavigation: PropTypes.func.isRequired,
+	completeFlow: PropTypes.func,
 };
 
 export default CashPaymentView;

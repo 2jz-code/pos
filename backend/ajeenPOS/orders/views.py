@@ -4,31 +4,66 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from payments.models import Payment
 from .models import Order, OrderItem
-from .serializers import OrderSerializer
+from .serializers import OrderSerializer, OrderListSerializer
 from products.models import Product
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from datetime import timezone
 import json
 from django.http import JsonResponse
+from rest_framework.pagination import PageNumberPagination
 
-
+class OrderPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+    
 # ✅ List Orders (Now Updates Instead of Duplicating)
 class OrderList(generics.ListCreateAPIView):
-    serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = OrderPagination
+
+    def get_serializer_class(self):
+        """Use different serializers for list and detail views"""
+        if self.request.method == 'GET':
+            return OrderListSerializer
+        return OrderSerializer
 
     def get_queryset(self):
         """
-        Filter orders by source if provided in query parameters
+        Get optimized queryset with proper prefetching to reduce database queries
         """
-        queryset = Order.objects.all().order_by('-created_at')
+        # Start with base queryset
+        queryset = Order.objects.select_related('user').prefetch_related(
+            'items__product',
+            'payment'
+        ).order_by('-created_at')
+        
+        # Apply filters
         source = self.request.query_params.get('source')
+        status = self.request.query_params.get('status')
         
         if source:
             queryset = queryset.filter(source=source)
+        
+        if status and status != 'all':
+            queryset = queryset.filter(status=status)
             
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """
+        Override list method to add metadata about orders
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def post(self, request, *args, **kwargs):
         """

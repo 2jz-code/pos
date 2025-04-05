@@ -64,3 +64,32 @@ class OrderSerializer(serializers.ModelSerializer):
             # Log the error for debugging
             print(f"Error retrieving payment for order {obj.id}: {str(e)}")
             return None
+
+class OrderListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for order listings that doesn't include nested item details
+    """
+    created_by = serializers.SerializerMethodField()
+    item_count = serializers.SerializerMethodField()
+    payment_status = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'status', 'payment_status', 'total_price', 
+            'created_at', 'updated_at', 'source', 'created_by',
+            'guest_first_name', 'guest_last_name', 'item_count'
+        ]
+    
+    def get_created_by(self, obj):
+        """Format the creator's name for display"""
+        if obj.user:
+            return obj.user.username
+        elif obj.guest_first_name or obj.guest_last_name:
+            return f"{obj.guest_first_name} {obj.guest_last_name} (Guest)"
+        else:
+            return "Guest Customer"
+    
+    def get_item_count(self, obj):
+        """Return the count of items in the order"""
+        return obj.items.count()

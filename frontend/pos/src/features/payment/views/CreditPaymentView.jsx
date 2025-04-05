@@ -12,7 +12,9 @@ import { formatPrice } from "../../../utils/numberUtils";
 import TerminalStatusIndicator from "../components/TerminalStatusIndicator";
 import { useCartStore } from "../../../store/cartStore";
 import customerDisplayManager from "../../customerDisplay/utils/windowManager";
-
+import { useReceiptPrinter } from "../../../hooks/useReceiptPrinter";
+import { calculateCartTotals } from "../../cart/utils/cartCalculations";
+// import { formatReceiptData } from "../../../utils/receiptUtils";
 const { pageVariants, pageTransition } = paymentAnimations;
 
 const commonPropTypes = {
@@ -75,6 +77,8 @@ export const CreditPaymentView = ({
 	// References for tracking component state
 	const isCompletingPaymentRef = useRef(false);
 	const hasNavigatedRef = useRef(false);
+	const { printReceipt } = useReceiptPrinter();
+	const processedReceiptIds = useRef(new Set());
 
 	// Use the customer flow hook
 	const {
@@ -93,6 +97,20 @@ export const CreditPaymentView = ({
 		state.splitMode && state.nextSplitAmount
 			? state.nextSplitAmount
 			: remainingAmount;
+
+	// At the beginning of the component
+	useEffect(() => {
+		// Reset flags on mount
+		isCompletingPaymentRef.current = false;
+		hasNavigatedRef.current = false;
+		processedReceiptIds.current.clear();
+
+		return () => {
+			// Clean up on unmount
+			isCompletingPaymentRef.current = false;
+			hasNavigatedRef.current = false;
+		};
+	}, []);
 
 	// Debug logging on mount
 	useEffect(() => {
@@ -174,11 +192,19 @@ export const CreditPaymentView = ({
 		updateFlowData,
 	]);
 
-	const handleSplitContinuation = useCallback(() => {
-		if (state.splitMode) {
-			console.log("SPLIT CHAIN: Returning to split view from credit payment");
+	// CreditPaymentView.jsx - Add/modify the handleSplitContinuation function
 
-			// CRITICAL FIX: Calculate the remaining amount after THIS payment
+	const handleSplitContinuation = useCallback(() => {
+		// Prevent duplicate calls if already navigated
+		if (hasNavigatedRef.current) {
+			console.log("SPLIT CHAIN: Already navigated, ignoring duplicate call");
+			return;
+		}
+
+		if (state.splitMode) {
+			console.log("SPLIT CHAIN: Handling split continuation");
+
+			// Calculate the remaining amount after THIS payment
 			const updatedAmountPaid = state.amountPaid + currentPaymentAmount;
 			const calculatedRemainingAmount = Math.max(
 				0,
@@ -193,41 +219,45 @@ export const CreditPaymentView = ({
 				calculatedRemainingAmount,
 			});
 
-			// Check if there's remaining amount to pay (with small epsilon for floating point errors)
+			// Check if there's remaining amount to pay
 			const epsilon = 0.01;
-			if (calculatedRemainingAmount < epsilon) {
-				console.log(
-					"SPLIT CHAIN: No remaining amount, proceeding to completion instead"
-				);
-				completePaymentFlow().then(() => {
-					handleNavigation("Completion");
-				});
-				return;
-			}
+			const isAllPaymentsComplete = calculatedRemainingAmount < epsilon;
 
-			// IMPORTANT: Reset flow state before navigating to ensure a fresh start
-			completeFlow();
-
-			// CRITICAL FIX: Call resetFlowForSplitContinuation with the proper payment information
-			resetFlowForSplitContinuation({
-				amountPaid: updatedAmountPaid,
-				remainingAmount: calculatedRemainingAmount,
-				currentPaymentAmount: currentPaymentAmount,
+			console.log("SPLIT CHAIN: Payment completion check:", {
+				calculatedRemainingAmount,
+				isAllPaymentsComplete,
+				epsilon,
 			});
 
-			// Reset any local payment processing state
-			setProcessingPayment(false);
-			setCardData(null);
-			hasNavigatedRef.current = false;
-			isCompletingPaymentRef.current = false;
+			// For non-final payments, continue with split
+			if (!isAllPaymentsComplete) {
+				// Mark as navigated to prevent duplicate navigation
+				hasNavigatedRef.current = true;
 
-			// Add a small delay before navigation to ensure flow is properly cleaned up
-			setTimeout(() => {
-				console.log(
-					"SPLIT CHAIN: Navigating back to split view for next payment selection"
-				);
-				handleNavigation("Split", -1);
-			}, 1000); // Longer delay to ensure complete cleanup
+				// Clean up any active flow
+				if (flowActive) {
+					completeFlow();
+				}
+
+				resetFlowForSplitContinuation({
+					amountPaid: updatedAmountPaid,
+					remainingAmount: calculatedRemainingAmount,
+					currentPaymentAmount: currentPaymentAmount,
+				});
+
+				setProcessingPayment(false);
+				setCardData(null);
+
+				// Use a timeout to ensure state updates have settled
+				setTimeout(() => {
+					console.log(
+						"SPLIT CHAIN: Navigating back to split view for next payment"
+					);
+					// Reset the navigation flag so future navigations can occur
+					hasNavigatedRef.current = false;
+					handleNavigation("Split", -1);
+				}, 500);
+			}
 		}
 	}, [
 		state.splitMode,
@@ -236,109 +266,237 @@ export const CreditPaymentView = ({
 		remainingAmount,
 		handleNavigation,
 		completeFlow,
-		completePaymentFlow,
 		resetFlowForSplitContinuation,
+		flowActive,
 	]);
 
+	// Fix the receipt effect
+	// Inside the receipt effect in CreditPaymentView.jsx
 	useEffect(() => {
-		// Only proceed if we have receipt completion and haven't already started processing
+		// Check if this receipt has already been processed
+		const receiptId = stepData.receipt?.timestamp || stepData.receipt?.orderId;
+		const hasProcessedThisReceipt =
+			receiptId && processedReceiptIds.current.has(receiptId);
+
+		// Only proceed if we have a new receipt completion to process
 		if (
 			stepData.receipt &&
 			stepData.receipt.status === "complete" &&
 			!isCompletingPaymentRef.current &&
-			!hasNavigatedRef.current
+			!hasNavigatedRef.current &&
+			!hasProcessedThisReceipt
 		) {
-			// Set flag to prevent concurrent/repeated executions
+			// Set flags to prevent concurrent/repeated executions
 			isCompletingPaymentRef.current = true;
+
+			// Add this receipt to the set of processed receipts
+			if (receiptId) {
+				processedReceiptIds.current.add(receiptId);
+			}
 
 			console.log(
 				"PAYMENT CHAIN: Starting payment completion (receipt complete)"
 			);
 			console.log("PAYMENT CHAIN: Receipt completion data:", stepData.receipt);
+			console.log("PAYMENT CHAIN: Processing receipt ID:", receiptId);
 
-			// Process the actual payment using the collected flow data
-			handlePayment(currentPaymentAmount, {
-				method: "credit",
-				flowData: stepData,
-				isSplitPayment: state.splitMode,
-				splitDetails: state.splitDetails,
-				orderId: state.orderId, // Ensure orderId is included
-			})
-				.then((success) => {
-					if (success && !hasNavigatedRef.current) {
-						console.log("PAYMENT CHAIN: Payment processing successful");
+			// Use an async IIFE for cleaner async/await syntax
+			(async () => {
+				try {
+					// Process the payment
+					const success = await handlePayment(currentPaymentAmount, {
+						method: "credit",
+						flowData: stepData,
+						isSplitPayment: state.splitMode,
+						splitDetails: state.splitDetails,
+						orderId: state.orderId,
+					});
 
-						// CRITICAL FIX: More precise check for split payment completion
-						const epsilon = 0.01;
-
-						// Calculate the remaining amount after THIS payment
-						// Don't rely on the state.amountPaid value which might be updated incorrectly
-						const updatedAmountPaid = state.amountPaid + currentPaymentAmount;
-						const calculatedRemainingAmount = Math.max(
-							0,
-							remainingAmount - currentPaymentAmount
-						);
-
-						// Check if this was the final payment in the split
-						const isAllPaymentsComplete = calculatedRemainingAmount < epsilon;
-
-						console.log("PAYMENT CHAIN: Payment completion status", {
-							isAllPaymentsComplete,
-							originalRemainingAmount: remainingAmount,
-							currentPaymentAmount,
-							calculatedRemainingAmount,
-							updatedAmountPaid,
-							orderId: state.orderId,
-						});
-
-						if (state.splitMode && !isAllPaymentsComplete) {
-							// Force completion of current flow to start fresh
-							completeFlow();
-
-							// Wait a moment before navigating to ensure UI updates properly
-							setTimeout(() => {
-								// Set a flag to prevent any automatic processing
-								hasNavigatedRef.current = true;
-
-								// CRITICAL FIX: Call the split continuation handler
-								handleSplitContinuation();
-							}, 1000);
-
-							return false; // Don't complete the payment flow yet
-						} else {
-							// For fully paid transactions (split or not), proceed to completion
-							console.log(
-								"PAYMENT CHAIN: All payments complete, calling completePaymentFlow"
-							);
-
-							// Return a promise chain to ensure proper async handling
-							return completePaymentFlow();
-						}
-					} else {
+					if (!success || hasNavigatedRef.current) {
 						throw new Error("Payment processing failed or already completed");
 					}
-				})
-				.then((shouldNavigate) => {
-					if (shouldNavigate && !hasNavigatedRef.current) {
-						console.log(
-							"PAYMENT CHAIN: Flow completed, navigating to completion view"
-						);
-						hasNavigatedRef.current = true;
-						handleNavigation("Completion");
+
+					console.log("PAYMENT CHAIN: Payment processing successful");
+
+					// Calculate remaining amount after THIS payment
+					const epsilon = 0.01;
+					const calculatedRemainingAmount = Math.max(
+						0,
+						remainingAmount - currentPaymentAmount
+					);
+					const isAllPaymentsComplete = calculatedRemainingAmount < epsilon;
+
+					console.log("Credit payment completion check:", {
+						calculatedRemainingAmount,
+						isAllPaymentsComplete,
+						remainingAmount,
+						currentPaymentAmount,
+						epsilon,
+					});
+
+					// Handle split payment navigation differently from final payment
+					if (state.splitMode && !isAllPaymentsComplete) {
+						console.log("PARTIAL PAYMENT: Returning to split view");
+
+						// Wait a moment for state to settle, then navigate back to split view
+						setTimeout(() => {
+							// Explicitly trigger split continuation
+							handleSplitContinuation();
+						}, 800);
+
+						return; // Exit early - don't proceed to final payment handling
 					}
-				})
-				.catch((err) => {
-					console.error("PAYMENT CHAIN: Payment completion error:", err);
-					setError(err.message || "Failed to process payment");
-				})
-				.finally(() => {
+
+					// If we get here, this is a final payment (either not split or last split payment)
+					if (isAllPaymentsComplete) {
+						console.log("FINAL PAYMENT: Processing final payment completion");
+
+						// Final payment handling code remains the same...
+						// Get cart items and prepare receipt
+						const cartItems = useCartStore.getState().cart;
+						const { subtotal, taxAmount, total } =
+							calculateCartTotals(cartItems);
+
+						const receiptData = {
+							id: state.orderId || Math.floor(Date.now() / 1000),
+							timestamp: new Date().toISOString(),
+							items: cartItems.map((item) => ({
+								product_name: item.name,
+								quantity: item.quantity,
+								unit_price: item.price,
+							})),
+							total_price: total,
+							subtotal: subtotal,
+							tax: taxAmount,
+							payment: {
+								method: "credit",
+								card_type: stepData.payment?.cardInfo?.brand || "Credit Card",
+								last_four: stepData.payment?.cardInfo?.last4 || "****",
+							},
+							open_drawer: false,
+							is_split_payment: state.splitMode,
+							store_name: "Ajeen Restaurant",
+							store_address: "123 Main Street",
+							store_phone: "(123) 456-7890",
+							receipt_footer: "Thank you for your purchase!",
+						};
+
+						try {
+							// Print receipt
+							await printReceipt(receiptData);
+							console.log("FINAL PAYMENT: Receipt printed successfully");
+
+							// CRITICAL FIX: Create comprehensive payment details for backend
+							// First, create the new credit card transaction
+							const currentCreditTransaction = {
+								method: "credit",
+								amount: currentPaymentAmount,
+								flowData: stepData, // Include all step data
+								cardInfo: stepData.payment?.cardInfo || {
+									brand: "Credit Card",
+									last4: "****",
+								},
+								transactionId:
+									stepData.payment?.transactionId || `txn_${Date.now()}`,
+								timestamp: new Date().toISOString(),
+								isSplitPayment: state.splitMode,
+								splitDetails: state.splitDetails,
+								splitPayment: state.splitMode,
+							};
+
+							// Get all previous transactions
+							const allTransactions = [
+								...state.transactions,
+								currentCreditTransaction,
+							];
+
+							// Update split details to show this payment is complete
+							const updatedSplitDetails = {
+								...state.splitDetails,
+								remainingAmount: 0,
+								currentSplitIndex:
+									(state.splitDetails?.currentSplitIndex || 0) + 1,
+								completedSplits: [
+									...(state.splitDetails?.completedSplits || []),
+									{
+										method: "credit",
+										amount: currentPaymentAmount,
+										index: state.splitDetails?.currentSplitIndex || 0,
+									},
+								],
+							};
+
+							// Create the complete payment details object
+							const paymentDetails = {
+								transactions: allTransactions,
+								splitDetails: updatedSplitDetails,
+								totalPaid: state.amountPaid + currentPaymentAmount,
+								splitPayment: true,
+								isSplitPayment: true,
+								// IMPORTANT: Set the payment method to "split" for split payments
+								paymentMethod: state.splitMode ? "split" : "credit",
+								completed_at: new Date().toISOString(),
+								orderId: state.orderId,
+							};
+
+							console.log(
+								"FINAL PAYMENT: Calling completePaymentFlow with split payment details:",
+								paymentDetails
+							);
+
+							// Complete payment flow with comprehensive details
+							const completionResult = await completePaymentFlow(
+								paymentDetails
+							);
+							console.log(
+								"FINAL PAYMENT: Payment flow completion result:",
+								completionResult
+							);
+
+							// Force navigation to completion view
+							if (!hasNavigatedRef.current) {
+								hasNavigatedRef.current = true;
+								console.log("FINAL PAYMENT: Navigating to completion view");
+
+								setTimeout(() => {
+									handleNavigation("Completion");
+								}, 500);
+							}
+						} catch (error) {
+							console.error(
+								"FINAL PAYMENT: Error in receipt/completion:",
+								error
+							);
+
+							// Try to complete payment even if receipt printing fails
+							try {
+								await completePaymentFlow();
+
+								if (!hasNavigatedRef.current) {
+									hasNavigatedRef.current = true;
+									setTimeout(() => {
+										handleNavigation("Completion");
+									}, 500);
+								}
+							} catch (completionError) {
+								console.error(
+									"FINAL PAYMENT: Error in fallback completion:",
+									completionError
+								);
+							}
+						}
+					}
+				} catch (error) {
+					console.error("PAYMENT CHAIN: Error processing payment:", error);
+					setError(error.message || "Failed to process payment");
+				} finally {
 					isCompletingPaymentRef.current = false;
-				});
+				}
+			})();
 		}
 	}, [
 		stepData,
 		currentStep,
-		goToStep,
 		handlePayment,
 		currentPaymentAmount,
 		remainingAmount,
@@ -346,13 +504,14 @@ export const CreditPaymentView = ({
 		handleNavigation,
 		state.splitMode,
 		state.splitDetails,
+		state.transactions,
 		state.orderId,
 		state.amountPaid,
-		updateFlowData,
 		handleSplitContinuation,
 		completeFlow,
+		flowActive,
+		printReceipt,
 	]);
-
 	// Function to cancel payment process
 	const cancelCardPayment = async () => {
 		setIsCancelling(true);

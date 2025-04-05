@@ -2,6 +2,10 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class BaseHardwareController(ABC):
     """
@@ -9,17 +13,43 @@ class BaseHardwareController(ABC):
     and shared functionality.
     """
     
-    def __init__(self):
+    def __init__(self, hardware_type=None):
+        """
+        Initialize controller with option to override hardware type
+        
+        Args:
+            hardware_type: Type of hardware this controller manages
+                           (e.g., 'RECEIPT_PRINTER', 'CASH_DRAWER')
+        """
+        self.hardware_type = hardware_type
+        
+        # Get global debug settings
         self.is_debug = settings.DEBUG
         self.is_testing = getattr(settings, 'TESTING', False)
+        
+        # Check for hardware-specific override
+        hardware_config = getattr(settings, 'HARDWARE_CONFIG', {})
+        use_real_hardware = hardware_config.get('USE_REAL_HARDWARE', {})
+        
+        # If hardware_type is specified and has an entry in USE_REAL_HARDWARE,
+        # override the debug setting
+        if hardware_type and hardware_type in use_real_hardware:
+            self.use_real_hardware = use_real_hardware[hardware_type]
+            if self.use_real_hardware:
+                # Log that we're overriding debug mode for this hardware
+                logger.info(f"Using REAL hardware for {hardware_type} despite debug mode")
+        else:
+            # Default: use mock in debug/test mode, real hardware otherwise
+            self.use_real_hardware = not (self.is_debug or self.is_testing)
+        
         self._initialize_controller()
 
     def _initialize_controller(self):
-        """Initialize the appropriate controller based on environment"""
-        if self.is_debug or self.is_testing:
-            self._initialize_mock_controller()
-        else:
+        """Initialize the appropriate controller based on configuration"""
+        if self.use_real_hardware:
             self._initialize_real_controller()
+        else:
+            self._initialize_mock_controller()
 
     @abstractmethod
     def _initialize_mock_controller(self):

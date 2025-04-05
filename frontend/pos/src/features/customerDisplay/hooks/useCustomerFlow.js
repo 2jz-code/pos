@@ -249,6 +249,15 @@ export function useCustomerFlow() {
 				calculatedRemainingAmount,
 			});
 
+			// Ensure we're not completing a payment that's already done
+			const epsilon = 0.01;
+			if (Math.abs(calculatedRemainingAmount) < epsilon) {
+				console.log(
+					"FLOW RESET: No remaining amount, payment should be complete"
+				);
+				return;
+			}
+
 			// Reset flow state
 			setFlowActive(false);
 			setCurrentStep(null);

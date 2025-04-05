@@ -45,13 +45,16 @@ export const SplitPaymentView = ({
 	useEffect(() => {
 		// Check if payment is already complete (remaining amount is zero)
 		const epsilon = 0.01;
-		if (remainingAmount < epsilon && state.splitMode) {
+		const isFullyPaid = Math.abs(remainingAmount) < epsilon;
+
+		if (isFullyPaid && state.splitMode) {
 			console.log(
 				"SPLIT VIEW: Payment already complete, redirecting to completion",
 				{
 					remainingAmount,
 					amountPaid: state.amountPaid,
 					totalAmount: remainingAmount + state.amountPaid,
+					isFullyPaid,
 					epsilon,
 				}
 			);

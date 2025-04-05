@@ -27,11 +27,11 @@ class ReceiptPrinterConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json({
             "type": "connection_established",
             "status": "connected",
-            # "printer_connected": self.controller.is_connected(),
-            # "_source": {
-            #     "category": "HARDWARE",
-            #     "endpoint": "RECEIPT_PRINTER"
-            # }
+            "printer_connected": self.controller.is_connected(),
+            "_source": {
+                "category": "HARDWARE",
+                "endpoint": "RECEIPT_PRINTER"
+            }
         })
 
     async def receive_json(self, content: Dict[str, Any]):
@@ -53,10 +53,18 @@ class ReceiptPrinterConsumer(AsyncJsonWebsocketConsumer):
         try:
             if message_type == 'print_receipt':
                 await self._handle_print_receipt(content, message_id)
-            elif message_type == "test":
+            elif message_type == 'open_drawer':
+                await self._handle_open_drawer(message_id)
+            elif message_type == "test_connection":
                 await self.send_json({
-                    "type": "test",
-                    "message": f"test message received, using controller {self.controller.is_connected()}"
+                    "type": "connection_test",
+                    "status": "success",
+                    "printer_connected": self.controller.is_connected(),
+                    "id": message_id,
+                    "_source": {
+                        "category": "HARDWARE",
+                        "endpoint": "RECEIPT_PRINTER"
+                    }
                 })
             else:
                 await self.send_json({
@@ -110,6 +118,38 @@ class ReceiptPrinterConsumer(AsyncJsonWebsocketConsumer):
             "message": result["message"],
             "id": message_id,
             "receipt_data": result.get("receipt_data"),
+            "_source": {
+                "category": "HARDWARE",
+                "endpoint": "RECEIPT_PRINTER"
+            }
+        })
+    
+    async def _handle_open_drawer(self, message_id: str):
+        """Handle cash drawer open operation"""
+        # Send processing status
+        await self.send_json({
+            "type": "drawer_operation",
+            "operation": "open",
+            "status": "processing",
+            "id": message_id,
+            "_source": {
+                "category": "HARDWARE",
+                "endpoint": "RECEIPT_PRINTER"
+            }
+        })
+
+        # Run the operation in a thread to avoid blocking
+        result = await asyncio.to_thread(
+            self.controller.open_cash_drawer
+        )
+        
+        # Send result
+        await self.send_json({
+            "type": "drawer_operation",
+            "operation": "open",
+            "status": result["status"],
+            "message": result["message"],
+            "id": message_id,
             "_source": {
                 "category": "HARDWARE",
                 "endpoint": "RECEIPT_PRINTER"

@@ -277,78 +277,92 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 		}
 	};
 
-	const completePaymentFlow = useCallback(async () => {
-		try {
-			console.log("FLOW CHAIN: Starting completePaymentFlow");
-
-			// Validation checks with improved precision
-			const epsilon = 0.01;
-			const remainingAmount = totalAmount - state.amountPaid;
-			const isFullyPaid = Math.abs(remainingAmount) < epsilon;
-
-			console.log("FLOW CHAIN: Payment completion check:", {
-				totalAmount,
-				amountPaid: state.amountPaid,
-				remainingAmount,
-				isFullyPaid,
-				epsilon,
-			});
-
-			if (state.splitMode && !isFullyPaid) {
-				console.log(
-					"FLOW CHAIN: Preventing premature completion - payments not complete"
-				);
-				return false;
-			}
-
-			const paymentDetails = {
-				totalPaid: state.amountPaid,
-				transactions: state.transactions,
-				paymentMethod: state.splitMode ? "split" : state.paymentMethod,
-				splitPayment: state.splitMode,
-				splitDetails: state.splitDetails,
-				orderId: state.orderId, // Explicitly include orderId
-			};
-
-			console.log(
-				"FLOW CHAIN: Calling onComplete with payment details:",
-				paymentDetails
-			);
-
-			// CRITICAL FIX: Ensure we properly await the promise and handle errors
+	const completePaymentFlow = useCallback(
+		async (paymentDetailsOverride = null) => {
 			try {
-				const success = await onComplete?.(paymentDetails);
-				console.log("FLOW CHAIN: onComplete result:", success);
+				console.log("FLOW CHAIN: Starting completePaymentFlow");
 
-				if (success) {
-					setState((prev) => ({
-						...prev,
-						currentView: "Completion",
-						previousViews: [...prev.previousViews, prev.currentView],
-					}));
-					useCartStore.getState().setRewardsProfile(null);
-					return true;
+				// Validation checks with improved precision
+				const epsilon = 0.01;
+				const remainingAmount = totalAmount - state.amountPaid;
+				const isFullyPaid = Math.abs(remainingAmount) < epsilon;
+
+				console.log("FLOW CHAIN: Payment completion check:", {
+					totalAmount,
+					amountPaid: state.amountPaid,
+					remainingAmount,
+					isFullyPaid,
+					epsilon,
+				});
+
+				if (state.splitMode && !isFullyPaid && !paymentDetailsOverride) {
+					console.log(
+						"FLOW CHAIN: Preventing premature completion - payments not complete"
+					);
+					return false;
 				}
-				return false;
+
+				// Use override details if provided, otherwise construct from state
+				const paymentDetails = paymentDetailsOverride || {
+					totalPaid: state.amountPaid,
+					transactions: state.transactions,
+					paymentMethod: state.splitMode ? "split" : state.paymentMethod,
+					splitPayment: state.splitMode,
+					splitDetails: state.splitDetails,
+					orderId: state.orderId, // Explicitly include orderId
+				};
+
+				// Ensure orderId is included
+				if (!paymentDetails.orderId) {
+					paymentDetails.orderId =
+						state.orderId || useCartStore.getState().orderId;
+					console.log(
+						"FLOW CHAIN: Adding orderId from state:",
+						paymentDetails.orderId
+					);
+				}
+
+				console.log(
+					"FLOW CHAIN: Calling onComplete with payment details:",
+					paymentDetails
+				);
+
+				// Ensure we properly await the promise and handle errors
+				try {
+					const success = await onComplete?.(paymentDetails);
+					console.log("FLOW CHAIN: onComplete result:", success);
+
+					if (success) {
+						setState((prev) => ({
+							...prev,
+							currentView: "Completion",
+							previousViews: [...prev.previousViews, prev.currentView],
+						}));
+						useCartStore.getState().setRewardsProfile(null);
+						return true;
+					}
+					return false;
+				} catch (error) {
+					console.error("FLOW CHAIN: Error in onComplete:", error);
+					throw error; // Re-throw to be caught by outer try/catch
+				}
 			} catch (error) {
-				console.error("FLOW CHAIN: Error in onComplete:", error);
-				throw error; // Re-throw to be caught by outer try/catch
+				console.error("FLOW CHAIN: Error in completePaymentFlow:", error);
+				setError(error.message);
+				return false;
 			}
-		} catch (error) {
-			console.error("FLOW CHAIN: Error in completePaymentFlow:", error);
-			setError(error.message);
-			return false;
-		}
-	}, [
-		state.amountPaid,
-		state.transactions,
-		state.paymentMethod,
-		state.splitMode,
-		state.splitDetails,
-		state.orderId,
-		onComplete,
-		totalAmount,
-	]);
+		},
+		[
+			state.amountPaid,
+			state.transactions,
+			state.paymentMethod,
+			state.splitMode,
+			state.splitDetails,
+			state.orderId,
+			onComplete,
+			totalAmount,
+		]
+	);
 	// Add explicit navigation function
 	const navigateToView = useCallback((viewName) => {
 		console.log(`Explicitly navigating to: ${viewName}`);

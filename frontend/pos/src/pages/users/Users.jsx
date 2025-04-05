@@ -49,6 +49,10 @@ export default function Users() {
 		}
 	};
 
+	const handleView = (userId) => {
+		navigate(`/users/${userId}`);
+	};
+
 	const handleEdit = (userId) => {
 		navigate(`/users/edit/${userId}`);
 	};
@@ -215,6 +219,12 @@ export default function Users() {
 												</span>
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+												<button
+													onClick={() => handleView(user.id)}
+													className="px-2 py-1 bg-slate-50 text-slate-600 rounded-lg text-xs hover:bg-slate-100 transition-colors mr-2"
+												>
+													View
+												</button>
 												<button
 													onClick={() => handleEdit(user.id)}
 													className={`px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs hover:bg-blue-100 transition-colors mr-2 ${

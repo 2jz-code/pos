@@ -85,16 +85,20 @@ TEMPLATES = [
     },
 ]
 
-# Hardware configurations
-# HARDWARE_CONFIG = {
-#     'CASH_DRAWER_PORT': '/dev/ttyUSB0',  # or COM3 on Windows
-#     'CARD_TERMINAL_IP': '192.168.1.100',
-#     'CARD_TERMINAL_PORT': 8000,
-#     'RECEIPT_PRINTERS': [
-#         {'ip': '192.168.1.201', 'port': 9100},
-#         {'ip': '192.168.1.202', 'port': 9100},
-#     ],
-# }
+
+# Hardware-specific settings
+HARDWARE_CONFIG = {
+    'USE_REAL_HARDWARE': {
+        'RECEIPT_PRINTER': True,  # Set to True to use real printer even in debug mode
+        'CASH_DRAWER': False,     # Use mock implementation for cash drawer
+        'CARD_READER': False,     # Use mock implementation for card reader
+    },
+    'RECEIPT_PRINTER': {
+        'ip': '192.168.2.196',
+        'port': 9100,
+        'timeout': 5,
+    }
+}
 
 WSGI_APPLICATION = 'ajeenPOS.wsgi.application'
 ASGI_APPLICATION = 'ajeenPOS.asgi.application'
