@@ -55,13 +55,10 @@ const ReceiptView = ({ orderData, paymentData, onComplete }) => {
 	};
 
 	return (
-		<div className="flex flex-col h-full bg-gray-50">
-			{/* Subtle gradient background */}
-			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
-
+		<div className="flex flex-col h-full bg-white">
 			{/* Top accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
@@ -72,7 +69,7 @@ const ReceiptView = ({ orderData, paymentData, onComplete }) => {
 				<div className="max-w-md w-full flex flex-col items-center">
 					{/* Checkmark animation */}
 					<motion.div
-						className="w-32 h-32 bg-gradient-to-br from-green-50 to-emerald-100 rounded-full flex items-center justify-center shadow-lg mb-8"
+						className="w-32 h-32 bg-gradient-to-br from-green-50 to-emerald-100 rounded-full flex items-center justify-center mb-8"
 						initial={{ scale: 0, opacity: 0 }}
 						animate={{
 							scale: animationStage !== "initial" ? 1 : 0,
@@ -135,7 +132,7 @@ const ReceiptView = ({ orderData, paymentData, onComplete }) => {
 					{/* Messages that appear sequentially */}
 					<div className="space-y-5 w-full">
 						<motion.div
-							className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 text-center"
+							className="bg-transparent p-5 border-b border-gray-100 text-center"
 							initial={{ opacity: 0, y: 20 }}
 							animate={{
 								opacity:
@@ -155,7 +152,7 @@ const ReceiptView = ({ orderData, paymentData, onComplete }) => {
 						</motion.div>
 
 						<motion.div
-							className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 text-center"
+							className="bg-transparent p-5 border-b border-gray-100 text-center"
 							initial={{ opacity: 0, y: 20 }}
 							animate={{
 								opacity: animationStage === "complete" ? 1 : 0,
@@ -175,7 +172,7 @@ const ReceiptView = ({ orderData, paymentData, onComplete }) => {
 			</div>
 
 			{/* Footer - shows transaction ID in a subtle way */}
-			<div className="p-4 bg-white border-t border-gray-200 shadow-sm relative z-10">
+			<div className="p-4 bg-transparent border-t border-gray-100 relative z-10">
 				<motion.div
 					className="text-center text-xs text-gray-400 font-light"
 					initial={{ opacity: 0 }}
@@ -189,7 +186,7 @@ const ReceiptView = ({ orderData, paymentData, onComplete }) => {
 
 			{/* Bottom accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}

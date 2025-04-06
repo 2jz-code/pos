@@ -57,13 +57,10 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 	} = cashData || {};
 
 	return (
-		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
-			{/* Subtle gradient background */}
-			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
-
+		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
 			{/* Top accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
@@ -97,7 +94,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 						>
 							{/* Order summary */}
 							<motion.div
-								className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm mb-6"
+								className="bg-transparent p-5 border-b border-gray-100 mb-6"
 								initial={{ opacity: 0, y: 15 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: 0.1, duration: 0.4 }}
@@ -134,7 +131,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 
 							{/* Payment status - improved to show accurate state */}
 							<motion.div
-								className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-lg border border-green-100 shadow-sm"
+								className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 border border-green-100"
 								initial={{ opacity: 0, y: 15 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: 0.2, duration: 0.4 }}
@@ -181,7 +178,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 							{/* Partial payment warning or completion message */}
 							{remainingAmount > 0 && cashTendered > 0 && (
 								<motion.div
-									className="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-100 shadow-sm"
+									className="mt-4 bg-amber-50 p-3 border border-amber-100"
 									initial={{ opacity: 0, y: 15 }}
 									animate={{ opacity: 1, y: 0 }}
 									transition={{ delay: 0.3, duration: 0.4 }}
@@ -209,7 +206,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 
 							{isFullyPaid && (
 								<motion.div
-									className="mt-4 bg-gradient-to-br from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200 shadow-sm"
+									className="mt-4 bg-gradient-to-br from-green-50 to-emerald-50 p-3 border border-green-200"
 									initial={{ opacity: 0, y: 15 }}
 									animate={{ opacity: 1, y: 0 }}
 									transition={{ delay: 0.3, duration: 0.4 }}
@@ -255,7 +252,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 							transition={{ type: "spring", stiffness: 300, damping: 25 }}
 						>
 							<motion.div className="mb-6">
-								<div className="w-16 h-16 bg-gradient-to-br from-green-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+								<div className="w-16 h-16 bg-gradient-to-br from-green-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										className="h-8 w-8 text-green-600"
@@ -280,7 +277,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 							</motion.div>
 
 							<motion.div
-								className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm"
+								className="bg-transparent p-5 border-b border-gray-100"
 								initial={{ opacity: 0, y: 15 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: 0.1, duration: 0.3 }}
@@ -336,7 +333,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 
 			{/* Bottom accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
@@ -351,6 +348,8 @@ CashFlowView.propTypes = {
 		subtotal: PropTypes.number,
 		tax: PropTypes.number,
 		total: PropTypes.number,
+		isSplitPayment: PropTypes.bool,
+		originalTotal: PropTypes.number,
 	}),
 	cashData: PropTypes.shape({
 		cashTendered: PropTypes.number,

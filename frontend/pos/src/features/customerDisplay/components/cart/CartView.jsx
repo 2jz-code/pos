@@ -30,13 +30,10 @@ const CartView = ({ cartData }) => {
 	};
 
 	return (
-		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
-			{/* Subtle gradient background */}
-			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
-
+		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
 			{/* Top accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
@@ -92,7 +89,7 @@ const CartView = ({ cartData }) => {
 								<motion.div
 									key={`${item.id}-${index}`}
 									variants={itemVariants}
-									className="mb-4 bg-white border border-gray-100 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-300"
+									className="mb-4 bg-transparent border-b border-gray-100 p-4 hover:bg-gray-50 transition-colors duration-300"
 								>
 									<div className="flex justify-between items-start">
 										<div>
@@ -124,7 +121,7 @@ const CartView = ({ cartData }) => {
 				{/* Order summary */}
 				{items.length > 0 && (
 					<motion.div
-						className="border-t border-gray-200 pt-4 mt-auto bg-white rounded-lg shadow-sm p-4"
+						className="border-t border-gray-200 pt-4 mt-auto bg-transparent p-4"
 						initial={{ opacity: 0, y: 15 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ delay: 0.3 }}
@@ -147,7 +144,7 @@ const CartView = ({ cartData }) => {
 
 			{/* Bottom accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}

@@ -68,13 +68,10 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 	};
 
 	return (
-		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
-			{/* Subtle gradient background */}
-			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
-
+		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
 			{/* Top accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
@@ -105,7 +102,7 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 				{/* Content container with equal spacing */}
 				<div className="flex-1 flex flex-col justify-evenly max-w-md mx-auto w-full">
 					{/* Total display */}
-					<div className="text-center mt-2 mb-4 bg-white rounded-lg shadow-sm py-4 px-6">
+					<div className="text-center mt-2 mb-4 bg-transparent py-4 px-6 border-b border-gray-100">
 						<div className="text-sm text-gray-500 mb-1 font-light">Total</div>
 						<div className="flex items-center justify-center">
 							<motion.div
@@ -147,10 +144,10 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 								<button
 									key={tip.label}
 									onClick={() => handleTipSelection(tip.value)}
-									className={`py-3 px-2 rounded-lg border transition-all duration-200 ${
+									className={`py-3 px-2 rounded-lg transition-all duration-200 ${
 										selectedPercentage === tip.value
-											? "bg-blue-50 border-blue-300 text-blue-700 shadow-sm"
-											: "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+											? "bg-blue-50 border-2 border-blue-300 text-blue-700"
+											: "bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
 									}`}
 								>
 									<div className="font-medium">{tip.label}</div>
@@ -186,7 +183,7 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 									value={selectedPercentage === null ? tipAmount : ""}
 									onChange={handleCustomTipChange}
 									placeholder="Enter amount"
-									className="block w-full pl-8 pr-12 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+									className="block w-full pl-8 pr-12 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 								/>
 							</div>
 						</motion.div>
@@ -200,13 +197,13 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 						>
 							<button
 								onClick={handleSkip}
-								className="py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
+								className="py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
 							>
 								No Tip
 							</button>
 							<button
 								onClick={handleComplete}
-								className="py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm font-medium"
+								className="py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all font-medium"
 							>
 								{tipAmount > 0 ? `Add Tip` : "Continue"}
 							</button>
@@ -217,7 +214,7 @@ const TipSelectionView = ({ orderTotal = 0, onComplete }) => {
 
 			{/* Bottom accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}

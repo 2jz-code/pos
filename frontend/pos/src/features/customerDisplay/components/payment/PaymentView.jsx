@@ -118,13 +118,10 @@ const PaymentView = ({ orderData, onComplete }) => {
 	const finalTotal = orderData.total + tipAmount;
 
 	return (
-		<div className="flex flex-col h-full bg-gray-50">
-			{/* Subtle gradient background */}
-			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
-
+		<div className="flex flex-col h-full bg-white">
 			{/* Top accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
@@ -142,7 +139,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 				</motion.h1>
 
 				<motion.div
-					className="bg-white rounded-lg p-6 mb-6 shadow-sm"
+					className="bg-transparent border-b border-gray-100 p-6 mb-6"
 					initial={{ opacity: 0, y: 15 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ delay: 0.1, duration: 0.4 }}
@@ -186,7 +183,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 			</div>
 
 			{/* Terminal instruction section */}
-			<div className="p-6 bg-white border-t border-gray-200 shadow-sm relative z-10">
+			<div className="p-6 bg-transparent border-t border-gray-100 relative z-10">
 				<div className="max-w-md mx-auto text-center">
 					{isInitiating ? (
 						<motion.div
@@ -194,7 +191,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 							animate={{ opacity: 1 }}
 							transition={{ duration: 0.4 }}
 						>
-							<div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+							<div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-8 w-8 text-blue-600"
@@ -223,7 +220,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 							animate={{ opacity: 1 }}
 							transition={{ duration: 0.4 }}
 						>
-							<div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+							<div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
 								<motion.div
 									className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full"
 									animate={{ rotate: 360 }}
@@ -256,7 +253,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 							animate={{ opacity: 1, scale: 1 }}
 							transition={{ type: "spring", stiffness: 300, damping: 25 }}
 						>
-							<div className="w-16 h-16 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+							<div className="w-16 h-16 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-8 w-8 text-emerald-600"
@@ -288,7 +285,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 							animate={{ opacity: 1 }}
 							transition={{ duration: 0.4 }}
 						>
-							<div className="w-16 h-16 bg-gradient-to-br from-red-50 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+							<div className="w-16 h-16 bg-gradient-to-br from-red-50 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-8 w-8 text-red-600"
@@ -312,7 +309,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 							</p>
 							<button
 								onClick={handleRetry}
-								className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors shadow-sm font-medium"
+								className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-colors font-medium"
 							>
 								Try Again
 							</button>
@@ -323,7 +320,7 @@ const PaymentView = ({ orderData, onComplete }) => {
 
 			{/* Bottom accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}

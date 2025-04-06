@@ -76,7 +76,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 				variants={itemVariants}
 				className="mb-8"
 			>
-				<div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
+				<div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full flex items-center justify-center mx-auto mb-5">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						className="h-10 w-10 text-blue-600"
@@ -106,13 +106,13 @@ const RewardsRegistrationView = ({ onComplete }) => {
 			>
 				<button
 					onClick={startRegistration}
-					className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm font-medium"
+					className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all font-medium"
 				>
 					Sign Up Now
 				</button>
 				<button
 					onClick={handleSkip}
-					className="w-full py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
+					className="w-full py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
 				>
 					No Thanks
 				</button>
@@ -153,7 +153,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 							value={formData.firstName}
 							onChange={handleChange}
 							required
-							className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+							className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 						/>
 					</div>
 					<div>
@@ -170,7 +170,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 							value={formData.lastName}
 							onChange={handleChange}
 							required
-							className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+							className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 						/>
 					</div>
 				</div>
@@ -189,7 +189,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						value={formData.email}
 						onChange={handleChange}
 						required
-						className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+						className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 					/>
 				</div>
 
@@ -207,7 +207,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						value={formData.phone}
 						onChange={handleChange}
 						required
-						className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+						className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 					/>
 				</div>
 
@@ -219,7 +219,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 						checked={formData.acceptTerms}
 						onChange={handleChange}
 						required
-						className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+						className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-2 border-gray-300 rounded"
 					/>
 					<label
 						htmlFor="acceptTerms"
@@ -232,14 +232,14 @@ const RewardsRegistrationView = ({ onComplete }) => {
 				<div className="flex space-x-3 pt-2">
 					<button
 						type="submit"
-						className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm font-medium"
+						className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all font-medium"
 					>
 						Create Account
 					</button>
 					<button
 						type="button"
 						onClick={handleSkip}
-						className="flex-1 py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm font-medium"
+						className="flex-1 py-3 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
 					>
 						Skip
 					</button>
@@ -259,7 +259,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 				variants={itemVariants}
 				className="mb-6"
 			>
-				<div className="w-20 h-20 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
+				<div className="w-20 h-20 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						className="h-10 w-10 text-emerald-600"
@@ -288,13 +288,10 @@ const RewardsRegistrationView = ({ onComplete }) => {
 	);
 
 	return (
-		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
-			{/* Subtle gradient background */}
-			<div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 z-0"></div>
-
+		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
 			{/* Top accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut" }}
@@ -302,7 +299,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 
 			{/* Main content */}
 			<div className="flex-1 flex flex-col p-6 justify-center relative z-10">
-				<div className="max-w-md w-full mx-auto bg-white p-8 rounded-lg shadow-sm">
+				<div className="max-w-md w-full mx-auto bg-transparent p-8">
 					{step === "intro" && renderIntroStep()}
 					{step === "form" && renderFormStep()}
 					{step === "success" && renderSuccessStep()}
@@ -311,7 +308,7 @@ const RewardsRegistrationView = ({ onComplete }) => {
 
 			{/* Bottom accent line */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10 shadow-sm"
+				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
 				initial={{ scaleX: 0 }}
 				animate={{ scaleX: 1 }}
 				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
