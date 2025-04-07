@@ -97,13 +97,19 @@ class CustomerDisplayWindowManager {
 	showCart() {
 		// Get cart data from the store
 		const cart = useCartStore.getState().cart;
-		const { subtotal, taxAmount, total } = calculateCartTotals(cart);
+		const orderDiscount = useCartStore.getState().orderDiscount;
+		const { subtotal, taxAmount, total, discountAmount } = calculateCartTotals(
+			cart,
+			orderDiscount
+		);
 
 		const cartData = {
 			items: cart,
 			subtotal,
 			taxAmount,
 			total,
+			discountAmount,
+			orderDiscount,
 			orderId: cart.orderId,
 		};
 
@@ -242,9 +248,15 @@ class CustomerDisplayWindowManager {
 		splitDetails = null,
 		splitOrderData = null
 	) {
-		// Use existing utility to calculate totals
-		const { subtotal, taxAmount, total } = calculateCartTotals(cartItems);
-		const orderId = useCartStore.getState().cart.orderId;
+		// Get discount information from the store
+		const orderDiscount = useCartStore.getState().orderDiscount;
+
+		// Use existing utility to calculate totals with discount
+		const { subtotal, taxAmount, total, discountAmount } = calculateCartTotals(
+			cartItems,
+			orderDiscount
+		);
+		const orderId = useCartStore.getState().orderId;
 
 		// Use split order data if provided, otherwise use calculated cart data
 		const cartData = splitOrderData
@@ -252,6 +264,9 @@ class CustomerDisplayWindowManager {
 					...splitOrderData,
 					items: cartItems,
 					orderId: orderId,
+					// Add discount information
+					discountAmount: discountAmount || 0,
+					orderDiscount: orderDiscount,
 			  }
 			: {
 					items: cartItems,
@@ -259,6 +274,9 @@ class CustomerDisplayWindowManager {
 					taxAmount,
 					total,
 					orderId: orderId,
+					// Add discount information
+					discountAmount: discountAmount || 0,
+					orderDiscount: orderDiscount,
 			  };
 
 		// Add initial cash data if it's a cash payment
@@ -357,7 +375,7 @@ class CustomerDisplayWindowManager {
 			stepData
 		);
 
-		// Preserve cart data and orderId if they exist
+		// Preserve cart data, orderId, and discount information
 		const cartData =
 			stepData.cartData ||
 			(this.lastFlowData ? this.lastFlowData.cartData : null);
@@ -367,12 +385,39 @@ class CustomerDisplayWindowManager {
 			(cartData ? cartData.orderId : null) ||
 			(this.lastFlowData ? this.lastFlowData.orderId : null);
 
+		// Preserve discount information
+		const orderDiscount =
+			(cartData && cartData.orderDiscount) ||
+			stepData.orderDiscount ||
+			(this.lastFlowData && this.lastFlowData.cartData
+				? this.lastFlowData.cartData.orderDiscount
+				: null);
+
+		const discountAmount =
+			(cartData && cartData.discountAmount) ||
+			stepData.discountAmount ||
+			(this.lastFlowData && this.lastFlowData.cartData
+				? this.lastFlowData.cartData.discountAmount
+				: 0);
+
+		// Ensure cartData includes discount information
+		const updatedCartData = cartData
+			? {
+					...cartData,
+					orderDiscount,
+					discountAmount,
+			  }
+			: null;
+
 		const content = {
 			currentStep: step,
 			...stepData,
-			cartData,
+			cartData: updatedCartData,
 			orderId,
 			displayMode: "flow",
+			// Include discount at the top level too
+			orderDiscount,
+			discountAmount,
 		};
 
 		console.log("Prepared content for customer display:", content);

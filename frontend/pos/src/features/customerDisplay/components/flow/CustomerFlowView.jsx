@@ -41,6 +41,9 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 						...flowData.splitOrderData,
 						items: flowData?.cartData?.items || [],
 						orderId: flowData?.orderId, // Explicitly add orderId
+						// Add discount fields
+						discountAmount: flowData?.cartData?.discountAmount || 0,
+						orderDiscount: flowData?.cartData?.orderDiscount || null,
 				  }
 				: {
 						items: flowData?.cartData?.items || [],
@@ -48,7 +51,10 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 						tax: flowData?.cartData?.taxAmount || 0,
 						total: flowData?.cartData?.total || 0,
 						tipAmount: flowData?.tipAmount || 0,
-						orderId: flowData?.orderId, // Explicitly add orderId
+						orderId: flowData?.orderId,
+						// Add discount fields
+						discountAmount: flowData?.cartData?.discountAmount || 0,
+						orderDiscount: flowData?.cartData?.orderDiscount || null,
 				  };
 
 		// Debug log to verify orderId in orderData

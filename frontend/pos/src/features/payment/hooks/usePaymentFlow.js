@@ -392,6 +392,9 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				customAmount: "",
 				direction: 1,
 			});
+
+			// Reset order discount state
+			useCartStore.getState().setOrderDiscount(null);
 		} catch (error) {
 			console.error("Error starting new order:", error);
 		}

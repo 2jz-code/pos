@@ -7,15 +7,24 @@ import { CartItemList } from "./CartItemList";
 import { CartSummary } from "./CartSummary";
 import { useOrderValidation } from "../../../utils/useOrderValidation";
 import PaymentFlow from "../../payment/components/PaymentFlow";
-import { calculateCartTotals } from "../utils/cartCalculations"; // Add this import
+import { calculateCartTotals } from "../utils/cartCalculations";
 import axiosInstance from "../../../api/config/axiosConfig";
+import DiscountSelector from "../../../components/discounts/DiscountSelector";
+import { useCartStore } from "../../../store/cartStore";
 
 export const Cart = () => {
-	const { cart, orderId, showOverlay } = useCart();
+	const { cart, orderId, showOverlay, orderDiscount } = useCart();
 	const { updateItemQuantity, removeFromCart } = useCartActions();
 	const cartActions = useCartActions();
 	const [isPaymentFlow, setIsPaymentFlow] = useState(false);
+	const [showDiscountSelector, setShowDiscountSelector] = useState(false);
 	const { canHoldOrder } = useOrderValidation(cart, orderId);
+
+	// Get setOrderDiscount and removeOrderDiscount from the store
+	const setOrderDiscount = useCartStore((state) => state.setOrderDiscount);
+	const removeOrderDiscount = useCartStore(
+		(state) => state.removeOrderDiscount
+	);
 
 	const handlePaymentComplete = async (paymentDetails) => {
 		try {
@@ -24,7 +33,6 @@ export const Cart = () => {
 			console.log("2. Complete order result:", success);
 
 			if (success) {
-				// Don't immediately close payment flow - wait for completion view
 				console.log("3. Payment successful - keeping payment flow open");
 				return true;
 			}
@@ -37,8 +45,12 @@ export const Cart = () => {
 		}
 	};
 
+	const handleApplyDiscount = (discount) => {
+		setOrderDiscount(discount);
+	};
+
 	// Calculate cart totals once to avoid recalculation
-	const cartTotals = calculateCartTotals(cart);
+	const cartTotals = calculateCartTotals(cart, orderDiscount);
 
 	return (
 		<div className="relative w-1/3 bg-white flex flex-col border-l border-slate-200 shadow-lg h-full">
@@ -86,6 +98,9 @@ export const Cart = () => {
 						onHoldOrder={() => cartActions.holdOrder(orderId, cart)}
 						onCharge={() => setIsPaymentFlow(true)}
 						canHoldOrder={canHoldOrder}
+						orderDiscount={orderDiscount}
+						onShowDiscounts={() => setShowDiscountSelector(true)}
+						onRemoveDiscount={removeOrderDiscount}
 					/>
 				</>
 			)}
@@ -98,6 +113,16 @@ export const Cart = () => {
 						onComplete={handlePaymentComplete}
 					/>
 				</div>
+			)}
+
+			{/* Discount Selector Modal */}
+			{showDiscountSelector && (
+				<DiscountSelector
+					isOpen={showDiscountSelector}
+					onClose={() => setShowDiscountSelector(false)}
+					onSelectDiscount={handleApplyDiscount}
+					orderId={orderId}
+				/>
 			)}
 		</div>
 	);

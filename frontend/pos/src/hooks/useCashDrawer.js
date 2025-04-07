@@ -175,8 +175,6 @@ export const useCashDrawer = () => {
 		});
 	}, [isConnected, sendMessage]);
 
-	// src/hooks/useCashDrawer.js (modified printReceipt function)
-
 	const printReceipt = useCallback(
 		(receiptData) => {
 			if (!isConnected) {
@@ -195,6 +193,7 @@ export const useCashDrawer = () => {
 					reject(new Error("Print operation timed out"));
 				}, 5000);
 
+				// eslint-disable-next-line no-unused-vars
 				let processingReceived = false;
 
 				const handleResponse = (event) => {

@@ -83,4 +83,9 @@ export const ENDPOINTS = {
 		},
 		VERIFY_CODE: "rewards/verify-code/",
 	},
+	DISCOUNTS: {
+		LIST: "discounts/",
+		DETAIL: (id) => `discounts/${id}/`,
+		VALIDATE: "discounts/validate/",
+	},
 };

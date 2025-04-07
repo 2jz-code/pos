@@ -7,7 +7,8 @@ from .views import (
     StartOrder, 
     UpdateInProgressOrder, 
     GetInProgressOrder,
-    UpdateOrderStatus
+    UpdateOrderStatus,
+    ApplyOrderDiscount
 )
 
 urlpatterns = [
@@ -21,4 +22,6 @@ urlpatterns = [
     path("orders/start/", StartOrder.as_view(), name="start-order"),  # ✅ Start a new in-progress order
     path("orders/in_progress/update/", UpdateInProgressOrder.as_view(), name="update-in-progress-order"),  # ✅ Auto-save cart changes
     path("orders/in_progress/", GetInProgressOrder.as_view(), name="get-in-progress-order"),  # ✅ Fetch latest in-progress order
+    path("orders/<int:pk>/discount/", ApplyOrderDiscount.as_view(), name="apply-order-discount"),
+
 ]

@@ -34,6 +34,8 @@ import RewardItems from "./pages/rewards/RewardItems";
 import PointsRules from "./pages/rewards/PointsRules";
 import VerifyRedemption from "./pages/rewards/VerifyRedemption";
 import TerminalProvider from "./features/payment/contexts/TerminalProvider";
+import DiscountList from "./pages/discounts/DiscountList";
+import DiscountForm from "./pages/discounts/DiscountForm";
 window.customerDisplayManager = customerDisplayManager;
 
 function App() {
@@ -190,6 +192,18 @@ function AppContent() {
 					<Route
 						path="/settings"
 						element={<Settings />}
+					/>
+					<Route
+						path="/discounts"
+						element={<DiscountList />}
+					/>
+					<Route
+						path="/discounts/create"
+						element={<DiscountForm />}
+					/>
+					<Route
+						path="/discounts/edit/:id"
+						element={<DiscountForm />}
 					/>
 					<Route
 						path="/rewards"

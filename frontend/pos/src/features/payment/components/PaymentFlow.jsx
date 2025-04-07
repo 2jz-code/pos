@@ -30,6 +30,9 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 				// Ensure orderId is available
 				const orderId = useCartStore.getState().orderId;
 
+				// Get the discount information
+				const orderDiscount = useCartStore.getState().orderDiscount;
+
 				if (!orderId) {
 					console.error(
 						"PAYMENT CHAIN: Missing orderId when completing payment!"
@@ -42,15 +45,16 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 					paymentMethod: paymentDetails.paymentMethod,
 					transactionId: paymentDetails.transactionId,
 					amount: paymentDetails.amount,
+					orderDiscount: orderDiscount?.id,
 				});
 
-				// CRITICAL FIX: Ensure we're calling the right method with correct parameters
+				// Include discount ID in payment details
 				const completePaymentDetails = {
 					...paymentDetails,
 					orderId: orderId,
+					discount_id: orderDiscount?.id,
 				};
 
-				// CRITICAL FIX: Add explicit try/catch for better error handling
 				try {
 					console.log(
 						"PAYMENT CHAIN: Calling cartActions.completeOrder with orderId:",
@@ -61,13 +65,14 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 						completePaymentDetails
 					);
 					console.log("PAYMENT CHAIN: completeOrder result:", result);
-					return true;
+
+					// IMPORTANT: Don't reset the discount state here, as it's handled in completeOrder
+					return result;
 				} catch (error) {
 					console.error(
 						"PAYMENT CHAIN: Error in cartActions.completeOrder:",
 						error
 					);
-					// Check if there's a response with more details
 					if (error.response) {
 						console.error("PAYMENT CHAIN: API error details:", {
 							status: error.response.status,

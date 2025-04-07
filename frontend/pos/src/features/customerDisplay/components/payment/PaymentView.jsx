@@ -156,6 +156,19 @@ const PaymentView = ({ orderData, onComplete }) => {
 							</span>
 						</div>
 
+						{/* Add discount display */}
+						{orderData.discountAmount > 0 && (
+							<div className="flex justify-between text-green-600">
+								<span>
+									Discount{" "}
+									{orderData.orderDiscount
+										? `(${orderData.orderDiscount.name})`
+										: ""}
+								</span>
+								<span>-{formatCurrency(orderData.discountAmount)}</span>
+							</div>
+						)}
+
 						<div className="flex justify-between">
 							<span className="text-gray-600">Tax</span>
 							<span className="font-medium text-gray-800">
@@ -339,6 +352,15 @@ PaymentView.propTypes = {
 		orderId: PropTypes.number,
 		isSplitPayment: PropTypes.bool,
 		originalTotal: PropTypes.number,
+		// Add discount-related prop validation
+		discountAmount: PropTypes.number,
+		orderDiscount: PropTypes.shape({
+			name: PropTypes.string,
+			// Add other potential properties of orderDiscount if needed
+			id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+			type: PropTypes.string,
+			value: PropTypes.number,
+		}),
 	}),
 	onComplete: PropTypes.func,
 };

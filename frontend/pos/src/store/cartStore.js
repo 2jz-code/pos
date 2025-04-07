@@ -9,6 +9,7 @@ export const useCartStore = create(
 			orderId: null,
 			rewardsProfile: null, // Add this state property
 			showOverlay: true,
+			orderDiscount: null,
 
 			// Add this function to set the rewards profile
 			setRewardsProfile: (profile) => set({ rewardsProfile: profile }),
@@ -152,7 +153,12 @@ export const useCartStore = create(
 			// ✅ Clear Cart & Reset Order ID
 			clearCart: () => {
 				get().saveCartToBackend([]);
-				set({ cart: [], orderId: null });
+				set({
+					cart: [],
+					orderId: null,
+					orderDiscount: null,
+					rewardsProfile: null,
+				});
 			},
 
 			// ✅ Set Order ID
@@ -226,7 +232,60 @@ export const useCartStore = create(
 					discount <= 100 // Assuming discount is a percentage
 				);
 			},
+			// Add this method to set the order discount
+			setOrderDiscount: (discount) => {
+				set({ orderDiscount: discount });
+
+				// If there's an active order, save the discount to the backend
+				const orderId = get().orderId;
+				if (orderId) {
+					get().saveOrderDiscount(orderId, discount);
+				}
+			},
+
+			saveOrderDiscount: async (orderId, discount) => {
+				try {
+					if (discount) {
+						// Apply discount
+						await axiosInstance.post(`orders/${orderId}/discount/`, {
+							discount_id: discount.id,
+						});
+						console.log("Order discount saved to backend");
+					} else {
+						// Remove discount
+						await axiosInstance.delete(`orders/${orderId}/discount/`);
+						console.log("Order discount removed from backend");
+					}
+				} catch (error) {
+					console.error("Failed to save order discount:", error);
+
+					// Show a user-friendly error message
+					if (
+						error.response &&
+						error.response.data &&
+						error.response.data.error
+					) {
+						console.error(`Discount error: ${error.response.data.error}`);
+					} else {
+						console.error("Failed to apply discount");
+					}
+
+					// Since we failed to apply the discount on the backend, reset the state
+					set({ orderDiscount: null });
+				}
+			},
+
+			// Add this method to remove the order discount
+			removeOrderDiscount: () => {
+				const orderId = get().orderId;
+				set({ orderDiscount: null });
+
+				if (orderId) {
+					get().saveOrderDiscount(orderId, null);
+				}
+			},
 		}),
+
 		{
 			name: "cart-storage",
 			getStorage: () => localStorage,

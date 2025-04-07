@@ -5,8 +5,15 @@ import axiosInstance from "../../../api/config/axiosConfig";
 import { checkOrderStatus } from "../../../utils/cartUtils";
 
 export const useCart = () => {
-	const { cart, orderId, showOverlay, setShowOverlay, setCart } =
-		useCartStore();
+	const {
+		cart,
+		orderId,
+		showOverlay,
+		setShowOverlay,
+		setCart,
+		orderDiscount,
+		setOrderDiscount,
+	} = useCartStore();
 
 	useEffect(() => {
 		const initializeCart = async () => {
@@ -17,11 +24,28 @@ export const useCart = () => {
 				);
 
 				if (!isValid) {
-					useCartStore.setState({ orderId: null, cart: [] });
+					useCartStore.setState({
+						orderId: null,
+						cart: [],
+						orderDiscount: null,
+					});
 					setShowOverlay(true);
 				} else {
 					setShowOverlay(false);
 					setCart(data.items);
+
+					// If the order has a discount, load it
+					if (data.discount) {
+						// Get the discount details and set in store
+						try {
+							const discountResponse = await axiosInstance.get(
+								`discounts/${data.discount}/`
+							);
+							setOrderDiscount(discountResponse.data);
+						} catch (error) {
+							console.error("Failed to load discount details:", error);
+						}
+					}
 				}
 			} else {
 				setShowOverlay(true);
@@ -29,11 +53,12 @@ export const useCart = () => {
 		};
 
 		initializeCart();
-	}, [orderId, setShowOverlay, setCart]);
+	}, [orderId, setShowOverlay, setCart, setOrderDiscount]);
 
 	return {
 		cart,
 		orderId,
 		showOverlay,
+		orderDiscount,
 	};
 };

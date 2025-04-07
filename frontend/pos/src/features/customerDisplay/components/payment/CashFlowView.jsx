@@ -94,18 +94,33 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 						>
 							{/* Order summary */}
 							<motion.div
-								className="bg-transparent p-5 border-b border-gray-100 mb-6"
+								className="bg-transparent p-5 border-b border-gray-100"
 								initial={{ opacity: 0, y: 15 }}
 								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: 0.1, duration: 0.4 }}
+								transition={{ delay: 0.1, duration: 0.3 }}
 							>
-								<div className="space-y-2 mb-3">
+								<div className="space-y-2 mb-4">
 									<div className="flex justify-between">
 										<span className="text-gray-600">Subtotal:</span>
 										<span className="font-medium text-gray-800">
 											${formatPrice(subtotal)}
 										</span>
 									</div>
+
+									{/* Add discount display */}
+									{orderData.discountAmount > 0 && (
+										<div className="flex justify-between text-green-600">
+											<span>
+												Discount{" "}
+												{orderData.orderDiscount
+													? `(${orderData.orderDiscount.name})`
+													: ""}
+												:
+											</span>
+											<span>-${formatPrice(orderData.discountAmount)}</span>
+										</div>
+									)}
+
 									<div className="flex justify-between">
 										<span className="text-gray-600">Tax:</span>
 										<span className="font-medium text-gray-800">
@@ -350,6 +365,15 @@ CashFlowView.propTypes = {
 		total: PropTypes.number,
 		isSplitPayment: PropTypes.bool,
 		originalTotal: PropTypes.number,
+		// Add discount-related prop validation
+		discountAmount: PropTypes.number,
+		orderDiscount: PropTypes.shape({
+			name: PropTypes.string,
+			// Add other potential properties of orderDiscount if needed
+			id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+			type: PropTypes.string,
+			value: PropTypes.number,
+		}),
 	}),
 	cashData: PropTypes.shape({
 		cashTendered: PropTypes.number,

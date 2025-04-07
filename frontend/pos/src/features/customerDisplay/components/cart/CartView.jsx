@@ -1,4 +1,4 @@
-// features/customerDisplay/components/CartView.jsx
+// features/customerDisplay/components/cart/CartView.jsx
 
 import { motion } from "framer-motion";
 import PropTypes from "prop-types";
@@ -6,7 +6,14 @@ import { formatPrice } from "../../../../utils/numberUtils";
 
 const CartView = ({ cartData }) => {
 	// Extract the necessary data from the cart
-	const { items = [], subtotal = 0, taxAmount = 0, total = 0 } = cartData;
+	const {
+		items = [],
+		subtotal = 0,
+		taxAmount = 0,
+		total = 0,
+		discountAmount = 0, // Add discount amount
+		orderDiscount = null, // Add order discount
+	} = cartData;
 
 	// Animation variants
 	const containerVariants = {
@@ -130,6 +137,17 @@ const CartView = ({ cartData }) => {
 							<span>Subtotal</span>
 							<span>${formatPrice(subtotal)}</span>
 						</div>
+
+						{/* Add discount display */}
+						{discountAmount > 0 && (
+							<div className="flex justify-between text-green-600 mb-2">
+								<span>
+									Discount {orderDiscount ? `(${orderDiscount.name})` : ""}
+								</span>
+								<span>-${formatPrice(discountAmount)}</span>
+							</div>
+						)}
+
 						<div className="flex justify-between text-gray-600 mb-2">
 							<span>Tax</span>
 							<span>${formatPrice(taxAmount)}</span>
@@ -167,6 +185,8 @@ CartView.propTypes = {
 		subtotal: PropTypes.number,
 		taxAmount: PropTypes.number,
 		total: PropTypes.number,
+		discountAmount: PropTypes.number,
+		orderDiscount: PropTypes.object,
 	}),
 };
 

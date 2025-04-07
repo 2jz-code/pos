@@ -125,11 +125,11 @@ const CustomerDisplay = () => {
 		};
 	}, [displayData, cartData]);
 
-	// Process cart data using the utility function
 	const processedCartData = () => {
 		// Use cart from localStorage if available, otherwise fall back to display data
 		const cartItems =
 			cartData?.cart || (displayData?.cart ? displayData.cart : []);
+		const orderDiscount = cartData?.orderDiscount || displayData?.orderDiscount;
 
 		if (!Array.isArray(cartItems) || cartItems.length === 0) {
 			return {
@@ -137,12 +137,17 @@ const CustomerDisplay = () => {
 				subtotal: 0,
 				taxAmount: 0,
 				total: 0,
+				discountAmount: 0,
+				orderDiscount: null,
 				orderId: displayData?.orderId || null,
 			};
 		}
 
 		// Use the existing utility to calculate totals
-		const { subtotal, taxAmount, total } = calculateCartTotals(cartItems);
+		const { subtotal, taxAmount, total, discountAmount } = calculateCartTotals(
+			cartItems,
+			orderDiscount
+		);
 
 		// Include the order ID from display data if available
 		return {
@@ -150,6 +155,8 @@ const CustomerDisplay = () => {
 			subtotal,
 			taxAmount,
 			total,
+			discountAmount,
+			orderDiscount,
 			orderId: displayData?.orderId || cartData?.orderId || null,
 		};
 	};

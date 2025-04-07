@@ -12,6 +12,9 @@ from datetime import timezone
 import json
 from django.http import JsonResponse
 from rest_framework.pagination import PageNumberPagination
+from discounts.models import Discount
+import decimal
+
 
 class OrderPagination(PageNumberPagination):
     page_size = 25
@@ -212,47 +215,64 @@ class GetInProgressOrder(APIView):
         return Response({"message": "No active order found"}, status=status.HTTP_404_NOT_FOUND)
 
 
-# ✅ Complete an Order (Checkout)
 class CompleteOrder(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk, *args, **kwargs):
-        """
-        Completes an order by setting the status to "completed" and processes rewards.
-        """
         try:
             # Log the incoming request data for debugging
             print("CompleteOrder received data:", json.dumps(request.data, indent=2))
             
             order = get_object_or_404(Order, id=pk, user=request.user, status="in_progress")
+            
+            # IMPORTANT: Save the original discount before any changes
+            original_discount = order.discount
+            original_discount_amount = order.discount_amount
+            
             order.status = "completed"
             order.payment_status = request.data.get("payment_status", "paid")
             
-            # Process rewards profile information if provided
-            rewards_profile_data = request.data.get("rewards_profile")
-            if rewards_profile_data:
-                # Attach rewards profile info to the order metadata or a dedicated field
-                from rewards.models import RewardsProfile
+            # Process discount if provided
+            discount_id = request.data.get("discount_id")
+            if discount_id:
                 try:
-                    # Try to find the profile by ID first
-                    if rewards_profile_data.get('id'):
-                        profile = RewardsProfile.objects.get(id=rewards_profile_data['id'])
-                        # Store profile ID in order metadata or a new field
-                        order.rewards_profile_id = profile.id
-                    # Or by phone if ID is not available
-                    elif rewards_profile_data.get('phone'):
-                        phone = rewards_profile_data['phone']
-                        # Find user with this phone number
-                        from users.models import CustomUser
-                        user = CustomUser.objects.filter(phone_number=phone).first()
-                        if user and hasattr(user, 'rewards_profile'):
-                            profile = user.rewards_profile
-                            order.rewards_profile_id = profile.id
-                except (RewardsProfile.DoesNotExist, CustomUser.DoesNotExist):
-                    print(f"Failed to find rewards profile: {rewards_profile_data}")
-            
-            order.save()
+                    from discounts.models import Discount
+                    discount = Discount.objects.get(id=discount_id)
+                    
+                    # Explicitly set the discount
+                    order.discount = discount
+                    
+                    # Get discount amount from request or calculate it
+                    discount_amount = request.data.get("discount_amount")
+                    if discount_amount:
+                        order.discount_amount = decimal.Decimal(discount_amount)
+                    else:
+                        # Calculate if not provided
+                        subtotal = sum(item.product.price * item.quantity for item in order.items.all())
+                        order.discount_amount = discount.calculate_discount_amount(subtotal)
+                    
+                    from decimal import Decimal
+                    # Recalculate total price with discount AND TAX
+                    subtotal = sum(item.product.price * item.quantity for item in order.items.all())
+                    discounted_subtotal = subtotal - order.discount_amount
+                    tax_amount = discounted_subtotal * Decimal(0.1)  # 10% tax
+                    order.total_price = discounted_subtotal + tax_amount
+                    
+                    # Increment discount usage count
+                    discount.used_count += 1
+                    discount.save()
+                    
+                    print(f"Applied discount {discount_id} with amount {order.discount_amount} to order {pk}")
+                except Discount.DoesNotExist:
+                    print(f"Discount with ID {discount_id} not found")
+                    # If the discount no longer exists, retain the original discount
+                    order.discount = original_discount
+                    order.discount_amount = original_discount_amount
+            else:
+                # If no discount, still need to calculate with tax
+                order.calculate_total_price()
 
+            order.save()
             # Get or create payment
             payment, created = Payment.objects.get_or_create(order=order)
             
@@ -262,7 +282,9 @@ class CompleteOrder(APIView):
             
             payment.payment_method = payment_method
             payment.status = "completed"
-            payment.amount = payment_data.get("totalPaid") or order.total_price
+            
+            # Ensure payment amount reflects the discounted total
+            payment.amount = order.total_price
             
             # Handle split payments
             if payment_method == "split":
@@ -294,6 +316,10 @@ class CompleteOrder(APIView):
                         payment.set_transactions(transactions)
             
             payment.save()
+            
+            # After everything is saved, verify the discount was properly applied
+            order.refresh_from_db()
+            print(f"Final order state: discount_id={order.discount_id}, discount_amount={order.discount_amount}, total_price={order.total_price}")
             
             return Response({
                 "status": "success",
@@ -345,3 +371,65 @@ class UpdateOrderStatus(APIView):
         order.save()
         
         return Response(OrderSerializer(order).data)
+    
+class ApplyOrderDiscount(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        """Apply a discount to an order"""
+        try:
+            order = get_object_or_404(Order, id=pk, user=request.user)
+            discount_id = request.data.get('discount_id')
+            
+            if not discount_id:
+                return Response({
+                    'error': 'discount_id is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            try:
+                discount = Discount.objects.get(id=discount_id, is_active=True)
+            except Discount.DoesNotExist:
+                return Response({
+                    'error': 'Discount not found or inactive'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
+            # Check if discount is valid
+            subtotal = sum(item.product.price * item.quantity for item in order.items.all())
+            if not discount.is_valid(subtotal):
+                return Response({
+                    'error': 'Discount is not applicable to this order'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            # Apply the discount
+            order.discount = discount
+            order.calculate_total_price()  # This will calculate the discount amount
+            
+            return Response(OrderSerializer(order).data)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def delete(self, request, pk):
+        """Remove a discount from an order"""
+        try:
+            order = get_object_or_404(Order, id=pk, user=request.user)
+            
+            # Check if there's a discount to remove
+            if not order.discount:
+                return Response({
+                    'message': 'No discount applied to this order'
+                }, status=status.HTTP_200_OK)
+                
+            # Remove the discount
+            order.discount = None
+            order.discount_amount = 0
+            order.calculate_total_price()
+            
+            return Response(OrderSerializer(order).data)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -12,6 +12,7 @@ import {
 	UserGroupIcon,
 	CogIcon,
 	GiftIcon,
+	TagIcon,
 } from "@heroicons/react/24/outline";
 // import { HardwareStatus } from "../components/HardwareStatus";
 
@@ -168,6 +169,22 @@ export default function Dashboard() {
 								</h3>
 								<p className="text-sm text-slate-500 text-center">
 									Manage rewards program, points rules and redemptions
+								</p>
+							</Link>
+						)}
+						{userStatus.is_admin && (
+							<Link
+								to="/discounts"
+								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
+							>
+								<div className="mb-4 p-3 bg-orange-50 rounded-full group-hover:bg-orange-100 transition-colors">
+									<TagIcon className="w-10 h-10 text-orange-600" />
+								</div>
+								<h3 className="text-lg font-medium text-slate-800 mb-2">
+									Discount Management
+								</h3>
+								<p className="text-sm text-slate-500 text-center">
+									Create and manage store discounts and promotions
 								</p>
 							</Link>
 						)}

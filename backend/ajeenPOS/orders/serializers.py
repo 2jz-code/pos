@@ -23,6 +23,7 @@ class OrderSerializer(serializers.ModelSerializer):
     user_details = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
     payment = serializers.SerializerMethodField()
+    discount_details = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
@@ -31,8 +32,21 @@ class OrderSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'source', 'items', 
             'user', 'user_details', 'created_by',
             'guest_first_name', 'guest_last_name', 'guest_email',
-            'payment'  # Add payment field
+            'payment', 'discount', 'discount_amount', 'discount_details'
         ]
+    
+    def get_discount_details(self, obj):
+        """Return discount details if a discount exists"""
+        if obj.discount:
+            return {
+                'id': obj.discount.id,
+                'name': obj.discount.name,
+                'code': obj.discount.code,
+                'discount_type': obj.discount.discount_type,
+                'value': float(obj.discount.value),
+                'amount_applied': float(obj.discount_amount)
+            }
+        return None
     
     def get_user_details(self, obj):
         """Return user details if a user exists"""

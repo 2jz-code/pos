@@ -9,8 +9,9 @@ def sync_payment_amount_to_order(sender, instance, created, **kwargs):
     Synchronize payment amount to the related order's total_price
     """
     if instance.amount and instance.order:
-        # Only update if the amounts differ
-        if instance.order.total_price != instance.amount:
+        # Make sure we're not overwriting the tax-inclusive total with the subtotal
+        # Only update if the amounts differ significantly (more than a penny)
+        if abs(instance.order.total_price - instance.amount) > 0.01:
             # Update the order's total_price to match the payment amount
             instance.order.total_price = instance.amount
             # Use update_fields to avoid triggering other signals unnecessarily

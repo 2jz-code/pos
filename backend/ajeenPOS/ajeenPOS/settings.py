@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "reports",
     'channels',
     "rewards",
+    'discounts',
     'hardware.apps.HardwareConfig',
     'settings.apps.SettingsConfig',
 ]

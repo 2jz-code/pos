@@ -32,7 +32,8 @@ urlpatterns = [
     path('api/payments/', include('payments.urls')),
     path('api/settings/', include('settings.urls')),
     path('api/rewards/', include('rewards.urls')),
-    path('api/website/rewards/', include('rewards.urls')),  # For website access
+    path('api/discounts/', include('discounts.urls')),
+    path('api/website/rewards/', include('rewards.urls')),
 ]
 
 if settings.DEBUG:

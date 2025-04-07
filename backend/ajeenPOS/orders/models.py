@@ -1,6 +1,7 @@
 from django.db import models
 from products.models import Product
 from django.contrib.auth import get_user_model
+from decimal import Decimal
 
 User = get_user_model()
 
@@ -44,12 +45,49 @@ class Order(models.Model):
     # Flag to identify the source of the order
     source = models.CharField(max_length=10, choices=ORDER_SOURCE_CHOICES, default="pos")
 
+    discount = models.ForeignKey('discounts.Discount', on_delete=models.SET_NULL, null=True, blank=True)
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
     def calculate_total_price(self):
-        """Recalculate order total based on items."""
-        total = sum(item.product.price * item.quantity for item in self.items.all())
-        self.total_price = total
-        self.save()
-        return total
+        """Recalculate order total based on items and discounts."""
+        subtotal = sum(item.product.price * item.quantity for item in self.items.all())
+        
+        # Apply discount if present
+        if self.discount:
+            if self.discount.apply_to == 'order':
+                self.discount_amount = self.discount.calculate_discount_amount(subtotal)
+            elif self.discount.apply_to == 'product':
+                # For product-specific discounts
+                self.discount_amount = 0
+                for item in self.items.all():
+                    if self.discount.products.filter(id=item.product.id).exists():
+                        if self.discount.discount_type == 'percentage':
+                            item_discount = (self.discount.value / 100) * (item.product.price * item.quantity)
+                        else:
+                            item_discount = min(self.discount.value, item.product.price * item.quantity)
+                        self.discount_amount += item_discount
+            elif self.discount.apply_to == 'category':
+                # For category-specific discounts
+                self.discount_amount = 0
+                for item in self.items.all():
+                    if hasattr(item.product, 'category') and item.product.category and self.discount.categories.filter(id=item.product.category.id).exists():
+                        if self.discount.discount_type == 'percentage':
+                            item_discount = (self.discount.value / 100) * (item.product.price * item.quantity)
+                        else:
+                            item_discount = min(self.discount.value, item.product.price * item.quantity)
+                        self.discount_amount += item_discount
+        else:
+            self.discount_amount = 0
+        
+        # Calculate discounted subtotal
+        discounted_subtotal = max(0, subtotal - self.discount_amount)
+        
+        # Calculate tax (10%)
+        tax_amount = discounted_subtotal * Decimal(0.1)
+        
+        # Set the final price including tax
+        self.total_price = discounted_subtotal + tax_amount
+        return self.total_price
 
     def __str__(self):
         if self.source == "pos":

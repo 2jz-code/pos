@@ -7,16 +7,32 @@ export const calculateItemTotal = (item) => {
 	return basePrice - discount;
 };
 
-export const calculateCartTotals = (cart = []) => {
+export const calculateCartTotals = (cart = [], orderDiscount = null) => {
+	// Calculate subtotal from items (with their individual discounts)
 	const subtotal = cart.reduce(
 		(acc, item) => acc + calculateItemTotal(item),
 		0
 	);
-	const taxAmount = subtotal * TAX_RATE;
-	const total = subtotal + taxAmount;
+
+	// Calculate order-level discount if applicable
+	let discountAmount = 0;
+	if (orderDiscount) {
+		if (orderDiscount.discount_type === "percentage") {
+			discountAmount = subtotal * (orderDiscount.value / 100);
+		} else {
+			// For fixed amount discounts, don't exceed the subtotal
+			discountAmount = Math.min(orderDiscount.value, subtotal);
+		}
+	}
+
+	// Apply discount before tax
+	const discountedSubtotal = subtotal - discountAmount;
+	const taxAmount = discountedSubtotal * TAX_RATE;
+	const total = discountedSubtotal + taxAmount;
 
 	return {
 		subtotal,
+		discountAmount,
 		taxAmount,
 		total,
 	};
