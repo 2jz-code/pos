@@ -37,16 +37,23 @@ class TerminalPaymentIntentView(APIView):
     def post(self, request, *args, **kwargs):
         try:
             # Get amount from request data
-            amount = request.data.get('amount')
+            amount_str = request.data.get('amount')
             
-            if not amount:
+            if not amount_str:
                 return Response(
                     {'error': 'Amount is required'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+            try:
+                import decimal
+                amount_decimal = decimal.Decimal(str(amount_str))
+            except decimal.InvalidOperation:
+                 return Response({'error': 'Invalid amount format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if amount_decimal <= 0:
+                 return Response({'error': 'Amount must be positive.'}, status=status.HTTP_400_BAD_REQUEST)
             # Convert to cents for Stripe
-            amount_cents = int(float(amount) * 100)
+            amount_cents = int(amount_decimal * 100)
             
             # Optional parameters
             order_id = request.data.get('order_id')
@@ -86,7 +93,7 @@ class TerminalPaymentIntentView(APIView):
                         # Update the existing payment with new payment intent
                         existing_payment.payment_intent_id = payment_intent.id
                         existing_payment.payment_method = "card"
-                        existing_payment.amount = float(amount)
+                        existing_payment.amount = amount_decimal
                         existing_payment.status = 'pending'
                         existing_payment.save()
                         
@@ -96,7 +103,7 @@ class TerminalPaymentIntentView(APIView):
                         payment = Payment.objects.create(
                             order=order,
                             payment_intent_id=payment_intent.id,
-                            amount=float(amount),
+                            amount=amount_decimal,
                             status='pending'
                         )
                         print(f"Created new payment {payment.id} for order {order_id}")
