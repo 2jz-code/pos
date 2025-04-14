@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .terminal_utils import create_connection_token, create_terminal_payment_intent
-from .models import Payment
+from .models import Payment, PaymentTransaction
 from orders.models import Order
 from django.shortcuts import get_object_or_404
 import stripe
@@ -129,52 +129,104 @@ class TerminalPaymentIntentView(APIView):
         
 class TerminalPaymentCaptureView(APIView):
     """
-    Capture a payment intent for Stripe Terminal
+    Capture a payment intent for Stripe Terminal.
+    Finds the Payment via the associated PaymentTransaction.
     """
+    
+    @transaction.atomic # Wrap in transaction
     def post(self, request, *args, **kwargs):
         payment_intent_id = request.data.get('payment_intent_id')
-        
+
         if not payment_intent_id:
             return Response(
                 {'error': 'Payment intent ID is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
-            # Capture the payment intent
+            # Capture the payment intent first
+            logger.info(f"Attempting to capture Payment Intent: {payment_intent_id}")
             payment_intent = stripe.PaymentIntent.capture(payment_intent_id)
-            
-            # Find the associated payment
+            logger.info(f"Stripe PI {payment_intent_id} captured. Status: {payment_intent.status}")
+
+            # Find the associated PaymentTransaction using the PI ID (stored in transaction_id)
             try:
-                payment = Payment.objects.get(payment_intent_id=payment_intent_id)
-                
-                # Update payment status
+                # Find the transaction record linked to this Stripe Payment Intent ID
+                txn = PaymentTransaction.objects.select_related('parent_payment__order').get(transaction_id=payment_intent_id)
+                payment = txn.parent_payment
+                order = payment.order # Get order from parent payment
+
+                # Update transaction status based on Stripe response
                 if payment_intent.status == 'succeeded':
-                    payment.status = 'completed'
-                    payment.save()
-                    
-                    # Update order status if payment succeeded
-                    order = payment.order
-                    order.payment_status = 'paid'
-                    order.save()
-            except Payment.DoesNotExist:
-                # No payment record found, just continue
-                pass
-            
+                    txn.status = 'completed'
+                elif payment_intent.status == 'canceled':
+                     txn.status = 'failed' # Or maybe a 'canceled' status if you add one
+                # else: Keep pending or update based on other statuses?
+                txn.save()
+                logger.info(f"Updated PaymentTransaction {txn.id} status to {txn.status}")
+
+                # Update overall Payment and Order status using a helper
+                self._update_parent_payment_and_order_status(payment)
+
+            except PaymentTransaction.DoesNotExist:
+                # Log a warning but don't fail the request if Stripe capture succeeded
+                logger.warning(f"PaymentIntent {payment_intent_id} captured, but no matching PaymentTransaction found in DB.")
+                # Potentially create the transaction record here if missing? Less ideal.
+
+            except PaymentTransaction.MultipleObjectsReturned:
+                 logger.error(f"Critical Error: Multiple PaymentTransactions found for PI {payment_intent_id}. Manual intervention needed.")
+                 # Return an error because we don't know which payment to update
+                 return Response({'error': 'Internal processing error: Duplicate transaction reference.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+            # Return Stripe PI details
             return Response({
                 'status': payment_intent.status,
                 'payment_intent_id': payment_intent_id,
                 'id': payment_intent.id,
                 'amount': payment_intent.amount,
                 'currency': payment_intent.currency,
-                # 'payment_method_details': payment_intent.payment_method_details,
                 'created': payment_intent.created
             })
-            
+
         except stripe.error.StripeError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            logger.error(f"Stripe error capturing PI {payment_intent_id}: {str(e)}")
+            # Pass Stripe's error message back to the frontend
+            return Response({'error': f"Stripe Error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Unexpected error capturing PI {payment_intent_id}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({'error': 'An unexpected server error occurred during payment capture.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # --- Helper function (copied from PaymentRefundView or define globally) ---
+    def _update_parent_payment_and_order_status(self, payment):
+        """Helper to update parent Payment status based on transactions."""
+        transactions = payment.transactions.all()
+        if not transactions.exists():
+            payment.status = 'pending'
+        elif all(t.status == 'refunded' for t in transactions):
+            payment.status = 'refunded'
+        elif any(t.status == 'refunded' for t in transactions):
+             if any(t.status == 'completed' for t in transactions):
+                 payment.status = 'partially_refunded'
+             else:
+                  payment.status = 'refunded'
+        elif all(t.status == 'completed' for t in transactions):
+             payment.status = 'completed'
+        elif any(t.status == 'failed' for t in transactions):
+             payment.status = 'failed'
+        else: # Handles cases with pending transactions
+             payment.status = 'pending'
+
+        payment.save()
+        logger.info(f"Helper: Updated parent Payment {payment.id} status to {payment.status}.")
+
+        # Sync order payment status only if it changed
+        if payment.order and payment.order.payment_status != payment.status:
+            payment.order.payment_status = payment.status
+            payment.order.save()
+            logger.info(f"Helper: Synced Order {payment.order.id} payment_status to {payment.order.payment_status}.")
         
 class ReaderStatusView(APIView):
     """

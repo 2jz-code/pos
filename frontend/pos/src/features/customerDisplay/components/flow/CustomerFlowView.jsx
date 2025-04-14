@@ -9,6 +9,7 @@ import TipSelectionView from "../tip/TipSelectionView";
 import PaymentView from "../payment/PaymentView";
 import ReceiptView from "../receipt/ReceiptView";
 import CashFlowView from "../payment/CashFlowView";
+import { calculateCartTotals } from "../../../cart/utils/cartCalculations";
 
 const CustomerFlowView = ({ flowData, onStepComplete }) => {
 	const [currentStep, setCurrentStep] = useState(
@@ -31,81 +32,117 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 	};
 
 	const renderStepContent = () => {
-		// Debug log to track orderId
-		console.log("CustomerFlowView rendering with orderId:", flowData?.orderId);
+		console.log("--- CustomerFlowView ---");
+		console.log("Received flowData:", JSON.stringify(flowData, null, 2));
 
-		// Get order data from the pre-calculated values or use split order data if available
-		const orderData =
-			flowData?.splitOrderData && flowData?.isSplitPayment
-				? {
-						...flowData.splitOrderData,
-						items: flowData?.cartData?.items || [],
-						orderId: flowData?.orderId, // Explicitly add orderId
-						// Add discount fields
-						discountAmount: flowData?.cartData?.discountAmount || 0,
-						orderDiscount: flowData?.cartData?.orderDiscount || null,
-				  }
-				: {
-						items: flowData?.cartData?.items || [],
-						subtotal: flowData?.cartData?.subtotal || 0,
-						tax: flowData?.cartData?.taxAmount || 0,
-						total: flowData?.cartData?.total || 0,
-						tipAmount: flowData?.tipAmount || 0,
-						orderId: flowData?.orderId,
-						// Add discount fields
-						discountAmount: flowData?.cartData?.discountAmount || 0,
-						orderDiscount: flowData?.cartData?.orderDiscount || null,
-				  };
+		let orderDataForView; // Renamed variable for clarity
+		const isSplit = flowData?.isSplitPayment;
+		// Use calculateCartTotals to get base totals from cartData if available
+		const baseCartTotals = flowData?.cartData
+			? calculateCartTotals(
+					flowData.cartData.items || [],
+					flowData.cartData.orderDiscount
+			  )
+			: { subtotal: 0, taxAmount: 0, total: 0, discountAmount: 0 };
 
-		// Debug log to verify orderId in orderData
-		console.log("OrderData prepared with orderId:", orderData.orderId);
+		// *** FIX: Ensure orderDataForView.total is always the BASE total before tip ***
+		if (isSplit && flowData?.currentPaymentAmount != null) {
+			console.log("Split payment: Using currentPaymentAmount for view.");
+			const currentAmount = flowData.currentPaymentAmount;
+			// For split, 'total' represents the amount for *this* payment step
+			orderDataForView = {
+				items: flowData?.cartData?.items || [],
+				subtotal: baseCartTotals.subtotal, // Keep original subtotal for context
+				tax: baseCartTotals.taxAmount, // Keep original tax for context
+				total: currentAmount, // ** This is the base amount for THIS split payment **
+				tipAmount: flowData?.tipAmount || 0, // Tip added for the entire order so far
+				orderId: flowData?.orderId,
+				discountAmount: baseCartTotals.discountAmount,
+				orderDiscount: flowData?.cartData?.orderDiscount,
+				isSplitPayment: true,
+				splitDetails: flowData?.splitDetails,
+				// Original total of the *entire* order before splitting
+				originalTotal: baseCartTotals.total,
+			};
+		}
+		// Removed fallback to splitOrderData as currentPaymentAmount should be primary for splits
+		else {
+			// Not a split payment or first step
+			console.log("Not split or first step: Using base cartData for view.");
+			orderDataForView = {
+				items: flowData?.cartData?.items || [],
+				subtotal: baseCartTotals.subtotal,
+				tax: baseCartTotals.taxAmount, // Renamed from taxAmount for consistency below
+				total: baseCartTotals.total, // ** This is the BASE total before tip **
+				tipAmount: flowData?.tipAmount || 0, // Tip selected in the flow
+				orderId: flowData?.orderId,
+				discountAmount: baseCartTotals.discountAmount,
+				orderDiscount: flowData?.cartData?.orderDiscount,
+				isSplitPayment: false,
+			};
+		}
+
+		console.log(
+			"Constructed orderDataForView:",
+			JSON.stringify(orderDataForView, null, 2)
+		);
+		console.log("--- End CustomerFlowView Logs ---");
 
 		switch (currentStep) {
 			case "cart":
-				return <CartView cartData={orderData} />;
+				// CartView might need the full cart data structure from the flow
+				return <CartView cartData={flowData?.cartData} />;
 			case "rewards":
 				return <RewardsRegistrationView onComplete={handleStepComplete} />;
 			case "tip":
+				// TipSelectionView needs the BASE total to calculate percentages correctly
 				return (
 					<TipSelectionView
-						orderTotal={orderData.total}
-						orderData={orderData}
+						orderTotal={orderDataForView.total} // Pass the BASE total
+						orderData={orderDataForView} // Pass full object if needed
 						onComplete={handleStepComplete}
 					/>
 				);
 			case "payment":
-				// Check if this is a cash payment
+				// Payment views need the constructed orderDataForView
+				// which has 'total' as base and separate 'tipAmount'
 				if (flowData?.paymentMethod === "cash") {
 					return (
 						<CashFlowView
-							orderData={orderData}
-							cashData={flowData.cashData}
+							orderData={orderDataForView}
+							cashData={flowData?.cashData}
+							isComplete={flowData?.cashPaymentComplete}
 							onComplete={handleStepComplete}
-							isComplete={flowData.cashPaymentComplete === true}
 						/>
 					);
 				}
 				return (
 					<PaymentView
-						orderData={orderData}
+						orderData={orderDataForView} // Pass the constructed data
 						onComplete={handleStepComplete}
 					/>
 				);
 			case "receipt":
+				// Receipt view needs the BASE total and the tip amount separately
+				// It also needs the payment result details
+				console.log("CustomerFlowView: Rendering ReceiptView");
+				console.log(
+					"CustomerFlowView: Passing paymentData:",
+					flowData?.payment
+				);
+
 				return (
 					<ReceiptView
-						orderData={orderData}
-						paymentData={flowData?.payment}
-						paymentMethod={flowData?.paymentMethod || "credit"}
-						cashData={flowData?.cashData}
+						orderData={orderDataForView} // Pass constructed data (base total + tip)
+						paymentData={flowData?.payment} // Pass payment results
+						paymentMethod={flowData?.paymentMethod}
 						onComplete={handleStepComplete}
 					/>
 				);
 			default:
-				return <div>Unknown step</div>;
+				return <div>Unknown step: {currentStep}</div>;
 		}
 	};
-
 	return (
 		<div className="w-full h-screen bg-gray-50 flex flex-col overflow-hidden">
 			{/* Subtle gradient background */}
@@ -148,6 +185,7 @@ CustomerFlowView.propTypes = {
 	flowData: PropTypes.shape({
 		currentStep: PropTypes.string,
 		cartData: PropTypes.object,
+		splitDetails: PropTypes.object,
 		tipAmount: PropTypes.number,
 		payment: PropTypes.object,
 		orderId: PropTypes.number,
@@ -156,6 +194,7 @@ CustomerFlowView.propTypes = {
 		cashPaymentComplete: PropTypes.bool,
 		splitOrderData: PropTypes.object,
 		isSplitPayment: PropTypes.bool,
+		currentPaymentAmount: PropTypes.number,
 	}),
 	onStepComplete: PropTypes.func,
 };

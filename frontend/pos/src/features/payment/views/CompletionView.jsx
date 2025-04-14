@@ -1,5 +1,5 @@
 // src/components/payment/views/CompletionView.jsx
-import { motion, usePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { useEffect } from "react";
 import PaymentButton from "../PaymentButton";
@@ -11,52 +11,48 @@ import customerDisplayManager from "../../../features/customerDisplay/utils/wind
 const { pageVariants, pageTransition } = paymentAnimations;
 
 export const CompletionView = ({ onStartNewOrder }) => {
-	const [isPresent] = usePresence();
-
-	// Force welcome screen immediately when this component mounts
+	// *** ADD THIS useEffect ***
 	useEffect(() => {
+		// This effect runs once when the POS CompletionView mounts,
+		// indicating the entire payment process succeeded on the POS side.
 		console.log(
-			"CompletionView mounted - forcing welcome screen on customer display"
+			"POS CompletionView mounted. Scheduling customer display reset."
 		);
 
-		// Ensure we have a valid display window
-		try {
-			if (
-				!customerDisplayManager.displayWindow ||
-				customerDisplayManager.displayWindow.closed
-			) {
-				customerDisplayManager.openWindow();
-
-				// Give it time to initialize
-				setTimeout(() => {
-					customerDisplayManager.showWelcome();
-					console.log(
-						"Customer display welcome screen shown (delayed after opening)"
+		// Set a timer to reset the customer display after a delay (e.g., 4 seconds)
+		const resetTimer = setTimeout(() => {
+			console.log(
+				"POS CompletionView: Delay finished. Resetting customer display."
+			);
+			try {
+				// Check if the customer display window still exists and is open
+				if (
+					customerDisplayManager.displayWindow &&
+					!customerDisplayManager.displayWindow.closed
+				) {
+					customerDisplayManager.showWelcome(); // Command to show Welcome screen
+				} else {
+					console.warn(
+						"POS CompletionView: Customer display window not accessible for reset."
 					);
-				}, 500);
-			} else {
-				// Window exists, show welcome immediately
-				customerDisplayManager.showWelcome();
-				console.log("Customer display welcome screen shown immediately");
-			}
-		} catch (err) {
-			console.error("Error showing welcome screen on completion:", err);
-		}
-
-		// Return cleanup function that also ensures welcome screen
-		return () => {
-			if (isPresent) {
-				try {
-					customerDisplayManager.showWelcome();
-					console.log(
-						"Customer display welcome screen forced on CompletionView unmount"
-					);
-				} catch (err) {
-					console.error("Error showing welcome screen on cleanup:", err);
 				}
+			} catch (err) {
+				console.error(
+					"POS CompletionView: Error resetting customer display:",
+					err
+				);
 			}
+		}, 4000); // Delay in milliseconds (4 seconds) - adjust as needed
+
+		// Cleanup function: clear the timer if the CompletionView unmounts before the delay finishes
+		return () => {
+			clearTimeout(resetTimer);
+			console.log(
+				"POS CompletionView unmounted, cleared customer display reset timer."
+			);
 		};
-	}, [isPresent]);
+	}, []); // Empty dependency array ensures this runs only once on mount
+	// *************************
 
 	const handleStartNew = async () => {
 		console.log("Starting new order from completion view");

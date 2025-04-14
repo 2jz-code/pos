@@ -1,181 +1,175 @@
 // features/customerDisplay/components/cart/CartView.jsx
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import PropTypes from "prop-types";
 import { formatPrice } from "../../../../utils/numberUtils";
+import { ShoppingCartIcon } from "@heroicons/react/24/outline"; // Example icon
 
 const CartView = ({ cartData }) => {
-	// Extract the necessary data from the cart
 	const {
 		items = [],
 		subtotal = 0,
 		taxAmount = 0,
 		total = 0,
-		discountAmount = 0, // Add discount amount
-		orderDiscount = null, // Add order discount
+		discountAmount = 0,
+		orderDiscount = null,
 	} = cartData;
 
 	// Animation variants
 	const containerVariants = {
 		hidden: { opacity: 0 },
-		visible: {
-			opacity: 1,
-			transition: {
-				when: "beforeChildren",
-				staggerChildren: 0.08,
-			},
-		},
+		visible: { opacity: 1, transition: { staggerChildren: 0.07 } },
+		exit: { opacity: 0 },
 	};
 
 	const itemVariants = {
-		hidden: { y: 15, opacity: 0 },
+		hidden: { opacity: 0, x: -20 },
 		visible: {
-			y: 0,
 			opacity: 1,
-			transition: { type: "spring", stiffness: 250, damping: 20 },
+			x: 0,
+			transition: { type: "spring", stiffness: 300, damping: 30 },
 		},
+		exit: { opacity: 0, x: 20, transition: { duration: 0.2 } },
+	};
+
+	const summaryVariants = {
+		hidden: { opacity: 0, y: 20 },
+		visible: {
+			opacity: 1,
+			y: 0,
+			transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.2 },
+		},
+		exit: { opacity: 0 },
 	};
 
 	return (
-		<div className="w-full h-screen bg-white flex flex-col overflow-hidden">
-			{/* Top accent line */}
-			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
-				initial={{ scaleX: 0 }}
-				animate={{ scaleX: 1 }}
-				transition={{ duration: 0.8, ease: "easeOut" }}
-			></motion.div>
+		<motion.div
+			key="cart"
+			className="w-full h-screen bg-slate-50 flex flex-col"
+			variants={containerVariants}
+			initial="hidden"
+			animate="visible"
+			exit="exit"
+		>
+			{/* Header (Optional, often omitted in modern displays) */}
+			{/* <div className="p-6 border-b border-slate-200 text-center">
+                <h1 className="text-2xl font-semibold text-gray-900">Your Order</h1>
+            </div> */}
 
-			{/* Main content */}
-			<div className="flex-1 flex flex-col p-6 overflow-hidden relative z-10">
-				<motion.div
-					className="mb-6 text-center"
-					initial={{ y: -15, opacity: 0 }}
-					animate={{ y: 0, opacity: 1 }}
-					transition={{ delay: 0.1, duration: 0.4 }}
-				>
-					<h1 className="text-3xl font-semibold text-gray-800 tracking-tight">
-						Your Order
-					</h1>
-					<p className="text-gray-500 mt-1 font-light">Ajeen Bakery</p>
-				</motion.div>
-
-				<motion.div
-					className="flex-1 overflow-y-auto pr-2"
-					variants={containerVariants}
-					initial="hidden"
-					animate="visible"
-				>
+			{/* Cart Items List */}
+			<div className="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10 custom-scrollbar">
+				<AnimatePresence initial={false}>
+					{" "}
+					{/* Allow exit animations */}
 					{items.length === 0 ? (
 						<motion.div
-							className="flex flex-col items-center justify-center h-full text-gray-400"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							transition={{ delay: 0.2 }}
+							key="empty-cart"
+							className="flex flex-col items-center justify-center h-full text-slate-400 pt-16"
+							initial={{ opacity: 0, scale: 0.9 }}
+							animate={{ opacity: 1, scale: 1 }}
+							exit={{ opacity: 0, scale: 0.9 }}
+							transition={{ duration: 0.4 }}
 						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-16 w-16 mb-4 text-gray-300"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={1.5}
-									d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-								/>
-							</svg>
-							<p className="text-lg font-light">Your cart is empty</p>
+							<ShoppingCartIcon
+								className="h-24 w-24 mb-6 text-slate-300"
+								strokeWidth={1}
+							/>
+							<p className="text-2xl text-slate-500">
+								Your cart is currently empty
+							</p>
 						</motion.div>
 					) : (
-						<>
-							{/* Cart items */}
-							{items.map((item, index) => (
+						<motion.div
+							className="space-y-4"
+							variants={containerVariants}
+						>
+							{items.map((item) => (
 								<motion.div
-									key={`${item.id}-${index}`}
+									key={item.id} // Use unique item ID
+									layout // Animate layout changes
 									variants={itemVariants}
-									className="mb-4 bg-transparent border-b border-gray-100 p-4 hover:bg-gray-50 transition-colors duration-300"
+									exit="exit" // Apply exit animation
+									className="bg-white rounded-lg p-5 flex justify-between items-center gap-4 border border-slate-100 shadow-sm"
 								>
-									<div className="flex justify-between items-start">
-										<div>
-											<h3 className="font-medium text-gray-800">{item.name}</h3>
-											<p className="text-gray-500 text-sm mt-0.5">
-												${formatPrice(item.price)} each
-											</p>
-										</div>
-										<div className="text-right">
-											<span className="font-medium text-gray-800">
-												${formatPrice(item.price * item.quantity)}
+									<div className="flex-1">
+										<div className="flex items-center gap-3">
+											<span className="font-semibold text-base text-slate-500 bg-slate-100 rounded px-2 py-0.5">
+												{item.quantity}x
 											</span>
-											<p className="text-gray-500 text-sm mt-0.5">
-												Qty: {item.quantity}
-											</p>
+											<h3 className="font-medium text-lg text-gray-900">
+												{item.name}
+											</h3>
 										</div>
+										{/* Optional: Modifiers/details can go here */}
+										{item.discount > 0 && (
+											<div className="mt-1.5 text-sm text-green-600 font-medium">
+												{item.discount}% discount applied
+											</div>
+										)}
 									</div>
-									{item.discount > 0 && (
-										<div className="mt-2 text-sm text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full inline-block">
-											{item.discount}% discount applied
-										</div>
-									)}
+									<div className="text-right font-semibold text-lg text-gray-900 flex-shrink-0">
+										${formatPrice(item.price * item.quantity)}
+									</div>
 								</motion.div>
 							))}
-						</>
+						</motion.div>
 					)}
-				</motion.div>
+				</AnimatePresence>
+			</div>
 
-				{/* Order summary */}
-				{items.length > 0 && (
-					<motion.div
-						className="border-t border-gray-200 pt-4 mt-auto bg-transparent p-4"
-						initial={{ opacity: 0, y: 15 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ delay: 0.3 }}
-					>
-						<div className="flex justify-between text-gray-600 mb-2">
+			{/* Order Summary Footer */}
+			{items.length > 0 && (
+				<motion.div
+					layout
+					variants={summaryVariants}
+					className="bg-white border-t-2 border-slate-200 p-6 md:p-8 lg:p-10 shadow-[0_-4px_10px_-5px_rgba(0,0,0,0.05)]" // Top shadow
+				>
+					<div className="space-y-3 mb-5 text-lg">
+						<div className="flex justify-between text-slate-600">
 							<span>Subtotal</span>
-							<span>${formatPrice(subtotal)}</span>
+							<span className="font-medium text-slate-800">
+								${formatPrice(subtotal)}
+							</span>
 						</div>
 
-						{/* Add discount display */}
 						{discountAmount > 0 && (
-							<div className="flex justify-between text-green-600 mb-2">
+							<div className="flex justify-between text-green-600">
 								<span>
 									Discount {orderDiscount ? `(${orderDiscount.name})` : ""}
 								</span>
-								<span>-${formatPrice(discountAmount)}</span>
+								<span className="font-medium">
+									-${formatPrice(discountAmount)}
+								</span>
 							</div>
 						)}
 
-						<div className="flex justify-between text-gray-600 mb-2">
+						<div className="flex justify-between text-slate-600">
 							<span>Tax</span>
-							<span>${formatPrice(taxAmount)}</span>
+							<span className="font-medium text-slate-800">
+								${formatPrice(taxAmount)}
+							</span>
 						</div>
-						<div className="flex justify-between text-lg font-medium text-gray-800 mt-3 pt-3 border-t border-gray-200">
-							<span>Total</span>
-							<span>${formatPrice(total)}</span>
-						</div>
-					</motion.div>
-				)}
-			</div>
-
-			{/* Bottom accent line */}
-			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
-				initial={{ scaleX: 0 }}
-				animate={{ scaleX: 1 }}
-				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-			></motion.div>
-		</div>
+					</div>
+					{/* Total */}
+					<div className="mt-5 pt-5 border-t border-slate-200 flex justify-between items-baseline">
+						<span className="text-2xl font-bold text-gray-900">Total</span>
+						<span className="text-3xl font-bold text-blue-600">
+							${formatPrice(total)}
+						</span>
+					</div>
+				</motion.div>
+			)}
+		</motion.div>
 	);
 };
 
+// Updated PropTypes
 CartView.propTypes = {
 	cartData: PropTypes.shape({
 		items: PropTypes.arrayOf(
 			PropTypes.shape({
-				id: PropTypes.number.isRequired,
+				id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+					.isRequired,
 				name: PropTypes.string.isRequired,
 				price: PropTypes.number.isRequired,
 				quantity: PropTypes.number.isRequired,

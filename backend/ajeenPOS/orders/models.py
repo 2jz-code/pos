@@ -47,8 +47,9 @@ class Order(models.Model):
 
     discount = models.ForeignKey('discounts.Discount', on_delete=models.SET_NULL, null=True, blank=True)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    tip_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
-    def calculate_total_price(self):
+    def calculate_total_price(self, tip_to_add=Decimal('0.00')):
         """Recalculate order total based on items and discounts."""
         subtotal = sum(item.product.price * item.quantity for item in self.items.all())
         
@@ -84,9 +85,9 @@ class Order(models.Model):
         
         # Calculate tax (10%)
         tax_amount = discounted_subtotal * Decimal(0.1)
-        
+        self.tip_amount = tip_to_add
         # Set the final price including tax
-        self.total_price = discounted_subtotal + tax_amount
+        self.total_price = discounted_subtotal + tax_amount + self.tip_amount # Use self.tip_amount now
         return self.total_price
 
     def __str__(self):

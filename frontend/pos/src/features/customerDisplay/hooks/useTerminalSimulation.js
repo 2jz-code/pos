@@ -1,7 +1,8 @@
-// features/payment/hooks/useTerminalSimulation.js
+// frontend/features/customerDisplay/hooks/useTerminalSimulation.js
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react"; // Added useEffect
 import axiosInstance from "../../../api/config/axiosConfig";
+import { Decimal } from "decimal.js"; // Import Decimal for precision
 
 export function useTerminalSimulation() {
 	const [paymentStatus, setPaymentStatus] = useState("idle"); // idle, connecting, reader_check, processing, success, error
@@ -10,298 +11,437 @@ export function useTerminalSimulation() {
 	const [pollingInterval, setPollingInterval] = useState(null);
 	const [readerInfo, setReaderInfo] = useState(null);
 	const currentPaymentIntentRef = useRef(null);
+	const paymentDataRef = useRef(null); // Ref to store latest payment data for callbacks if needed
+	const isMountedRef = useRef(false); // Track mount status
+
+	// Mount/Unmount effect
+	useEffect(() => {
+		isMountedRef.current = true;
+		return () => {
+			isMountedRef.current = false;
+			stopPolling(); // Ensure polling stops on unmount
+			currentPaymentIntentRef.current = null;
+		};
+	}, []); // Run only once on mount
 
 	// Get the reader status and information
 	const getReaderStatus = useCallback(async () => {
+		// Note: No state changes directly related to this component's rendering here
 		try {
-			setPaymentStatus("reader_check");
+			// setPaymentStatus("reader_check"); // Status change moved to processPayment
 
-			// Use the updated endpoint that returns a single reader
 			const response = await axiosInstance.get(
 				"payments/terminal/reader-status/"
 			);
 
 			if (response.data.success && response.data.reader) {
 				const reader = response.data.reader;
-
-				// Store reader information for reference
-				setReaderInfo(reader);
-
-				// Check if reader is online
+				// Set reader info state in the hook if needed elsewhere
+				// setReaderInfo(reader);
 				if (reader.status !== "online") {
 					throw new Error(
-						`Terminal reader is ${reader.status}. Please ensure the device is powered on and connected.`
+						`Terminal reader is ${reader.status}. Ensure device is on and connected.`
 					);
 				}
-
-				return reader;
-			} else {
-				throw new Error(
-					"No terminal reader found or reader information not available"
+				console.log(
+					`useTerminalSimulation - Reader Check Success: ${reader.id} (${reader.status})`
 				);
+				return reader; // Return the reader info
+			} else {
+				const msg =
+					response.data?.error ||
+					"No terminal reader found or info unavailable";
+				throw new Error(msg);
 			}
 		} catch (err) {
-			console.error("Error getting reader status:", err);
-
-			// Generate a user-friendly error message
+			console.error(
+				"useTerminalSimulation - Error getting reader status:",
+				err
+			);
 			let errorMessage = "Failed to connect to terminal reader";
-
 			if (err.response) {
-				// Server responded with an error
-				if (err.response.status === 404) {
-					errorMessage =
-						"Terminal reader not found. Please check device registration in Stripe.";
-				} else if (err.response.data && err.response.data.error) {
+				if (err.response.status === 404)
+					errorMessage = "Terminal reader not found. Check registration.";
+				else if (err.response.data?.error)
 					errorMessage = err.response.data.error;
-				}
 			} else if (err.message) {
 				errorMessage = err.message;
 			}
-
+			// Throw the processed error message
 			throw new Error(errorMessage);
 		}
-	}, []);
+	}, []); // No dependencies needed here
 
 	// Process payment with real terminal
 	const processPayment = useCallback(
 		async (orderData) => {
+			paymentDataRef.current = orderData; // Store latest data
+
 			try {
-				// If we're already processing a payment, don't start another one
 				if (
 					paymentStatus === "processing" ||
-					paymentStatus === "reader_check"
+					paymentStatus === "reader_check" ||
+					paymentStatus === "connecting"
 				) {
-					console.warn("Payment already in progress, ignoring new request");
+					console.warn(
+						"useTerminalSimulation - Payment already in progress, ignoring new request"
+					);
 					return;
 				}
 
-				setPaymentStatus("connecting");
+				setPaymentStatus("connecting"); // Initial status
 				setError("");
-				setReaderInfo(null);
+				setPaymentResult(null);
+				setReaderInfo(null); // Reset reader info for new attempt
 
-				// Check reader status first
-				const reader = await getReaderStatus();
+				console.log("useTerminalSimulation - Starting payment process...");
+				setPaymentStatus("reader_check");
+				const reader = await getReaderStatus(); // Check reader status first
+				setReaderInfo(reader); // Store reader info after successful check
 
-				// Get the amount to charge - either split amount or full amount
-				const amount = orderData.total + (orderData.tipAmount || 0);
+				// --- Amount Calculation & Logging ---
+				console.log(
+					"useTerminalSimulation - Received orderData for PI creation:",
+					JSON.stringify(orderData, null, 2)
+				);
+				// Use Decimal for accuracy
+				const baseAmountDecimal = new Decimal(orderData?.total || 0);
+				const tipDecimal = new Decimal(orderData?.tipAmount || 0);
+				const calculatedAmountDecimal = baseAmountDecimal.plus(tipDecimal);
+				const finalAmountToCharge = parseFloat(
+					calculatedAmountDecimal.toFixed(2)
+				); // Final numeric value
 
-				// Extract orderId, ensuring it's not undefined
+				console.log(
+					`useTerminalSimulation - Base Amount: ${baseAmountDecimal.toString()}, Tip: ${tipDecimal.toString()}, Calculated Total for PI: ${finalAmountToCharge}`
+				);
+				// --- End Logging ---
+
 				const orderId = orderData.orderId;
-
 				if (!orderId) {
-					console.error("Missing orderId in payment processing:", orderData);
+					console.error("useTerminalSimulation - Missing orderId:", orderData);
 					throw new Error("Order ID is required for payment processing");
 				}
 
+				// --- API call to create PI ---
 				console.log(
-					`Processing payment with amount: ${amount}`,
-					`orderId: ${orderId}`,
-					`isSplitPayment: ${orderData.isSplitPayment}`,
-					`originalTotal: ${orderData.originalTotal || "N/A"}`
+					`useTerminalSimulation - Sending amount ${finalAmountToCharge} to create-payment-intent...`
 				);
-
-				// Create payment intent with metadata for split payments
 				const response = await axiosInstance.post(
 					"payments/terminal/create-payment-intent/",
 					{
-						amount: amount,
+						amount: finalAmountToCharge, // *** Send the calculated total (base + tip) ***
 						description: orderData.isSplitPayment
-							? "POS Split Payment"
-							: "POS Terminal Payment",
-						order_id: orderId, // Use the extracted orderId
+							? `Split Pmt (Order ${orderId})`
+							: `Order ${orderId}`,
+						order_id: orderId,
 						metadata: {
 							is_split_payment: orderData.isSplitPayment ? "true" : "false",
-							split_amount: orderData.isSplitPayment ? amount.toString() : "",
-							original_total: orderData.originalTotal
-								? orderData.originalTotal.toString()
+							split_amount: orderData.isSplitPayment
+								? finalAmountToCharge.toString()
 								: "",
-							remaining_after: orderData.isSplitPayment
-								? (orderData.originalTotal - amount).toString()
-								: "",
-							order_id: orderId.toString(), // Also include in metadata
+							// Pass the original total if available, otherwise use the base for this step
+							original_total: (
+								orderData.originalTotal ??
+								orderData.total ??
+								0
+							).toString(),
+							tip_amount: tipDecimal.toFixed(2), // Pass tip as string metadata
+							order_id: orderId.toString(),
 						},
 					}
 				);
 
 				const paymentIntentId = response.data.id;
+				console.log(`useTerminalSimulation - Created PI: ${paymentIntentId}`);
+				currentPaymentIntentRef.current = paymentIntentId; // Store current PI ID
 
-				// Store the payment intent ID
-				currentPaymentIntentRef.current = paymentIntentId;
-
-				// 3. Process payment on terminal using the confirmed reader
-				setPaymentStatus("processing");
+				// Process payment on terminal
+				setPaymentStatus("processing_intent");
+				console.log(
+					`useTerminalSimulation - Requesting process PI ${paymentIntentId} on reader ${reader.id}`
+				);
 				await axiosInstance.post("payments/terminal/process-payment-method/", {
 					reader_id: reader.id,
 					payment_intent_id: paymentIntentId,
 				});
-
-				// 4. Start polling for payment completion
+				console.log(
+					`useTerminalSimulation - Process request sent for PI ${paymentIntentId}`
+				);
+				// Start polling (polling function will update status further)
 				startPollingPaymentStatus(paymentIntentId);
 			} catch (err) {
-				console.error("Error processing payment:", err);
-				setError(err.message || "Failed to process payment");
+				console.error("useTerminalSimulation - Error processing payment:", err);
+				const errorMsg =
+					err.response?.data?.error ||
+					err.message ||
+					"Failed to process payment";
+				setError(errorMsg);
 				setPaymentStatus("error");
-				// Clear the payment intent ID on error
 				currentPaymentIntentRef.current = null;
 			}
 		},
-		[getReaderStatus]
+		[getReaderStatus] // Include getReaderStatus which is stable due to its own useCallback
 	);
 
-	// Start polling for payment status
-	const startPollingPaymentStatus = useCallback(
-		(paymentIntentId) => {
-			// Clear any existing polling
-			if (pollingInterval) {
-				clearInterval(pollingInterval);
-				setPollingInterval(null);
-			}
-
-			// Verify this is still the current payment intent
-			if (currentPaymentIntentRef.current !== paymentIntentId) {
-				console.warn("Payment intent ID mismatch, not starting polling");
-				return;
-			}
+	// Handle successful payment
+	const handlePaymentSuccess = useCallback(
+		(paymentIntentData) => {
+			if (!isMountedRef.current) return;
 
 			console.log(
-				`Starting to poll payment status for intent: ${paymentIntentId}`
+				"useTerminalSimulation - handlePaymentSuccess received PI data:",
+				JSON.stringify(paymentIntentData, null, 2)
 			);
+			setPaymentStatus("success");
 
-			// Poll every 2 seconds
-			const interval = setInterval(async () => {
-				// Skip polling if this is no longer the current payment intent
-				if (currentPaymentIntentRef.current !== paymentIntentId) {
-					clearInterval(interval);
-					return;
-				}
+			let cardInfo = { last4: "****", brand: "Card" };
+			// Safely access nested card details from charge object
+			const charge = paymentIntentData?.charges?.data?.[0];
+			const cardPresentDetails = charge?.payment_method_details?.card_present;
 
-				try {
-					const response = await axiosInstance.get(
-						`payments/terminal/payment-status/${paymentIntentId}/`
-					);
+			if (cardPresentDetails) {
+				cardInfo = {
+					last4: cardPresentDetails.last4 || "****",
+					brand: cardPresentDetails.brand || "Card",
+				};
+			}
 
-					const status = response.data.status;
-					console.log(`Payment status for ${paymentIntentId}: ${status}`);
+			// *** FIX: Amount reported back should be the amount FROM the successful Payment Intent ***
+			const finalChargedAmount = (Number(paymentIntentData.amount) || 0) / 100; // Amount from PI (in cents)
+			console.log(
+				`useTerminalSimulation - handlePaymentSuccess - Amount from PI: ${paymentIntentData.amount} cents -> $${finalChargedAmount}`
+			);
+			// *** END FIX ***
 
-					if (status === "succeeded") {
-						// Payment succeeded
-						clearInterval(interval);
-						setPollingInterval(null);
-						setPaymentStatus("success");
+			// *** FIX: Get tip amount from metadata if PI has it, otherwise from original paymentData ref ***
+			const tipAmountFromMetadata =
+				Number(paymentIntentData?.metadata?.tip_amount) || 0;
+			// Fallback to data used when starting the payment IF metadata tip is missing
+			const tipAmountFromOriginalData = paymentDataRef.current?.tipAmount || 0;
+			const finalTipAmount =
+				tipAmountFromMetadata > 0
+					? tipAmountFromMetadata
+					: tipAmountFromOriginalData;
+			console.log(
+				`useTerminalSimulation - handlePaymentSuccess - Final Tip Amount: $${finalTipAmount}`
+			);
+			// *** END FIX ***
 
-						// Extract card details if available
-						const cardDetails = response.data.card_details || {};
-
-						// Get the actual amount charged from the response
-						const chargedAmount = response.data.amount / 100; // Convert from cents
-
-						const result = {
-							status: "success",
-							transactionId: response.data.id,
-							amount: chargedAmount, // Make sure to use the actual charged amount
-							timestamp: new Date().toISOString(),
-							cardInfo: {
-								brand: cardDetails.brand || "Card",
-								last4: cardDetails.last4 || "****",
-							},
-							reader: readerInfo
-								? {
-										id: readerInfo.id,
-										label: readerInfo.label,
-										deviceType: readerInfo.device_type,
-								  }
-								: null,
-							// Add split payment information
-							splitPayment: response.data.metadata?.is_split_payment === "true",
-							splitAmount: parseFloat(
-								response.data.metadata?.split_amount || chargedAmount
-							),
-							originalTotal: parseFloat(
-								response.data.metadata?.original_total || chargedAmount
-							),
-						};
-
-						setPaymentResult(result);
-
-						// Clear the payment intent ID on success
-						currentPaymentIntentRef.current = null;
-					} else if (status === "canceled") {
-						// Payment was canceled
-						clearInterval(interval);
-						setPollingInterval(null);
-						setError("Payment was canceled");
-						setPaymentStatus("error");
-
-						// Clear the payment intent ID on cancellation
-						currentPaymentIntentRef.current = null;
-					} else if (status === "requires_payment_method") {
-						// Still waiting for card
-						// We don't need to do anything special here, just continue polling
-					} else if (status === "requires_capture") {
-						// Payment needs to be captured
-						try {
-							await axiosInstance.post("payments/terminal/capture-payment/", {
-								payment_intent_id: paymentIntentId,
-							});
-							// Continue polling to confirm the capture
-						} catch (captureErr) {
-							console.error("Error capturing payment:", captureErr);
-							// Continue polling, the next poll might show success anyway
-						}
-					}
-				} catch (err) {
-					console.error("Error checking payment status:", err);
-					// Don't set error state here as it might be a temporary network issue
-				}
-			}, 2000);
-
-			setPollingInterval(interval);
-
-			// Return cleanup function
-			return () => {
-				clearInterval(interval);
-				setPollingInterval(null);
+			const result = {
+				status: "success",
+				transactionId: paymentIntentData.id, // Use PI ID
+				amount: finalChargedAmount, // *** Use amount from the successful PI ***
+				timestamp: new Date(paymentIntentData.created * 1000).toISOString(), // Use PI creation time
+				cardInfo: cardInfo,
+				reader: readerInfo
+					? {
+							id: readerInfo.id,
+							label: readerInfo.label,
+							deviceType: readerInfo.device_type,
+					  }
+					: null,
+				// Include split details and tip from metadata/original data
+				splitPayment: paymentIntentData.metadata?.is_split_payment === "true",
+				// Use parseFloat for safety when reading from metadata
+				splitAmount: parseFloat(
+					paymentIntentData.metadata?.split_amount || finalChargedAmount
+				),
+				originalTotal: parseFloat(
+					paymentIntentData.metadata?.original_total || finalChargedAmount
+				),
+				tipAmount: finalTipAmount, // Include the determined tip amount
 			};
+
+			console.log(
+				"useTerminalSimulation - handlePaymentSuccess - Final Result Object:",
+				result
+			);
+			setPaymentResult(result); // Update local state with the result
+
+			// Send result back to parent window using postMessage
+			if (window.opener) {
+				window.opener.postMessage(
+					{ type: "PAYMENT_RESULT", content: result },
+					"*"
+				);
+				console.log(
+					"useTerminalSimulation - Sent PAYMENT_RESULT to opener window."
+				);
+			} else {
+				console.warn(
+					"useTerminalSimulation - window.opener not available, cannot send PAYMENT_RESULT."
+				);
+			}
+
+			// Clean up polling and PI ref
+			if (pollingInterval) clearInterval(pollingInterval);
+			setPollingInterval(null);
+			currentPaymentIntentRef.current = null;
+
+			// Close the terminal window after a delay
+			// setTimeout(() => { window.close(); }, 3000); // Decided by parent component now
 		},
-		[pollingInterval, readerInfo]
-	);
+		[readerInfo, pollingInterval]
+	); // Dependencies
 
 	// Stop polling
 	const stopPolling = useCallback(() => {
 		if (pollingInterval) {
+			console.log("useTerminalSimulation - Stopping polling interval.");
 			clearInterval(pollingInterval);
 			setPollingInterval(null);
 		}
 	}, [pollingInterval]);
 
-	// Cancel an in-progress payment
-	const cancelPayment = useCallback(
-		async (paymentIntentId) => {
-			if (!paymentIntentId) return;
-
+	// Capture a payment that requires capture
+	const capturePayment = useCallback(
+		async (intentId) => {
 			try {
-				await axiosInstance.post("payments/terminal/cancel-payment/", {
-					payment_intent_id: paymentIntentId,
+				await axiosInstance.post("payments/terminal/capture-payment/", {
+					payment_intent_id: intentId,
 				});
-
-				stopPolling();
-				setPaymentStatus("idle");
-				setError("Payment canceled");
+				console.log(
+					`useTerminalSimulation - Capture request sent for PI ${intentId}`
+				);
 			} catch (err) {
-				console.error("Error canceling payment:", err);
-				setError("Failed to cancel payment");
+				console.error(
+					`useTerminalSimulation - Error capturing payment ${intentId}:`,
+					err
+				);
+				// Capture failure might need specific handling or error state
+				setError(
+					`Failed to capture payment: ${
+						err.response?.data?.error || err.message
+					}`
+				);
+				setPaymentStatus("error");
+				stopPolling(); // Stop polling if capture fails decisively
+				currentPaymentIntentRef.current = null;
 			}
 		},
 		[stopPolling]
-	);
+	); // Added stopPolling dependency
+
+	// Poll for payment intent status
+	const startPollingPaymentStatus = useCallback(
+		(paymentIntentId) => {
+			if (pollingInterval) clearInterval(pollingInterval);
+
+			console.log(
+				`useTerminalSimulation - Starting polling for PI: ${paymentIntentId}`
+			);
+
+			const checkStatus = async () => {
+				if (currentPaymentIntentRef.current !== paymentIntentId) {
+					console.log(
+						`useTerminalSimulation - Polling stopped: PI changed from ${paymentIntentId} to ${currentPaymentIntentRef.current}`
+					);
+					clearInterval(newInterval);
+					setPollingInterval(null);
+					return;
+				}
+				try {
+					console.log(
+						`useTerminalSimulation - Polling check for ${paymentIntentId}...`
+					);
+					const response = await axiosInstance.get(
+						`payments/terminal/payment-status/${paymentIntentId}/`
+					);
+					const intentData = response.data; // Store the full PI data
+					const intentStatus = intentData.status;
+					console.log(
+						`useTerminalSimulation - Poll Status for ${paymentIntentId}: ${intentStatus}`
+					);
+
+					if (intentStatus === "succeeded") {
+						clearInterval(newInterval);
+						setPollingInterval(null);
+						handlePaymentSuccess(intentData); // Pass full PI data
+					} else if (intentStatus === "requires_capture") {
+						console.log(
+							`useTerminalSimulation - PI ${paymentIntentId} requires capture. Capturing...`
+						);
+						await capturePayment(paymentIntentId);
+					} else if (intentStatus === "canceled") {
+						clearInterval(newInterval);
+						setPollingInterval(null);
+						setError("Payment was canceled.");
+						setPaymentStatus("error");
+						currentPaymentIntentRef.current = null;
+					} else if (intentStatus === "requires_payment_method") {
+						if (paymentStatus !== "waiting_for_card")
+							setPaymentStatus("waiting_for_card");
+					} else if (intentStatus === "processing") {
+						if (paymentStatus !== "processing") setPaymentStatus("processing");
+					} else if (intentStatus === "requires_action") {
+						// Handle potential 3DS or other actions if needed for terminal
+						console.log(
+							`useTerminalSimulation - PI ${paymentIntentId} requires action.`
+						);
+						// For terminal, this usually means waiting for customer interaction
+						if (paymentStatus !== "processing") setPaymentStatus("processing"); // Keep showing processing
+					} else if (intentStatus === "requires_confirmation") {
+						// This status is less common for terminal auto-capture
+						console.log(
+							`useTerminalSimulation - PI ${paymentIntentId} requires confirmation.`
+						);
+						if (paymentStatus !== "processing") setPaymentStatus("processing");
+					}
+				} catch (err) {
+					console.error(
+						`useTerminalSimulation - Error polling status for ${paymentIntentId}:`,
+						err
+					);
+				}
+			};
+
+			checkStatus(); // Initial check
+			const newInterval = setInterval(checkStatus, 2500);
+			setPollingInterval(newInterval);
+		},
+		[pollingInterval, handlePaymentSuccess, capturePayment]
+	); // Added capturePayment
+
+	// Cancel an in-progress payment
+	const cancelPayment = useCallback(async () => {
+		const intentIdToCancel = currentPaymentIntentRef.current;
+		if (!intentIdToCancel) {
+			console.log(
+				"useTerminalSimulation - No active payment intent to cancel."
+			);
+			return;
+		}
+
+		try {
+			console.log(
+				`useTerminalSimulation - Attempting to cancel PI: ${intentIdToCancel}`
+			);
+			await axiosInstance.post("payments/terminal/cancel-action/", {
+				reader_id: readerInfo?.id,
+				payment_intent_id: intentIdToCancel, // Pass intent ID if backend needs it for cancellation context
+			});
+
+			stopPolling();
+			setError("Payment canceled by user.");
+			setPaymentStatus("error"); // Treat cancel as an error/end state for this flow
+			currentPaymentIntentRef.current = null;
+		} catch (err) {
+			console.error(
+				`useTerminalSimulation - Error canceling payment ${intentIdToCancel}:`,
+				err
+			);
+			setError("Failed to cancel payment.");
+			// Consider if status should change if cancellation fails
+		}
+	}, [readerInfo, stopPolling]);
 
 	return {
 		processPayment,
 		paymentStatus,
 		paymentResult,
 		error,
-		stopPolling,
-		cancelPayment,
 		readerInfo,
+		cancelPayment,
 	};
 }

@@ -3,207 +3,164 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { motion } from "framer-motion";
+import { formatPrice } from "../../../../utils/numberUtils";
+import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
-const ReceiptView = ({ orderData, paymentData, onComplete }) => {
-	const [animationStage, setAnimationStage] = useState("initial"); // initial, checkmark, message, complete
+const ReceiptView = ({ orderData, paymentData, onComplete, paymentMethod }) => {
+	const [showDetails, setShowDetails] = useState(false);
 
-	// Control the animation sequence and timing
+	// Safely get data
+	const tipAmount = orderData?.tipAmount || 0;
+	const baseTotal = typeof orderData?.total === "number" ? orderData.total : 0;
+	const finalTotal = baseTotal + tipAmount;
+	const transactionId =
+		paymentData?.transactionId || (paymentMethod === "cash" ? "CASH" : "N/A");
+	const cardBrand = paymentData?.cardInfo?.brand;
+	const cardLast4 = paymentData?.cardInfo?.last4;
+	const paymentTimestamp = paymentData?.timestamp
+		? new Date(paymentData.timestamp)
+		: new Date();
+
+	// Animation sequence and completion signal
 	useEffect(() => {
-		// Start the animation sequence
-		const checkmarkTimer = setTimeout(() => {
-			setAnimationStage("checkmark");
-		}, 500);
+		let detailsTimerId = null;
+		let immediateCompleteTimerId = null;
 
-		// Show the first message after the checkmark animation
-		const messageTimer = setTimeout(() => {
-			setAnimationStage("message");
-		}, 2000);
-
-		// Show the second message and prepare to complete
-		const completeTimer = setTimeout(() => {
-			setAnimationStage("complete");
-		}, 4000);
-
-		// Notify parent component that we're done
-		const finalTimer = setTimeout(() => {
+		// Call onComplete very quickly after mount/initial animation starts
+		// This ensures the signal gets back to the POS reliably.
+		// A tiny delay (e.g., 100ms) might be needed if there are race conditions
+		// with the POS side setting up its listener, but let's try almost immediate first.
+		immediateCompleteTimerId = setTimeout(() => {
+			console.log("ReceiptView: Calling onComplete immediately");
 			if (onComplete) {
-				onComplete({
-					status: "complete",
-					timestamp: new Date().toISOString(),
-				});
+				onComplete({ status: "complete", timestamp: new Date().toISOString() });
 			}
-		}, 6000);
+		}, 100); // ** Call onComplete after only 100ms **
 
-		// Clean up timers
+		// Still show details after a slightly longer delay for the user to see
+		detailsTimerId = setTimeout(() => {
+			setShowDetails(true);
+		}, 2200); // Details show after 1.2 seconds
+
+		// Cleanup function
 		return () => {
-			clearTimeout(checkmarkTimer);
-			clearTimeout(messageTimer);
-			clearTimeout(completeTimer);
-			clearTimeout(finalTimer);
+			clearTimeout(detailsTimerId);
+			clearTimeout(immediateCompleteTimerId);
 		};
-	}, [onComplete]);
+	}, [onComplete]); // Dependency array includes onComplete
 
-	// Format the total amount for display
-	const formatTotal = () => {
-		const tipAmount = orderData?.tipAmount || 0;
-		const total = (orderData?.total || 0) + tipAmount;
-
-		return new Intl.NumberFormat("en-US", {
-			style: "currency",
-			currency: "USD",
-		}).format(total);
-	};
+	const successColor = "green-500";
 
 	return (
-		<div className="flex flex-col h-full bg-white">
-			{/* Top accent line */}
+		<motion.div
+			key="receipt"
+			className="w-full h-screen bg-white flex flex-col items-center justify-center p-8 md:p-12 lg:p-16 text-center"
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ duration: 0.4 }}
+		>
+			{/* Checkmark Animation */}
 			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 w-full flex-shrink-0 z-10"
-				initial={{ scaleX: 0 }}
-				animate={{ scaleX: 1 }}
-				transition={{ duration: 0.8, ease: "easeOut" }}
-			></motion.div>
+				className="mb-6 md:mb-8"
+				initial={{ scale: 0 }}
+				animate={{ scale: 1 }}
+				transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
+			>
+				<CheckCircleIcon
+					className={`w-24 h-24 md:w-28 md:h-28 text-${successColor} mx-auto`}
+				/>
+			</motion.div>
 
-			{/* Main content - centered both vertically and horizontally */}
-			<div className="flex-1 flex items-center justify-center p-6 relative z-10">
-				<div className="max-w-md w-full flex flex-col items-center">
-					{/* Checkmark animation */}
-					<motion.div
-						className="w-32 h-32 bg-gradient-to-br from-green-50 to-emerald-100 rounded-full flex items-center justify-center mb-8"
-						initial={{ scale: 0, opacity: 0 }}
-						animate={{
-							scale: animationStage !== "initial" ? 1 : 0,
-							opacity: animationStage !== "initial" ? 1 : 0,
-						}}
-						transition={{
-							type: "spring",
-							stiffness: 300,
-							damping: 20,
-							duration: 0.8,
-						}}
-					>
-						<motion.svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-16 w-16 text-green-600"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							initial={{ pathLength: 0, opacity: 0 }}
-							animate={{
-								pathLength: animationStage !== "initial" ? 1 : 0,
-								opacity: animationStage !== "initial" ? 1 : 0,
-							}}
-							transition={{ duration: 1, delay: 0.3 }}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={3}
-								d="M5 13l4 4L19 7"
-							/>
-						</motion.svg>
-					</motion.div>
+			{/* Main Message */}
+			<motion.h1
+				className="text-3xl md:text-4xl font-bold text-gray-900 mb-3"
+				initial={{ opacity: 0, y: 10 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.5, delay: 0.5 }}
+			>
+				Thank You!
+			</motion.h1>
 
-					{/* Success title */}
-					<motion.h1
-						className="text-3xl font-semibold text-gray-800 tracking-tight mb-3 text-center"
-						initial={{ opacity: 0, y: 20 }}
-						animate={{
-							opacity: animationStage !== "initial" ? 1 : 0,
-							y: animationStage !== "initial" ? 0 : 20,
-						}}
-						transition={{ delay: 1, duration: 0.5 }}
-					>
-						Thank You!
-					</motion.h1>
+			<motion.p
+				className="text-lg md:text-xl text-slate-600 mb-8 md:mb-10"
+				initial={{ opacity: 0, y: 10 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.5, delay: 0.7 }}
+			>
+				Your payment of{" "}
+				<span className="font-semibold text-slate-800">
+					{formatPrice(finalTotal)}
+				</span>{" "}
+				was successful.
+			</motion.p>
 
-					{/* Transaction amount */}
-					<motion.div
-						className="text-xl text-gray-600 font-light mb-6 text-center"
-						initial={{ opacity: 0 }}
-						animate={{
-							opacity: animationStage !== "initial" ? 1 : 0,
-						}}
-						transition={{ delay: 1.2, duration: 0.5 }}
-					>
-						Your payment of {formatTotal()} has been processed successfully.
-					</motion.div>
-
-					{/* Messages that appear sequentially */}
-					<div className="space-y-5 w-full">
-						<motion.div
-							className="bg-transparent p-5 border-b border-gray-100 text-center"
-							initial={{ opacity: 0, y: 20 }}
-							animate={{
-								opacity:
-									animationStage === "message" || animationStage === "complete"
-										? 1
-										: 0,
-								y:
-									animationStage === "message" || animationStage === "complete"
-										? 0
-										: 20,
-							}}
-							transition={{ delay: 0.2, duration: 0.5 }}
-						>
-							<p className="text-gray-700">
-								Your receipt has been printed and will be provided to you.
-							</p>
-						</motion.div>
-
-						<motion.div
-							className="bg-transparent p-5 border-b border-gray-100 text-center"
-							initial={{ opacity: 0, y: 20 }}
-							animate={{
-								opacity: animationStage === "complete" ? 1 : 0,
-								y: animationStage === "complete" ? 0 : 20,
-							}}
-							transition={{ delay: 0.3, duration: 0.5 }}
-						>
-							<p className="text-gray-700 font-medium">
-								We hope to see you again soon!
-							</p>
-							<p className="text-gray-500 text-sm mt-1 font-light">
-								Ajeen Bakery appreciates your business.
-							</p>
-						</motion.div>
-					</div>
+			{/* Transaction Details (Appear after a delay) */}
+			<motion.div
+				className="w-full max-w-sm bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-3 text-left text-base"
+				initial={{ opacity: 0, y: 20 }}
+				animate={showDetails ? { opacity: 1, y: 0 } : {}}
+				transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+			>
+				<div className="flex justify-between">
+					<span className="text-slate-500">Method:</span>
+					<span className="font-medium text-slate-700">
+						{
+							paymentMethod === "cash"
+								? "Cash"
+								: `${cardBrand || "Card"} ${
+										cardLast4 ? `•••• ${cardLast4}` : ""
+								  }` // Improved display
+						}
+					</span>
 				</div>
-			</div>
+				<div className="flex justify-between">
+					<span className="text-slate-500">Date:</span>
+					<span className="font-medium text-slate-700">
+						{paymentTimestamp.toLocaleDateString()}
+					</span>
+				</div>
+				<div className="flex justify-between">
+					<span className="text-slate-500">Time:</span>
+					<span className="font-medium text-slate-700">
+						{paymentTimestamp.toLocaleTimeString([], {
+							hour: "numeric",
+							minute: "2-digit",
+							hour12: true,
+						})}
+					</span>
+				</div>
+				<div className="flex justify-between pt-2 border-t border-slate-200/80 mt-2">
+					<span className="text-slate-500">Transaction ID:</span>
+					<span
+						className="font-medium text-slate-700 truncate max-w-[150px]" // Adjusted max-width
+						title={transactionId}
+					>
+						{transactionId}
+					</span>
+				</div>
+			</motion.div>
 
-			{/* Footer - shows transaction ID in a subtle way */}
-			<div className="p-4 bg-transparent border-t border-gray-100 relative z-10">
-				<motion.div
-					className="text-center text-xs text-gray-400 font-light"
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					transition={{ delay: 2, duration: 1 }}
-				>
-					Transaction ID: {paymentData?.transactionId || "TXN-UNKNOWN"} •{" "}
-					{new Date().toLocaleDateString()}
-				</motion.div>
-			</div>
-
-			{/* Bottom accent line */}
-			<motion.div
-				className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-500 w-full flex-shrink-0 z-10"
-				initial={{ scaleX: 0 }}
-				animate={{ scaleX: 1 }}
-				transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-			></motion.div>
-		</div>
+			{/* Footer Message */}
+			<motion.p
+				className="text-base text-slate-500 mt-10"
+				initial={{ opacity: 0 }}
+				animate={showDetails ? { opacity: 1 } : {}}
+				transition={{ duration: 0.5, delay: 0.3 }} // Delay after details appear
+			>
+				Your receipt is printing. See you again soon!
+			</motion.p>
+		</motion.div>
 	);
 };
 
 ReceiptView.propTypes = {
 	orderData: PropTypes.shape({
-		items: PropTypes.array,
-		subtotal: PropTypes.number,
-		tax: PropTypes.number,
-		total: PropTypes.number,
+		total: PropTypes.number, // Base total before tip
 		tipAmount: PropTypes.number,
 	}),
 	paymentData: PropTypes.shape({
+		// Optional: payment data might not exist for cash right away
 		transactionId: PropTypes.string,
 		cardInfo: PropTypes.shape({
 			brand: PropTypes.string,
@@ -212,6 +169,7 @@ ReceiptView.propTypes = {
 		amount: PropTypes.number,
 		timestamp: PropTypes.string,
 	}),
+	paymentMethod: PropTypes.string, // Crucial for display logic
 	onComplete: PropTypes.func,
 };
 

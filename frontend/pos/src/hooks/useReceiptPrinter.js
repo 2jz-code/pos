@@ -53,6 +53,7 @@ export const useReceiptPrinter = () => {
 					reject(new Error("Print operation timed out"));
 				}, 10000); // 10 second timeout for printing
 
+				// eslint-disable-next-line no-unused-vars
 				let processingReceived = false;
 
 				const handleResponse = (event) => {

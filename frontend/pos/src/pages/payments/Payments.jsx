@@ -1,134 +1,164 @@
-// src/pages/Payments.jsx
-import { useState, useEffect, useMemo } from "react";
+// src/pages/payments/Payments.jsx
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { paymentService } from "../../api/services/paymentService";
 import { authService } from "../../api/services/authService";
-import RefundConfirmation from "./RefundConfirmation";
+// Removed RefundConfirmation import as it's not opened from here anymore
 import RefundSuccessModal from "./RefundSuccessModal";
+import LoadingSpinner from "../reports/components/LoadingSpinner"; // Assuming LoadingSpinner exists
+import {
+	CreditCardIcon,
+	BanknotesIcon,
+	TicketIcon,
+	EyeIcon,
+} from "@heroicons/react/24/outline"; // Added icons
+
 export default function Payments() {
 	const [payments, setPayments] = useState([]);
-	const [activeTab, setActiveTab] = useState("all"); // Default tab
-	const [paymentMethod, setPaymentMethod] = useState("all"); // Default payment method filter
+	const [activeTab, setActiveTab] = useState("all");
+	const [paymentMethodFilter, setPaymentMethodFilter] = useState("all"); // Renamed for clarity
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [userName, setUserName] = useState("");
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const navigate = useNavigate();
-	const [refundModalPayment, setRefundModalPayment] = useState(null);
-	const [isProcessingRefund, setIsProcessingRefund] = useState(false);
-	const [refundSuccess, setRefundSuccess] = useState(false);
-	const [refundData, setRefundData] = useState(null);
+	// Removed state related to refund modal triggered from this page
+	const [refundSuccessData, setRefundSuccessData] = useState(null); // Keep success modal state
+
 	// Fetch payments from backend
 	useEffect(() => {
 		const fetchPaymentsAndUser = async () => {
 			setIsLoading(true);
+			setError(null); // Clear previous errors
 			try {
-				// Prepare filters based on active tab and payment method
 				const filters = {};
-				if (activeTab !== "all") {
-					filters.status = activeTab;
-				}
-				if (paymentMethod !== "all") {
-					filters.payment_method = paymentMethod;
-				}
+				if (activeTab !== "all") filters.status = activeTab;
+				if (paymentMethodFilter !== "all")
+					filters.payment_method = paymentMethodFilter;
 
-				// Fetch payments and user status in parallel
 				const [paymentsData, authResponse] = await Promise.all([
 					paymentService.getPayments(filters),
 					authService.checkStatus(),
 				]);
 
-				setPayments(paymentsData);
+				setPayments(Array.isArray(paymentsData) ? paymentsData : []); // Ensure it's an array
 				setIsAdmin(authResponse.is_admin);
 				setUserName(authResponse.username);
-				setError(null);
 			} catch (error) {
 				console.error("Error fetching payments:", error);
 				setError("Failed to load payments. Please try again.");
+				setPayments([]); // Set empty array on error
 			} finally {
 				setIsLoading(false);
 			}
 		};
 
 		fetchPaymentsAndUser();
-	}, [activeTab, paymentMethod]);
+	}, [activeTab, paymentMethodFilter]); // Dependencies for refetching
 
-	// Format currency
+	// --- Helper Functions ---
 	const formatCurrency = (amount) => {
+		const numAmount = Number(amount);
+		if (isNaN(numAmount)) return "$0.00";
 		return new Intl.NumberFormat("en-US", {
 			style: "currency",
 			currency: "USD",
-		}).format(amount);
+		}).format(numAmount);
 	};
+	const formatDate = (timestamp) =>
+		timestamp ? new Date(timestamp).toLocaleString() : "N/A";
 
-	// Format date
-	const formatDate = (timestamp) => new Date(timestamp).toLocaleString();
-
-	// Filter payments based on active tab and payment method
-	const filteredPayments = useMemo(() => {
-		return payments.filter((payment) => {
-			// Filter by status (if not "all")
-			const statusMatch = activeTab === "all" || payment.status === activeTab;
-
-			// Filter by payment method (if not "all")
-			const methodMatch =
-				paymentMethod === "all" ||
-				payment.payment_method === paymentMethod ||
-				(paymentMethod === "split" && payment.is_split_payment);
-
-			return statusMatch && methodMatch;
-		});
-	}, [payments, activeTab, paymentMethod]);
-
-	// Payment refund handler
-	const handleRefund = async (paymentId) => {
-		// Find the payment to refund
-		const paymentToRefund = payments.find((p) => p.id === paymentId);
-		if (paymentToRefund) {
-			setRefundModalPayment(paymentToRefund);
-		}
-	};
-
-	const processRefund = async (refundData) => {
-		if (!refundModalPayment) return;
-
-		setIsProcessingRefund(true);
-		try {
-			const response = await paymentService.processRefund(
-				refundModalPayment.id,
-				refundData
-			);
-
-			if (response.success) {
-				// Update the payment in the state
-				setPayments(
-					payments.map((payment) =>
-						payment.id === refundModalPayment.id
-							? { ...payment, status: "refunded" }
-							: payment
-					)
+	const getStatusPill = (status) => {
+		status = status?.toLowerCase();
+		const baseClasses =
+			"px-2 py-1 rounded-full text-xs font-medium inline-flex items-center";
+		switch (status) {
+			case "completed":
+				return (
+					<span className={`${baseClasses} bg-emerald-50 text-emerald-700`}>
+						COMPLETED
+					</span>
 				);
-				setRefundData(response);
-				setRefundModalPayment(null);
-				setRefundSuccess(true);
-			}
-		} catch (error) {
-			console.error("Error processing refund:", error);
-			alert(
-				"Failed to process refund: " +
-					(error.response?.data?.message || error.message)
-			);
-		} finally {
-			setIsProcessingRefund(false);
+			case "refunded":
+				return (
+					<span className={`${baseClasses} bg-red-50 text-red-700`}>
+						REFUNDED
+					</span>
+				);
+			case "partially_refunded":
+				return (
+					<span className={`${baseClasses} bg-orange-50 text-orange-700`}>
+						PARTIALLY REFUNDED
+					</span>
+				);
+			case "failed":
+				return (
+					<span className={`${baseClasses} bg-amber-50 text-amber-700`}>
+						FAILED
+					</span>
+				);
+			case "pending":
+				return (
+					<span className={`${baseClasses} bg-slate-50 text-slate-700`}>
+						PENDING
+					</span>
+				);
+			default:
+				return (
+					<span className={`${baseClasses} bg-slate-50 text-slate-700`}>
+						{String(status).toUpperCase()}
+					</span>
+				);
 		}
 	};
 
-	// View payment details
+	const getPaymentMethodDisplay = (payment) => {
+		if (payment.is_split_payment) {
+			return (
+				<span className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-xs font-medium inline-block">
+					SPLIT PAYMENT
+				</span>
+			);
+		}
+		const method = payment.payment_method?.toLowerCase();
+		const icon =
+			method === "cash" ? (
+				<BanknotesIcon className="h-4 w-4 mr-1.5 text-green-600" />
+			) : method === "credit" ? (
+				<CreditCardIcon className="h-4 w-4 mr-1.5 text-blue-600" />
+			) : (
+				<TicketIcon className="h-4 w-4 mr-1.5 text-gray-500" />
+			); // Default icon
+		const textClass =
+			method === "cash"
+				? "text-green-700"
+				: method === "credit"
+				? "text-blue-700"
+				: "text-slate-700";
+		const bgClass =
+			method === "cash"
+				? "bg-green-50"
+				: method === "credit"
+				? "bg-blue-50"
+				: "bg-slate-50";
+
+		return (
+			<span
+				className={`${bgClass} ${textClass} px-2 py-1 rounded-md text-xs font-medium inline-flex items-center`}
+			>
+				{icon}{" "}
+				{payment.payment_method ? payment.payment_method.toUpperCase() : "N/A"}
+			</span>
+		);
+	};
+
+	// --- Event Handlers ---
+	// Removed handleRefund and related state, as refunds are initiated from details page
+
 	const viewPaymentDetails = (paymentId) => {
 		navigate(`/payments/${paymentId}`);
 	};
 
-	// View associated order
 	const viewAssociatedOrder = (orderId) => {
 		navigate(`/orders/${orderId}`);
 	};
@@ -141,30 +171,13 @@ export default function Payments() {
 					<h1 className="text-2xl font-bold text-slate-800">
 						Payment Management
 					</h1>
-					<span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium flex items-center">
-						<span className="w-2 h-2 bg-emerald-500 rounded-full mr-1.5"></span>
-						Online
-					</span>
+					{/* Online Status Indicator can go here if needed */}
 				</div>
 				<button
-					className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+					className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 flex items-center gap-1.5"
 					onClick={() => navigate("/dashboard")}
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						className="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M4 6h16M4 12h16M4 18h7"
-						/>
-					</svg>
-					Dashboard
+					{/* Dashboard Icon */} Dashboard
 				</button>
 			</div>
 
@@ -176,46 +189,26 @@ export default function Payments() {
 						Payment Status
 					</div>
 					<div className="flex flex-wrap gap-2">
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								activeTab === "all"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setActiveTab("all")}
-						>
-							ALL
-						</button>
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								activeTab === "completed"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setActiveTab("completed")}
-						>
-							COMPLETED
-						</button>
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								activeTab === "refunded"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setActiveTab("refunded")}
-						>
-							REFUNDED
-						</button>
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								activeTab === "failed"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setActiveTab("failed")}
-						>
-							FAILED
-						</button>
+						{[
+							"all",
+							"completed",
+							"refunded",
+							"partially_refunded",
+							"failed",
+							"pending",
+						].map((tab) => (
+							<button
+								key={tab}
+								className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+									activeTab === tab
+										? "bg-blue-600 text-white"
+										: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+								}`}
+								onClick={() => setActiveTab(tab)}
+							>
+								{tab.toUpperCase().replace("_", " ")}
+							</button>
+						))}
 					</div>
 				</div>
 
@@ -225,46 +218,19 @@ export default function Payments() {
 						Payment Method
 					</div>
 					<div className="flex flex-wrap gap-2">
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								paymentMethod === "all"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setPaymentMethod("all")}
-						>
-							ALL METHODS
-						</button>
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								paymentMethod === "cash"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setPaymentMethod("cash")}
-						>
-							CASH
-						</button>
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								paymentMethod === "credit"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setPaymentMethod("credit")}
-						>
-							CREDIT CARD
-						</button>
-						<button
-							className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-								paymentMethod === "split"
-									? "bg-blue-600 text-white"
-									: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
-							}`}
-							onClick={() => setPaymentMethod("split")}
-						>
-							SPLIT PAYMENT
-						</button>
+						{["all", "cash", "credit", "split"].map((method) => (
+							<button
+								key={method}
+								className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+									paymentMethodFilter === method
+										? "bg-blue-600 text-white"
+										: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+								}`}
+								onClick={() => setPaymentMethodFilter(method)}
+							>
+								{method.toUpperCase()}
+							</button>
+						))}
 					</div>
 				</div>
 			</div>
@@ -272,11 +238,11 @@ export default function Payments() {
 			{/* Payments List */}
 			<div className="flex-1 overflow-hidden bg-white rounded-xl shadow-sm flex flex-col">
 				{/* Table Header */}
-				<div className="grid grid-cols-12 gap-4 p-4 bg-slate-50 border-b border-slate-200 font-medium text-slate-600 text-sm">
+				<div className="grid grid-cols-12 gap-4 p-4 bg-slate-50 border-b border-slate-200 font-medium text-slate-600 text-sm sticky top-0 z-10">
 					<div className="col-span-1">ID</div>
 					<div className="col-span-2">Date</div>
 					<div className="col-span-2">Method</div>
-					<div className="col-span-1">Amount</div>
+					<div className="col-span-1 text-right">Amount</div>
 					<div className="col-span-2">Status</div>
 					<div className="col-span-2">Order</div>
 					<div className="col-span-2 text-right">Actions</div>
@@ -286,49 +252,19 @@ export default function Payments() {
 				<div className="flex-1 overflow-y-auto">
 					{isLoading ? (
 						<div className="flex items-center justify-center h-64">
-							<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+							<LoadingSpinner size="md" />
 						</div>
 					) : error ? (
-						<div className="p-8 text-center text-red-500">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-12 w-12 mx-auto mb-4 text-red-400"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							<p>{error}</p>
-						</div>
-					) : filteredPayments.length === 0 ? (
+						<div className="p-8 text-center text-red-500">{error}</div>
+					) : payments.length === 0 ? (
 						<div className="p-8 text-center text-slate-500">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-12 w-12 mx-auto mb-4 text-slate-300"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-								/>
-							</svg>
-							<p>No payments found</p>
+							No payments found matching filters.
 						</div>
 					) : (
-						filteredPayments.map((payment) => (
+						payments.map((payment) => (
 							<div
 								key={payment.id}
-								className="grid grid-cols-12 gap-4 p-4 border-b border-slate-200 hover:bg-slate-50 transition-colors"
+								className="grid grid-cols-12 gap-4 p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors text-sm"
 							>
 								<div className="col-span-1 font-medium text-slate-800 truncate">
 									#{payment.id}
@@ -336,74 +272,41 @@ export default function Payments() {
 								<div className="col-span-2 text-slate-600 truncate">
 									{formatDate(payment.created_at)}
 								</div>
-								<div className="col-span-2 overflow-hidden">
-									{payment.is_split_payment ? (
-										<span className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-xs font-medium inline-block">
-											SPLIT PAYMENT
-										</span>
-									) : (
-										<span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-medium inline-block">
-											{payment.payment_method
-												? payment.payment_method.replace("_", " ").toUpperCase()
-												: "N/A"}
-										</span>
-									)}
+								<div className="col-span-2">
+									{getPaymentMethodDisplay(payment)}
 								</div>
-								<div className="col-span-1 font-medium truncate">
+								<div className="col-span-1 font-medium text-right">
 									{formatCurrency(payment.amount)}
 								</div>
-								<div className="col-span-2 overflow-hidden">
-									<span
-										className={`px-2 py-1 rounded-md text-xs font-medium inline-block ${
-											payment.status === "completed"
-												? "bg-emerald-50 text-emerald-700"
-												: payment.status === "refunded"
-												? "bg-red-50 text-red-700"
-												: payment.status === "failed"
-												? "bg-amber-50 text-amber-700"
-												: "bg-slate-50 text-slate-700"
-										}`}
-									>
-										{payment.status.toUpperCase()}
-									</span>
+								<div className="col-span-2">
+									{getStatusPill(payment.status)}
 								</div>
 								<div className="col-span-2 truncate">
 									<button
-										onClick={() => viewAssociatedOrder(payment.order_id)}
-										className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+										onClick={() => viewAssociatedOrder(payment.order)}
+										className="text-blue-600 hover:underline flex items-center gap-1"
 									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											className="h-4 w-4 mr-1 flex-shrink-0"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-										>
-											<path
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												strokeWidth={2}
-												d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-											/>
-										</svg>
-										<span className="truncate">Order #{payment.order_id}</span>
+										<TicketIcon className="h-4 w-4 flex-shrink-0" />
+										<span className="truncate">Order #{payment.order}</span>
 									</button>
 								</div>
 								<div className="col-span-2 text-right">
 									<button
 										onClick={() => viewPaymentDetails(payment.id)}
-										className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs hover:bg-blue-100 transition-colors mr-2"
+										className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs hover:bg-blue-100 transition-colors mr-2 inline-flex items-center gap-1"
+										title="View Details"
 									>
-										Details
+										<EyeIcon className="h-3.5 w-3.5" /> Details
 									</button>
-									{payment.status === "completed" && isAdmin && (
-										<button
-											onClick={() => handleRefund(payment.id)}
-											className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs hover:bg-red-100 transition-colors"
-										>
-											Refund
-										</button>
-									)}
+									{/* Refund button removed from list view */}
+									{/* {payment.status === "completed" && isAdmin && (
+                                        <button
+                                            onClick={() => handleRefund(payment)} // Pass full payment object
+                                            className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs hover:bg-red-100 transition-colors"
+                                        >
+                                            Refund
+                                        </button>
+                                    )} */}
 								</div>
 							</div>
 						))
@@ -413,30 +316,24 @@ export default function Payments() {
 
 			{/* Status Bar */}
 			<div className="bg-slate-800 text-white px-5 py-2.5 rounded-xl flex justify-between text-xs mt-4">
-				<span className="flex items-center">
-					<span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
-					Payment System Operational
-				</span>
+				<span>System Status: Operational</span>
 				<span>Total Payments: {payments.length}</span>
 				<span>
 					User: {userName} ({isAdmin ? "Admin" : "Staff"})
 				</span>
 			</div>
-			{refundModalPayment && (
-				<RefundConfirmation
-					isOpen={!!refundModalPayment}
-					onClose={() => setRefundModalPayment(null)}
-					payment={refundModalPayment}
-					onConfirm={processRefund}
-					isProcessing={isProcessingRefund}
-				/>
-			)}
-			{refundData && (
+
+			{/* Modals (Only RefundSuccessModal is needed here now) */}
+			{refundSuccessData && (
 				<RefundSuccessModal
-					isOpen={refundSuccess}
-					onClose={() => setRefundSuccess(false)}
-					refundData={refundData}
-					paymentMethod={refundModalPayment?.payment_method || ""}
+					isOpen={!!refundSuccessData}
+					onClose={() => setRefundSuccessData(null)}
+					refundData={
+						refundSuccessData.refund_details || {
+							amount: refundSuccessData.amount,
+						}
+					}
+					paymentMethod={refundSuccessData.payment_method || ""} // Pass method if available
 				/>
 			)}
 		</div>
