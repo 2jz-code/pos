@@ -2,6 +2,7 @@ from django.db import models
 from products.models import Product
 from django.contrib.auth import get_user_model
 from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 User = get_user_model()
 
@@ -51,43 +52,56 @@ class Order(models.Model):
 
     def calculate_total_price(self, tip_to_add=Decimal('0.00')):
         """Recalculate order total based on items and discounts."""
-        subtotal = sum(item.product.price * item.quantity for item in self.items.all())
+        
+        # --- FIX: Use item.get_total_price() which uses the stored unit_price ---
+        # This ensures the price at the time of order creation is used.
+        subtotal = sum(item.get_total_price() for item in self.items.all())
+        # --- End FIX ---
         
         # Apply discount if present
         if self.discount:
+            # Ensure discount calculations also use the correct item total (get_total_price)
+            # instead of potentially outdated item.product.price * item.quantity
             if self.discount.apply_to == 'order':
-                self.discount_amount = self.discount.calculate_discount_amount(subtotal)
+                 # Order-level discounts likely use the subtotal calculated above, which is now correct.
+                self.discount_amount = self.discount.calculate_discount_amount(subtotal) 
             elif self.discount.apply_to == 'product':
-                # For product-specific discounts
-                self.discount_amount = 0
+                self.discount_amount = Decimal('0.00') # Ensure Decimal start
                 for item in self.items.all():
                     if self.discount.products.filter(id=item.product.id).exists():
+                        item_total = item.get_total_price() # Use stored price total
                         if self.discount.discount_type == 'percentage':
-                            item_discount = (self.discount.value / 100) * (item.product.price * item.quantity)
-                        else:
-                            item_discount = min(self.discount.value, item.product.price * item.quantity)
+                            item_discount = (self.discount.value / Decimal('100.0')) * item_total # Use Decimal
+                        else: # Fixed amount
+                            item_discount = min(self.discount.value, item_total)
                         self.discount_amount += item_discount
             elif self.discount.apply_to == 'category':
-                # For category-specific discounts
-                self.discount_amount = 0
+                self.discount_amount = Decimal('0.00') # Ensure Decimal start
                 for item in self.items.all():
                     if hasattr(item.product, 'category') and item.product.category and self.discount.categories.filter(id=item.product.category.id).exists():
+                        item_total = item.get_total_price() # Use stored price total
                         if self.discount.discount_type == 'percentage':
-                            item_discount = (self.discount.value / 100) * (item.product.price * item.quantity)
-                        else:
-                            item_discount = min(self.discount.value, item.product.price * item.quantity)
+                            item_discount = (self.discount.value / Decimal('100.0')) * item_total # Use Decimal
+                        else: # Fixed amount
+                            item_discount = min(self.discount.value, item_total)
                         self.discount_amount += item_discount
         else:
-            self.discount_amount = 0
+            self.discount_amount = Decimal('0.00')
         
-        # Calculate discounted subtotal
-        discounted_subtotal = max(0, subtotal - self.discount_amount)
+        # Calculate discounted subtotal (ensure non-negative)
+        discounted_subtotal = max(Decimal('0.00'), subtotal - self.discount_amount)
         
-        # Calculate tax (10%)
-        tax_amount = discounted_subtotal * Decimal(0.1)
-        self.tip_amount = tip_to_add
-        # Set the final price including tax
-        self.total_price = discounted_subtotal + tax_amount + self.tip_amount # Use self.tip_amount now
+        # Calculate tax (10% - ensure using Decimal for calculation)
+        tax_amount = (discounted_subtotal * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) # Example tax calc
+        
+        self.tip_amount = tip_to_add # Assign tip passed as argument
+
+        # Set the final price including tax and tip
+        self.total_price = discounted_subtotal + tax_amount + self.tip_amount 
+        
+        # Explicitly save the calculated fields to the database instance
+        self.save(update_fields=['total_price', 'discount_amount', 'tip_amount']) 
+        
         return self.total_price
 
     def __str__(self):

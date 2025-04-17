@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from users.authentication import WebsiteCookieJWTAuthentication 
 from django.conf import settings
 from .serializers import PaymentSerializer # Use the updated serializer
 from django.shortcuts import get_object_or_404
@@ -325,57 +326,98 @@ class ProcessPaymentView(APIView):
     """
     Processes a payment using a previously obtained PaymentMethod ID.
     Creates Payment and PaymentTransaction records.
-    (Note: Assumes frontend handles Stripe Elements/SDK to get payment_method_id)
     """
-    permission_classes = [IsAuthenticated]
+    # Use cookie auth if available, but don't strictly require it
+    authentication_classes = [WebsiteCookieJWTAuthentication]
+
+    # --- FIX: Allow anyone (authenticated or guest) to access this ---
+    # Option 1: Empty list (no specific permissions checked, relies on view logic)
+    permission_classes = []
+    # Option 2: Explicitly allow any request (more readable)
+    # permission_classes = [AllowAny]
+    # --- END FIX ---
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         order_id = request.data.get('order_id')
-        payment_method_id = request.data.get('payment_method_id') # From frontend (Stripe Elements/SDK)
+        payment_method_id = request.data.get('payment_method_id') # From frontend
+
+        # --- Add Logging to see who is calling ---
+        user_display = f"User ID: {request.user.id}" if request.user and request.user.is_authenticated else "Guest User"
+        logger.info(f"ProcessPaymentView POST received for Order {order_id} by {user_display}")
+        # --- End Logging ---
 
         if not order_id or not payment_method_id:
+            logger.warning(f"ProcessPaymentView: Missing order_id ({order_id}) or payment_method_id ({payment_method_id})")
             return Response({'error': 'Order ID and payment method ID are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            # Fetch the order - Allow fetching regardless of authentication status for this view
             order = get_object_or_404(Order, id=order_id)
-            payment, created = Payment.objects.get_or_create(order=order, defaults={'amount': order.total_price, 'status': 'pending'})
+            logger.info(f"ProcessPaymentView: Found Order {order_id}. Current payment status: {order.payment_status}")
+
+            # Ensure a Payment object exists for the order
+            # Use update_or_create to handle potential existing pending payments robustly
+            payment, created = Payment.objects.update_or_create(
+                order=order,
+                defaults={
+                    'amount': order.total_price, # Ensure amount is updated if order total changed
+                    'status': 'pending', # Reset to pending if we're processing again? Or check existing status?
+                    'payment_method': 'credit' # Explicitly set method here
+                }
+            )
+            action_word = "Created" if created else "Updated"
+            logger.info(f"ProcessPaymentView: {action_word} Payment {payment.id} for Order {order_id}")
+
 
             amount_cents = int(decimal.Decimal(order.total_price) * 100)
-            metadata = {'order_id': str(order.id)}
-            if order.guest_email: metadata['customer_email'] = order.guest_email
-            elif order.user and order.user.email: metadata['customer_email'] = order.user.email
 
+            # --- Add amount validation ---
+            MINIMUM_AMOUNT_CENTS = 50 # Stripe minimum for USD
+            if amount_cents < MINIMUM_AMOUNT_CENTS:
+                error_msg = f"The order total (${order.total_price:.2f}) is below the minimum required payment amount."
+                logger.error(f"ProcessPaymentView Error for Order {order_id}: Amount {amount_cents} cents is below minimum {MINIMUM_AMOUNT_CENTS} cents.")
+                return Response({
+                    'error': { 'message': error_msg, 'code': 'amount_too_small', 'type': 'validation_error' }
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # --- End amount validation ---
+
+            metadata = {'order_id': str(order.id)}
+            # Add guest/user email to metadata
+            customer_email = order.guest_email or (order.user and order.user.email)
+            if customer_email:
+                metadata['customer_email'] = customer_email
+
+            logger.info(f"ProcessPaymentView: Creating/Confirming Stripe PaymentIntent for {amount_cents} cents, Order {order_id}")
             # --- Attempt to create and confirm Payment Intent ---
             payment_intent = stripe.PaymentIntent.create(
                 amount=amount_cents,
                 currency='usd',
                 payment_method=payment_method_id,
                 confirm=True, # Attempt immediate confirmation
-                automatic_payment_methods={'enabled': True, 'allow_redirects': 'never'}, # Handle 3DS if needed without redirect
+                automatic_payment_methods={'enabled': True, 'allow_redirects': 'never'}, # Handle redirects on client if needed
                 metadata=metadata,
-                # Use off_session=True if applicable for server-side confirmation after customer interaction
-                # off_session=True,
-                # return_url='<YOUR_RETURN_URL>', # Needed if allow_redirects != 'never'
+                # Add return_url if handling requires_action on the client
+                # return_url='http://your-frontend.com/checkout/complete',
             )
 
-            print(f"Created/Confirmed Payment Intent: {payment_intent.id}, Status: {payment_intent.status}")
+            logger.info(f"ProcessPaymentView: Stripe PI {payment_intent.id} status: {payment_intent.status}")
 
             # --- Record Transaction ---
             txn_status = 'pending'
             if payment_intent.status == 'succeeded':
                 txn_status = 'completed'
-            elif payment_intent.status == 'requires_payment_method' or payment_intent.status == 'requires_confirmation' or payment_intent.status == 'requires_action':
-                txn_status = 'failed' # Or requires_action? Map based on Stripe status
-            elif payment_intent.status == 'processing':
-                 txn_status = 'pending'
-            elif payment_intent.status == 'canceled':
-                 txn_status = 'failed' # Or a specific 'canceled' status?
+                payment.status = 'completed' # Update parent payment status
+                order.payment_status = 'paid' # Update order payment status
+            elif payment_intent.status in ['requires_payment_method', 'requires_confirmation', 'canceled']:
+                txn_status = 'failed'
+                payment.status = 'failed' # Update parent payment status
+                order.payment_status = 'failed' # Update order payment status
+            # Note: 'requires_action' might need client-side handling
 
-            # Get charge ID if available
             charge_id = payment_intent.latest_charge
 
-            # Extract card details from payment method used
+            # Extract card details
             txn_metadata = {}
             try:
                  pm = stripe.PaymentMethod.retrieve(payment_method_id)
@@ -383,58 +425,51 @@ class ProcessPaymentView(APIView):
                      txn_metadata['card_brand'] = pm.card.brand
                      txn_metadata['card_last4'] = pm.card.last4
             except Exception as pm_err:
-                 logger.warning(f"Could not retrieve PM details for {payment_method_id}: {pm_err}")
+                 logger.warning(f"ProcessPaymentView: Could not retrieve PM details for {payment_method_id}: {pm_err}")
 
-            payment_txn = PaymentTransaction.objects.create(
-                parent_payment=payment,
-                payment_method='credit',
-                amount=decimal.Decimal(payment_intent.amount) / 100, # Use amount from PI
-                status=txn_status,
-                transaction_id=charge_id or payment_intent.id, # Prefer charge ID if available
-                metadata_json=json.dumps(txn_metadata) if txn_metadata else None
+            # Update or create the transaction record
+            payment_txn, txn_created = PaymentTransaction.objects.update_or_create(
+                 parent_payment=payment,
+                 transaction_id=charge_id or payment_intent.id, # Use charge ID if available
+                 defaults={
+                     'payment_method': 'credit',
+                     'amount': decimal.Decimal(payment_intent.amount) / 100,
+                     'status': txn_status,
+                     'metadata_json': json.dumps(txn_metadata) if txn_metadata else None
+                 }
             )
-            print(f"Created PaymentTransaction {payment_txn.id} with status {txn_status}")
+            txn_action_word = "Created" if txn_created else "Updated"
+            logger.info(f"ProcessPaymentView: {txn_action_word} PaymentTransaction {payment_txn.id} with status {txn_status}")
 
-            # --- Update Parent Payment and Order ---
-            payment.payment_method = 'credit'
-            # Update parent payment status based on transaction outcome
-            if txn_status == 'completed':
-                payment.status = 'completed'
-                order.payment_status = 'paid'
-            elif txn_status == 'failed':
-                 payment.status = 'failed'
-                 order.payment_status = 'failed' # Or keep pending?
-            else: # Pending
-                 payment.status = 'pending'
-                 order.payment_status = 'pending'
-
-            payment.amount = order.total_price # Ensure amount is correct
+            # Save updated payment and order status
             payment.save()
             order.save()
 
             # --- Response ---
-            # If successful, return success
             if payment_intent.status == 'succeeded':
+                logger.info(f"ProcessPaymentView: Payment Succeeded for Order {order_id}, PI {payment_intent.id}")
                 return Response({
                     'success': True,
                     'status': payment_intent.status,
                     'payment_intent_id': payment_intent.id,
                     'transaction_id': payment_txn.id # Return our DB transaction ID
                 })
-            # If requires action (e.g., 3DS), return client secret
+            # --- Handle requires_action (e.g., 3DS) ---
             elif payment_intent.status == 'requires_action':
+                 logger.warning(f"ProcessPaymentView: Payment for Order {order_id} requires action (PI: {payment_intent.id}). Client secret needed.")
                  return Response({
                      'requires_action': True,
-                     'client_secret': payment_intent.client_secret,
+                     'client_secret': payment_intent.client_secret, # Send client_secret back
                      'payment_intent_id': payment_intent.id,
                      'status': payment_intent.status,
                      'transaction_id': payment_txn.id
-                 }, status=status.HTTP_402_PAYMENT_REQUIRED) # Use 402 to indicate further action needed
-            # Otherwise, return failure
+                 }, status=status.HTTP_402_PAYMENT_REQUIRED) # 402 indicates further action needed
+            # --- Handle Failure ---
             else:
                 error_message = "Payment failed."
                 if payment_intent.last_payment_error:
                     error_message = payment_intent.last_payment_error.message
+                logger.error(f"ProcessPaymentView: Payment Failed for Order {order_id}, PI {payment_intent.id}. Reason: {error_message}")
                 return Response({
                     'error': { 'message': error_message, 'code': 'payment_failed', 'type': 'card_error' }
                 }, status=status.HTTP_400_BAD_REQUEST)
@@ -442,25 +477,29 @@ class ProcessPaymentView(APIView):
 
         # --- Error Handling ---
         except stripe.error.CardError as e:
-             # Card declined or other card issue during confirm=True
-             logger.warning(f"Stripe CardError processing payment for order {order_id}: {e.error.message}")
+             err_msg = e.error.message if e.error else str(e)
+             err_code = e.error.code if e.error else 'card_error'
+             logger.warning(f"ProcessPaymentView Stripe CardError for Order {order_id}: {err_msg} (Code: {err_code})")
              # Create a failed transaction record
-             payment, _ = Payment.objects.get_or_create(order=order, defaults={'amount': order.total_price, 'status': 'failed'})
+             payment, _ = Payment.objects.get_or_create(order=order, defaults={'amount': order.total_price, 'status': 'failed', 'payment_method': 'credit'})
+             if payment.status != 'failed': # Update status if not already failed
+                 payment.status = 'failed'
+                 payment.save()
+                 order.payment_status = 'failed'
+                 order.save()
              PaymentTransaction.objects.create(
                   parent_payment=payment, payment_method='credit', amount=order.total_price, status='failed',
-                  metadata_json=json.dumps({'error_message': e.error.message, 'error_code': e.error.code})
+                  metadata_json=json.dumps({'error_message': err_msg, 'error_code': err_code})
              )
-             payment.status = 'failed'
-             payment.save()
-             return Response({'error': {'message': e.error.message,'code': e.error.code,'type': 'card_error'}}, status=status.HTTP_400_BAD_REQUEST)
+             return Response({'error': {'message': err_msg,'code': err_code,'type': 'card_error'}}, status=status.HTTP_400_BAD_REQUEST)
         except stripe.error.StripeError as e:
-             logger.error(f"StripeError processing payment for order {order_id}: {e}")
-             return Response({'error': {'message': f"Payment processor error: {e.error.message if e.error else str(e)}", 'type': 'api_error'}}, status=status.HTTP_400_BAD_REQUEST)
+             err_msg = e.error.message if e.error else str(e)
+             logger.error(f"ProcessPaymentView StripeError for Order {order_id}: {err_msg}")
+             return Response({'error': {'message': f"Payment processor error: {err_msg}", 'type': 'api_error'}}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-             logger.error(f"Error processing payment for order {order_id}: {e}")
-             import traceback
-             traceback.print_exc()
-             return Response({'error': {'message': "An unexpected error occurred.", 'type': 'server_error'}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+             logger.error(f"ProcessPaymentView Error for Order {order_id}: {e}", exc_info=True) # Log full traceback
+             return Response({'error': {'message': "An unexpected server error occurred.", 'type': 'server_error'}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 class ConfirmPaymentView(APIView):

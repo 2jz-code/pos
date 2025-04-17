@@ -365,36 +365,6 @@ class WebsiteOrderDetailView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-class GuestOrderDetailView(APIView):
-    """
-    Get details of an order for guest users (using guest_id and email)
-    """
-    def post(self, request):
-        guest_id = request.COOKIES.get('guest_id')
-        email = request.data.get('email')
-        order_id = request.data.get('order_id')
-        
-        if not all([guest_id, email, order_id]):
-            return Response(
-                {'error': 'Missing required information'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            order = Order.objects.get(
-                id=order_id,
-                guest_id=guest_id,
-                guest_email=email,
-                source='website'
-            )
-            serializer = WebsiteOrderSerializer(order)
-            return Response(serializer.data)
-        except Order.DoesNotExist:
-            return Response(
-                {'error': 'Order not found'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-
 class ReorderView(APIView):
     """
     API endpoint to reorder a past order

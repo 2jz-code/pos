@@ -132,6 +132,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
         if obj.product.image and hasattr(obj.product.image, 'url') and request:
             return request.build_absolute_uri(obj.product.image.url)
         return None
+    
+from decimal import Decimal, ROUND_HALF_UP
 
 class WebsiteOrderSerializer(serializers.ModelSerializer):
     """
@@ -175,24 +177,24 @@ class WebsiteOrderSerializer(serializers.ModelSerializer):
         return f"{obj.guest_first_name} {obj.guest_last_name}".strip() or "Guest"
     
     def get_subtotal(self, obj):
-        """Calculate subtotal before tax"""
-        # Total price is the source of truth, calculate subtotal as total / 1.08
-        total = float(obj.total_price)
-        return round(total)  # Divide by 1.08 to get pre-tax amount
+        """Calculate subtotal based on stored item prices before discounts and tax."""
+        # Sum the stored price * quantity for each item
+        subtotal = sum(item.get_total_price() for item in obj.items.all())
+        return float(subtotal) # Return as float
 
     def get_tax(self, obj):
-        """Calculate tax amount"""
-        # Calculate tax as 8% of the subtotal
-        subtotal = self.get_subtotal(obj)
-        return round(subtotal * 0.08, 2)  # 8% tax rate
+        """Calculate tax based on the actual discount and 10% rate."""
+        subtotal = sum(item.get_total_price() for item in obj.items.all())
+        discount_amount = obj.discount_amount or Decimal('0.00')
+        discounted_subtotal = max(Decimal('0.00'), subtotal - discount_amount)
+        tax_amount = (discounted_subtotal * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) # Use 10%
+        return float(tax_amount)
     
     def get_delivery_fee(self, obj):
         """Return delivery fee"""
         return 0.00  # Default to 0 for now
     
     def get_total_amount(self, obj):
-        """Return total amount (subtotal + tax + delivery_fee)"""
-        subtotal = self.get_subtotal(obj)
-        tax = self.get_tax(obj)
-        # Return the sum, ensuring it matches the original total_price
-        return round(subtotal + tax, 2)
+        """Return the stored total_price which includes subtotal, discount, tax, and tip."""
+        # The obj.total_price already includes everything correctly calculated by the model
+        return float(obj.total_price)
