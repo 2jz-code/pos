@@ -50,6 +50,8 @@ class Order(models.Model):
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     tip_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
+    kitchen_ticket_printed = models.BooleanField(default=False)
+
     def calculate_total_price(self, tip_to_add=Decimal('0.00')):
         """Recalculate order total based on items and discounts."""
         

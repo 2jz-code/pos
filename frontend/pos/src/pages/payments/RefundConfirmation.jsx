@@ -62,11 +62,12 @@ export default function RefundConfirmation({
 			});
 			return;
 		}
-		const amountToRefund = parseFloat(refundAmount);
+		// const amountToRefund = parseFloat(refundAmount); // Keep this for validation logic if needed internally
+		const formattedAmountString = Number(refundAmount).toFixed(2);
 
 		const refundData = {
 			transaction_id: transaction.id, // Pass the PaymentTransaction ID
-			amount: amountToRefund,
+			amount: formattedAmountString, // <<< Use the formatted string amount
 			reason: refundReason,
 		};
 		onConfirm(refundData);

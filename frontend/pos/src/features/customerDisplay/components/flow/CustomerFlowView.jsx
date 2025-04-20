@@ -45,6 +45,9 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 			  )
 			: { subtotal: 0, taxAmount: 0, total: 0, discountAmount: 0 };
 
+		// eslint-disable-next-line
+		const accumulatedTipAmount = flowData?.tip?.tipAmount || 0; // <-- MODIFIED LINE
+
 		// *** FIX: Ensure orderDataForView.total is always the BASE total before tip ***
 		if (isSplit && flowData?.currentPaymentAmount != null) {
 			console.log("Split payment: Using currentPaymentAmount for view.");
@@ -55,7 +58,7 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 				subtotal: baseCartTotals.subtotal, // Keep original subtotal for context
 				tax: baseCartTotals.taxAmount, // Keep original tax for context
 				total: currentAmount, // ** This is the base amount for THIS split payment **
-				tipAmount: flowData?.tipAmount || 0, // Tip added for the entire order so far
+				tipAmount: accumulatedTipAmount,
 				orderId: flowData?.orderId,
 				discountAmount: baseCartTotals.discountAmount,
 				orderDiscount: flowData?.cartData?.orderDiscount,
@@ -74,7 +77,7 @@ const CustomerFlowView = ({ flowData, onStepComplete }) => {
 				subtotal: baseCartTotals.subtotal,
 				tax: baseCartTotals.taxAmount, // Renamed from taxAmount for consistency below
 				total: baseCartTotals.total, // ** This is the BASE total before tip **
-				tipAmount: flowData?.tipAmount || 0, // Tip selected in the flow
+				tipAmount: accumulatedTipAmount,
 				orderId: flowData?.orderId,
 				discountAmount: baseCartTotals.discountAmount,
 				orderDiscount: flowData?.cartData?.orderDiscount,

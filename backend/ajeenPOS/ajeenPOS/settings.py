@@ -87,18 +87,55 @@ TEMPLATES = [
 ]
 
 
-# Hardware-specific settings
 HARDWARE_CONFIG = {
     'USE_REAL_HARDWARE': {
-        'RECEIPT_PRINTER': False,  # Set to True to use real printer even in debug mode
-        'CASH_DRAWER': False,     # Use mock implementation for cash drawer
-        'CARD_READER': False,     # Use mock implementation for card reader
+        # Define which hardware types should use real implementations
+        # Set these to True if you want to use the real hardware even when DEBUG=True
+        'RECEIPT_PRINTER': True,
+        'CASH_DRAWER': False,
+        'CARD_READER': False,
+        # Add flags for specific printers if needed, otherwise the global flag applies
     },
-    'RECEIPT_PRINTER': {
-        'ip': '192.168.2.196',
-        'port': 9100,
-        'timeout': 5,
-    }
+    # Define individual printers
+    'PRINTERS': {
+        'TRANSACTION': {  # Default/cashier printer
+            'ip': '192.168.2.196',  # Keep your existing main printer IP here
+            'port': 9100,
+            'type': 'network',  # Assuming network printer, adjust if USB/Serial
+            'enabled': True,    # Enable/disable this printer
+            'role': 'transaction', # Identifies its purpose
+        },
+        'MANAEESH': {
+            'ip': '192.168.2.197',  # <--- SET IP FOR MANA'EESH PRINTER
+            'port': 9100,
+            'type': 'network',
+            'enabled': True,
+            'categories': ['Mana\'eesh'], # <--- IMPORTANT: Match exact Category name(s)
+            'role': 'station',
+        },
+        'DRINKS_SOUP': {
+            'ip': '192.168.2.198',  # <--- SET IP FOR DRINKS/SOUP PRINTER
+            'port': 9100,
+            'type': 'network',
+            'enabled': True,
+            'categories': ['Drinks', 'Soups'], # <--- IMPORTANT: Match exact Category names
+            'role': 'station',
+        },
+        'QC': {
+            'ip': '192.168.2.199',  # <--- SET IP FOR QC PRINTER
+            'port': 9100,
+            'type': 'network',
+            'enabled': True,
+            'role': 'quality_control',
+        }
+        # Add more printers as needed
+    },
+    # Optional: Keep the old single config for reference or specific single-printer tasks
+    # 'RECEIPT_PRINTER': {
+    #     'ip': '192.168.2.196',
+    #     'port': 9100,
+    #     'timeout': 5,
+    # }
 }
 
 WSGI_APPLICATION = 'ajeenPOS.wsgi.application'

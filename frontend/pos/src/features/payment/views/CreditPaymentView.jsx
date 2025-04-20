@@ -172,7 +172,7 @@ export const CreditPaymentView = ({
 				state.splitDetails,
 				splitOrderDataForDisplay
 			);
-			goToStep("rewards", initialFlowData);
+			goToStep("tip", initialFlowData);
 			setFlowStarted(true);
 		} catch (err) {
 			console.error("CREDIT VIEW: Error starting credit card flow:", err);

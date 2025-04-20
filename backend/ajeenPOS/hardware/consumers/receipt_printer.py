@@ -107,7 +107,7 @@ class ReceiptPrinterConsumer(AsyncJsonWebsocketConsumer):
 
         # Run the printing operation in a thread to avoid blocking the event loop
         result = await asyncio.to_thread(
-            self.controller.print_receipt,
+            self.controller.print_transaction_receipt, # <-- Use the correct method name
             receipt_data
         )
         
