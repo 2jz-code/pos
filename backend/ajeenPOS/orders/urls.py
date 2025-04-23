@@ -8,7 +8,8 @@ from .views import (
     UpdateInProgressOrder, 
     GetInProgressOrder,
     UpdateOrderStatus,
-    ApplyOrderDiscount
+    ApplyOrderDiscount,
+    ReprintReceiptView
 )
 
 urlpatterns = [
@@ -23,5 +24,5 @@ urlpatterns = [
     path("orders/in_progress/update/", UpdateInProgressOrder.as_view(), name="update-in-progress-order"),  # ✅ Auto-save cart changes
     path("orders/in_progress/", GetInProgressOrder.as_view(), name="get-in-progress-order"),  # ✅ Fetch latest in-progress order
     path("orders/<int:pk>/discount/", ApplyOrderDiscount.as_view(), name="apply-order-discount"),
-
+    path("orders/<int:pk>/reprint/", ReprintReceiptView.as_view(), name="reprint-receipt"), # <<<--- Add this line
 ]

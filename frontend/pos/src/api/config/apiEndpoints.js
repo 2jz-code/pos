@@ -22,6 +22,7 @@ export const ENDPOINTS = {
 		COMPLETE: (id) => `orders/${id}/complete/`,
 		IN_PROGRESS: "orders/in_progress/",
 		UPDATE_IN_PROGRESS: "orders/in_progress/update/",
+		REPRINT: (orderId) => `/orders/${orderId}/reprint/`,
 	},
 
 	// Hardware endpoints

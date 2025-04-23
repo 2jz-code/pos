@@ -8,6 +8,8 @@ from ..testing.mock_receipt_printer import MockReceiptPrinter
 from django.conf import settings
 # Import Order and OrderItem models (adjust path if necessary)
 from orders.models import Order, OrderItem
+from typing import Dict, Any, List, Optional
+from decimal import Decimal, InvalidOperation # Ensure Decimal is imported
 
 logger = logging.getLogger(__name__)
 
@@ -249,82 +251,141 @@ class ReceiptPrinterController(BaseHardwareController):
         return receipt
 
     def _format_transaction_receipt(self, receipt_data: Dict[str, Any]) -> bytes:
-        """Formats the standard customer/transaction receipt."""
-        # Keep the detailed formatting for customer receipt
+        """Formats the standard customer/transaction receipt with extra spacing."""
+        # --- Constants ---
         INIT = b'\x1B\x40'; CUT = b'\x1D\x56\x41'; FULL_CUT = b'\x1D\x56\x00'
         DRAWER_OPEN = b'\x1B\x70\x00\x64\x19'; ALIGN_CENTER = b'\x1B\x61\x01'
         ALIGN_LEFT = b'\x1B\x61\x00'; DOUBLE_HEIGHT = b'\x1B\x21\x10'
         NORMAL_TEXT = b'\x1B\x21\x00'; BOLD_ON = b'\x1B\x45\x01'
         BOLD_OFF = b'\x1B\x45\x00'; LINE_FEED = b'\x0A'
+        WIDTH = 32 # Or your printer's width
 
-        receipt = b'' + INIT + ALIGN_CENTER + BOLD_ON + DOUBLE_HEIGHT
-        receipt += "AJEEN RESTAURANT".encode('utf-8') + LINE_FEED
-        receipt += NORMAL_TEXT
+        # --- Receipt Building ---
+        receipt = b'' + INIT
+        # <<<--- ADDED: Extra whitespace at the top --- >>>
+        receipt += LINE_FEED * 2
+        # <<<------------------------------------------- >>>
+        receipt += ALIGN_CENTER
+        receipt += BOLD_ON + DOUBLE_HEIGHT + "AJEEN RESTAURANT".encode('utf-8') + LINE_FEED
+        receipt += NORMAL_TEXT + BOLD_OFF
         receipt += "123 Main Street".encode('utf-8') + LINE_FEED # Replace with actual address
-        receipt += "City, State 12345".encode('utf-8') + LINE_FEED # Replace with actual
+        receipt += "Apple Valley, MN 55124".encode('utf-8') + LINE_FEED # Replace/Update
         receipt += "Tel: (123) 456-7890".encode('utf-8') + LINE_FEED # Replace with actual
-        receipt += LINE_FEED + ALIGN_LEFT + BOLD_OFF
+        receipt += LINE_FEED + ALIGN_LEFT
 
         order_id = receipt_data.get('id', 'N/A')
-        timestamp = receipt_data.get('timestamp', time.strftime('%Y-%m-%d %H:%M:%S'))
-        receipt += f"Order #: {order_id}".encode('utf-8') + LINE_FEED
-        receipt += f"Date: {timestamp}".encode('utf-8') + LINE_FEED
+        timestamp_str = receipt_data.get('timestamp', time.strftime('%Y-%m-%d %H:%M:%S'))
+        receipt += f"Order #: {order_id}".ljust(WIDTH).encode('utf-8') + LINE_FEED
+        receipt += f"Date: {timestamp_str}".ljust(WIDTH).encode('utf-8') + LINE_FEED
         if receipt_data.get('customer_name'):
-            receipt += f"Customer: {receipt_data.get('customer_name')}".encode('utf-8') + LINE_FEED
-        receipt += LINE_FEED + BOLD_ON + "ITEMS".encode('utf-8') + LINE_FEED
-        receipt += b'-' * 32 + LINE_FEED + BOLD_OFF
+            receipt += f"Customer: {receipt_data.get('customer_name')}".ljust(WIDTH).encode('utf-8') + LINE_FEED
+        if receipt_data.get('cashier_name'):
+             receipt += f"Cashier: {receipt_data.get('cashier_name')}".ljust(WIDTH).encode('utf-8') + LINE_FEED
+        receipt += LINE_FEED + BOLD_ON + "ITEMS".center(WIDTH).encode('utf-8') + LINE_FEED
+        receipt += (b'-' * WIDTH) + LINE_FEED + BOLD_OFF
 
         items = receipt_data.get('items', [])
-        subtotal_calc = 0.0 # Calculate subtotal from items if not provided
+        subtotal_calc = Decimal('0.0')
+
         for item in items:
             name = item.get('product_name', item.get('name', 'Unknown'))
             qty = item.get('quantity', 1)
+            price_val = item.get('unit_price', item.get('price', '0.00'))
             try:
-                price = float(item.get('unit_price', item.get('price', 0.00)))
-            except (ValueError, TypeError):
-                price = 0.00
-            total = qty * price
-            subtotal_calc += total
-            item_text = f"{name} x {qty}".ljust(20)
-            price_text = f"${total:.2f}".rjust(12)
-            receipt += f"{item_text}{price_text}".encode('utf-8') + LINE_FEED
+                price = Decimal(str(price_val)) if price_val is not None else Decimal('0.00')
+            except InvalidOperation:
+                price = Decimal('0.00')
 
-        receipt += b'-' * 32 + LINE_FEED
+            total_item_price = Decimal(qty) * price
+            subtotal_calc += total_item_price
 
-        # Use provided totals if available, otherwise use calculated/defaults
-        subtotal = float(receipt_data.get('subtotal', subtotal_calc))
-        tax = float(receipt_data.get('tax', 0.00))
-        total = float(receipt_data.get('total_amount', subtotal + tax)) # Use provided total or calculate
+            item_text = f"{qty}x {name}"
+            price_text = f"${total_item_price:.2f}"
+            padding_len = WIDTH - len(item_text) - len(price_text)
+            padding = " " * max(0, padding_len)
+            receipt += f"{item_text}{padding}{price_text}".encode('utf-8') + LINE_FEED
+
+        receipt += (b'-' * WIDTH) + LINE_FEED
+
+        # --- Safely handle totals ---
+        def safe_decimal(key, default=Decimal('0.0')):
+            # ... (safe_decimal implementation from previous step) ...
+            val = receipt_data.get(key)
+            if isinstance(val, (int, float)):
+                val = str(val)
+            try:
+                return Decimal(val) if val is not None else default
+            except InvalidOperation:
+                logger.warning(f"InvalidOperation converting key '{key}' with value '{val}' to Decimal. Using default: {default}")
+                return default
+            except TypeError:
+                 logger.warning(f"TypeError converting key '{key}' with value '{val}' to Decimal. Using default: {default}")
+                 return default
+
+        subtotal = safe_decimal('subtotal', subtotal_calc)
+        discount_amount = safe_decimal('discount_amount')
+        tax_amount = safe_decimal('tax')
+        tip_amount = safe_decimal('tip_amount')
+        calculated_total = subtotal - discount_amount + tax_amount + tip_amount
+        total = safe_decimal('total_amount', calculated_total)
+
+        def format_total_line(label: str, value: Decimal) -> bytes:
+            # ... (format_total_line implementation from previous step) ...
+            value_str = f"${value:.2f}"
+            label_str = label + ":"
+            padding_len = WIDTH - len(label_str) - len(value_str)
+            padding = " " * max(0, padding_len)
+            return f"{label_str}{padding}{value_str}".encode('utf-8') + LINE_FEED
+
+        receipt += format_total_line("Subtotal", subtotal)
+        if discount_amount > 0:
+            receipt += format_total_line("Discount", -discount_amount)
+        if tax_amount > 0:
+            receipt += format_total_line("Tax", tax_amount)
+        if tip_amount > 0:
+            receipt += format_total_line("Tip", tip_amount)
 
         receipt += BOLD_ON
-        receipt += "Subtotal:".ljust(20).encode('utf-8') + f"${subtotal:.2f}".rjust(12).encode('utf-8') + LINE_FEED
-        receipt += "Tax:".ljust(20).encode('utf-8') + f"${tax:.2f}".rjust(12).encode('utf-8') + LINE_FEED
-        receipt += "Total:".ljust(20).encode('utf-8') + f"${total:.2f}".rjust(12).encode('utf-8') + LINE_FEED
+        receipt += format_total_line("TOTAL", total)
         receipt += BOLD_OFF + LINE_FEED
 
+        # --- Payment Details (Simplified) ---
         payment = receipt_data.get('payment', {})
-        payment_method = payment.get('method', payment.get('payment_method', 'N/A'))
-        receipt += f"Payment Method: {payment_method.upper()}".encode('utf-8') + LINE_FEED
+        payment_method = "Not specified"
+        if isinstance(payment, dict):
+            payment_method = payment.get('method', payment.get('payment_method', 'N/A'))
+            if payment_method:
+                payment_method = payment_method.replace("_", " ").upper()
 
-        if payment_method.lower() == 'cash':
+        receipt += f"Payment Method: {payment_method}".ljust(WIDTH).encode('utf-8') + LINE_FEED
+
+        if isinstance(payment, dict) and payment_method.lower() == 'cash':
              try:
-                amount_tendered = float(payment.get('amount_tendered', 0.00))
-                change = float(payment.get('change', 0.00))
-                receipt += f"Amount Tendered: ${amount_tendered:.2f}".encode('utf-8') + LINE_FEED
-                receipt += f"Change: ${change:.2f}".encode('utf-8') + LINE_FEED
-             except (ValueError, TypeError):
-                 logger.warning("Could not parse cash payment details for receipt.")
+                amount_tendered = safe_decimal('amount_tendered', payment.get('amount_tendered'))
+                change = safe_decimal('change', payment.get('change'))
+                if amount_tendered > 0 or change > 0:
+                    receipt += format_total_line(" Amount Tendered", amount_tendered)
+                    receipt += format_total_line(" Change", change)
+             except Exception as cash_err:
+                 logger.warning(f"Could not parse/format cash payment details: {cash_err}")
 
-
+        # --- Footer ---
         receipt += LINE_FEED + ALIGN_CENTER
         receipt += "Thank you for your purchase!".encode('utf-8') + LINE_FEED
-        receipt += "Please come again".encode('utf-8') + LINE_FEED
-        receipt += LINE_FEED * 2 # Extra spacing
-        receipt += FULL_CUT # Use full cut for customer receipt
+        receipt += "Please come again!".encode('utf-8') + LINE_FEED
+        receipt += LINE_FEED # One extra line feed after message
 
-        # Optionally open drawer
-        if receipt_data.get('open_drawer', False): # Default to False unless specified
+        # <<<--- ADDED: Extra whitespace feed before cutting --- >>>
+        # Adjust the number '5' based on how much space you need
+        receipt += LINE_FEED * 5
+        # <<<-------------------------------------------------- >>>
+
+        # --- Cut & Drawer ---
+        receipt += FULL_CUT # Full cut command
+        if receipt_data.get('open_drawer', False):
             receipt += DRAWER_OPEN
+
+        logger.debug("_format_transaction_receipt (simple version with spacing) finished.")
         return receipt
 
     # --- Public Interface Methods ---

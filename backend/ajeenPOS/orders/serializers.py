@@ -6,13 +6,15 @@ from payments.serializers import PaymentSerializer, Payment
 User = get_user_model()
 
 # ✅ Add ProductSerializer to include product details
-class ProductSerializer(serializers.ModelSerializer):
+class NestedProductSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Product
-        fields = ["id", "name", "price"]  # ✅ Include necessary product fields
+        # Use the actual Product model from OrderItem's relationship
+        model = OrderItem.product.field.related_model
+        fields = ["id", "name", "price", "category"] # <-- Include 'category' (the ID)
+        read_only_fields = fields  # ✅ Include necessary product fields
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(read_only=True)  # ✅ Nest Product details
+    product = NestedProductSerializer(read_only=True)  # ✅ Nest Product details
 
     class Meta:
         model = OrderItem

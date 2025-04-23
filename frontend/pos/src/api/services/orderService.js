@@ -14,6 +14,9 @@ export const orderService = {
 	completeOrder: (orderId, orderData) =>
 		axiosInstance.post(ENDPOINTS.ORDERS.COMPLETE(orderId), orderData),
 
+	reprintReceipt: (orderId) =>
+		axiosInstance.post(ENDPOINTS.ORDERS.REPRINT(orderId)),
+
 	voidOrder: (orderId) =>
 		axiosInstance.patch(ENDPOINTS.ORDERS.DETAIL(orderId), { status: "voided" }),
 

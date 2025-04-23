@@ -19,6 +19,11 @@ from rest_framework.pagination import PageNumberPagination
 from discounts.models import Discount
 from decimal import Decimal
 from django.db.models import F
+from hardware.controllers.receipt_printer import ReceiptPrinterController 
+import logging 
+
+logger = logging.getLogger(__name__)
+
 
 class OrderPagination(PageNumberPagination):
     page_size = 25
@@ -238,11 +243,13 @@ class ResumeOrder(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk, *args, **kwargs):
+        allowed_statuses = ["saved", "in_progress"]
         order = get_object_or_404(
-            Order.objects.select_related('payment').prefetch_related("items__product"), # Select payment
-            id=pk, user=request.user, status__in=["saved"] # Only resume 'saved' orders
+            Order.objects.select_related('payment').prefetch_related("items__product"),
+            id=pk,
+            user=request.user,
+            status__in=allowed_statuses # Use the list here
         )
-
         # If resuming a saved order, change status to in_progress
         order.status = "in_progress"
         order.save()
@@ -609,3 +616,86 @@ class ApplyOrderDiscount(APIView):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ReprintReceiptView(APIView):
+    permission_classes = [IsAuthenticated] # Ensure user is logged in
+
+    def post(self, request, pk, *args, **kwargs):
+        """
+        Handles POST request to reprint a receipt for a completed order.
+        """
+        try:
+            # Fetch the specific order, ensuring it's completed
+            order = get_object_or_404(
+                Order.objects.select_related('payment', 'discount') # Include related fields
+                               .prefetch_related('items__product', 'payment__transactions'), # Prefetch for efficiency
+                id=pk,
+                status="completed" # Only allow reprinting for completed orders
+            )
+
+            # Check if the user has permission (e.g., belongs to this user or is admin - adjust as needed)
+            # For now, we just check authentication. Add more checks if required.
+            # if order.user != request.user and not request.user.is_staff:
+            #     return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+
+            logger.info(f"Reprint request received for completed Order ID: {pk}")
+
+            # --- Prepare data for the receipt printer ---
+            # Use the OrderSerializer to get a consistent data structure
+            # Note: You might need to adjust this if the serializer doesn't include
+            # all necessary fields (like detailed payment transaction info if needed for reprint)
+            serialized_order = OrderSerializer(order).data
+
+            # Structure data specifically for the _format_transaction_receipt method if needed.
+            # The serializer output might be close enough, but let's adapt it slightly
+            # based on the expected keys in _format_transaction_receipt.
+            receipt_data_for_print = {
+                'id': serialized_order.get('id'),
+                'timestamp': serialized_order.get('created_at'), # Or updated_at? Check preference
+                'customer_name': serialized_order.get('created_by'), # Uses the formatted name
+                'items': [ # Map serializer items to the expected format
+                    {
+                        'product_name': item.get('product', {}).get('name', 'Unknown Item'),
+                        'quantity': item.get('quantity'),
+                        'unit_price': item.get('product', {}).get('price', 0.00), # Use product price from serializer
+                    } for item in serialized_order.get('items', [])
+                ],
+                'subtotal': None, # Let the printer calculate if needed or pass explicitly if available
+                'tax': None, # Let the printer calculate if needed or pass explicitly if available
+                'total_amount': serialized_order.get('total_price'),
+                'payment': { # Map payment details
+                    'method': serialized_order.get('payment', {}).get('payment_method'),
+                    'amount_tendered': None, # Usually not stored/needed for reprint?
+                    'change': None, # Usually not stored/needed for reprint?
+                     # Pass transaction details if needed and available in serializer
+                    'transactions': serialized_order.get('payment', {}).get('transactions', []),
+                    'is_split_payment': serialized_order.get('payment', {}).get('is_split_payment'),
+                },
+                'open_drawer': False # Don't open drawer on reprint by default
+            }
+
+
+            # --- Initialize printer controller and print ---
+            try:
+                printer_controller = ReceiptPrinterController()
+                # Use the existing method designed for transaction receipts
+                print_result = printer_controller.print_transaction_receipt(receipt_data_for_print)
+
+                if print_result.get("status") == "success":
+                    logger.info(f"Successfully sent reprint request for Order ID: {pk}")
+                    return Response({"message": "Receipt reprint initiated successfully."}, status=status.HTTP_200_OK)
+                else:
+                    logger.error(f"Reprint failed for Order ID: {pk}. Reason: {print_result.get('message')}")
+                    return Response({"error": f"Failed to initiate reprint: {print_result.get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            except Exception as printer_err:
+                logger.error(f"Error initializing or using printer controller for Order ID {pk}: {printer_err}", exc_info=True)
+                return Response({"error": "Printer service unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+        except Order.DoesNotExist:
+            logger.warning(f"Reprint failed: Completed Order ID {pk} not found.")
+            return Response({"error": "Completed order not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Unexpected error during reprint for Order ID {pk}: {e}", exc_info=True)
+            return Response({"error": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

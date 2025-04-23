@@ -15,32 +15,38 @@ export const useCartStore = create(
 			setRewardsProfile: (profile) => set({ rewardsProfile: profile }),
 
 			// ✅ Format Cart Data Before Saving
-			normalizeCart: (cart) => {
-				return cart.map((item) => {
-					// Parse numbers and provide fallbacks
-					const price = parseFloat(item.product?.price || item.price) || 0;
-					const quantity = parseInt(item.quantity, 10) || 1;
-					// Preserve discount if it exists, or default to 0
-					const discount =
-						item.discount !== undefined ? parseFloat(item.discount) : 0;
+			normalizeItem: (item) => {
+				// Handles items coming directly from product data or from backend order items
+				const productData = item.product || item;
+				const price = parseFloat(productData.price) || 0;
+				const quantity = parseInt(item.quantity, 10) || 1;
+				const discount =
+					item.discount !== undefined ? parseFloat(item.discount) : 0;
+				// --- MODIFICATION: Get categoryId ---
+				// Adjust 'productData.category' if your ID field is named differently (e.g., category_id)
+				const categoryId = productData.category || null; // <-- Added categoryId extraction
 
-					return {
-						id: item.product?.id || item.id,
-						name: item.product?.name || item.name,
-						price: Number.isFinite(price) ? price : 0,
-						quantity: Number.isFinite(quantity) ? quantity : 1,
-						discount: Number.isFinite(discount) ? discount : 0,
-					};
-				});
+				return {
+					id: productData.id, // Use product ID
+					name: productData.name,
+					price: Number.isFinite(price) ? price : 0,
+					quantity: Number.isFinite(quantity) ? quantity : 1,
+					discount: Number.isFinite(discount) ? discount : 0,
+					categoryId: categoryId, // <-- Store categoryId
+				};
 			},
 
 			setShowOverlay: (value) => set({ showOverlay: value }),
 
 			// ✅ Update Cart & Sync with Backend
 			setCart: (newCart) => {
-				const normalizedCart = get().normalizeCart(newCart);
+				// --- FIX: Ensure items are mapped using normalizeItem ---
+				const normalizedCart = Array.isArray(newCart)
+					? newCart.map((item) => get().normalizeItem(item))
+					: []; // Ensure newCart is an array
 				set({ cart: normalizedCart });
-				get().saveCartToBackend(normalizedCart);
+				// saveCartToBackend expects the already normalized cart state
+				get().saveCartToBackend(get().cart);
 			},
 
 			updateItemQuantity: (itemId, quantityUpdate) => {
@@ -117,30 +123,33 @@ export const useCartStore = create(
 				get().saveCartToBackend(updatedCart);
 			},
 			// ✅ Add Item & Sync with Backend
-			addToCart: (product) =>
-				set((state) => {
-					const normalizedProduct = {
-						id: product.id,
-						name: product.name,
-						price: parseFloat(product.price) || 0,
-						quantity: 1,
-					};
+			addToCart: (product) => {
+				// Use the normalizeItem helper to get the correct structure including categoryId
+				const itemToAdd = get().normalizeItem(product);
 
+				set((state) => {
 					const existingItem = state.cart.find(
-						(item) => item.id === normalizedProduct.id
+						(item) => item.id === itemToAdd.id
 					);
 
-					const updatedCart = existingItem
-						? state.cart.map((item) =>
-								item.id === normalizedProduct.id
-									? { ...item, quantity: item.quantity + 1 }
-									: item
-						  )
-						: [...state.cart, normalizedProduct];
+					let updatedCart;
+					if (existingItem) {
+						// Increase quantity of existing item
+						updatedCart = state.cart.map((item) =>
+							item.id === itemToAdd.id
+								? { ...item, quantity: item.quantity + 1 }
+								: item
+						);
+					} else {
+						// Add the new normalized item (with categoryId)
+						updatedCart = [...state.cart, { ...itemToAdd, quantity: 1 }];
+					}
 
-					get().saveCartToBackend(updatedCart);
-					return { cart: updatedCart };
-				}),
+					// Now save the updated cart state to backend
+					get().saveCartToBackend(updatedCart); // Pass the newly calculated cart
+					return { cart: updatedCart }; // Update the state
+				});
+			},
 
 			// ✅ Remove Item & Sync with Backend
 			removeFromCart: (id) =>
@@ -215,10 +224,10 @@ export const useCartStore = create(
 			// Add a utility function to validate cart items
 			validateCartItem: (item) => {
 				if (!item) return false;
-
 				const price = parseFloat(item.price);
 				const quantity = parseInt(item.quantity, 10);
 				const discount = parseFloat(item.discount || 0);
+				const hasCategoryId = "categoryId" in item;
 
 				return (
 					item.id &&
@@ -229,7 +238,8 @@ export const useCartStore = create(
 					quantity > 0 &&
 					Number.isFinite(discount) &&
 					discount >= 0 &&
-					discount <= 100 // Assuming discount is a percentage
+					discount <= 100 &&
+					hasCategoryId
 				);
 			},
 			// Add this method to set the order discount

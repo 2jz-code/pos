@@ -34,6 +34,8 @@ urlpatterns = [
     path('api/rewards/', include('rewards.urls')),
     path('api/discounts/', include('discounts.urls')),
     path('api/website/rewards/', include('rewards.urls')),
+    path('api/', include('users.urls_mobile')),
+
 ]
 
 if settings.DEBUG:
