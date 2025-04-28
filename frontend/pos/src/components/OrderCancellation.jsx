@@ -109,9 +109,9 @@ const OrderCancellation = ({
 
 OrderCancellation.propTypes = {
 	activeOrderId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-	setActiveOrderId: PropTypes.func.isRequired,
-	clearCart: PropTypes.func.isRequired,
-	setShowOverlay: PropTypes.func.isRequired,
+	setActiveOrderId: PropTypes.func,
+	clearCart: PropTypes.func,
+	setShowOverlay: PropTypes.func,
 	axiosInstance: PropTypes.oneOfType([PropTypes.object, PropTypes.func])
 		.isRequired,
 };

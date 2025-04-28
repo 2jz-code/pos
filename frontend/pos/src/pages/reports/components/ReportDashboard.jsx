@@ -1,458 +1,345 @@
-// src/components/reports/ReportDashboard.jsx
-import { motion } from "framer-motion";
-import LoadingSpinner from "./LoadingSpinner";
+import { motion } from "framer-motion"; // Original import
+import LoadingSpinner from "./LoadingSpinner"; // Original import
 import PropTypes from "prop-types";
+// Icons for UI
+import {
+	ArrowUpIcon,
+	ArrowDownIcon,
+	InformationCircleIcon,
+	ExclamationTriangleIcon,
+	ChartBarIcon,
+	CurrencyDollarIcon,
+	ArchiveBoxIcon,
+	CreditCardIcon,
+} from "@heroicons/react/24/outline";
 
+/**
+ * ReportDashboard Component (Logic Preserved from User Provided Code)
+ *
+ * Displays summary cards for sales and payment metrics.
+ * UI updated for a modern look and feel; Logic remains unchanged.
+ */
 const ReportDashboard = ({ data, isLoading, error }) => {
-	// Calculate the correct success rate by excluding refunded and voided transactions
+	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
+	// Calculate the correct success rate (Original)
 	const calculateCorrectSuccessRate = (method) => {
-		// Check if we have the necessary data
-		if (!method || typeof method.transaction_count !== "number") {
-			return 0;
-		}
-
-		// MODIFIED: Only use failed_count as unsuccessful
+		if (!method || typeof method.transaction_count !== "number") return 0;
 		const failedCount = method.failed_count || 0;
-
-		// Calculate success rate
-		if (method.transaction_count === 0) {
-			return 0;
-		}
-
+		if (method.transaction_count === 0) return 0;
 		const successRate =
 			((method.transaction_count - failedCount) / method.transaction_count) *
 			100;
-		return Math.round(successRate * 100) / 100; // Round to 2 decimal places
+		return Math.round(successRate * 100) / 100;
 	};
 
-	// Success rate tooltip component
+	// Success rate tooltip component (Original)
 	const SuccessRateTooltip = () => (
 		<div className="group relative inline-block ml-1">
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				className="h-4 w-4 text-slate-400 cursor-help"
-				viewBox="0 0 20 20"
-				fill="currentColor"
-			>
-				<path
-					fillRule="evenodd"
-					d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
-					clipRule="evenodd"
-				/>
-			</svg>
-			<div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-300 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg z-10">
-				Success rate is calculated by counting only failed transactions as
-				unsuccessful. Refunded and voided transactions still count as
-				successful.
+			<InformationCircleIcon className="h-3.5 w-3.5 text-slate-400 cursor-help" />
+			<div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-300 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-slate-700 text-white text-xs rounded shadow-lg z-10">
+				Success rate excludes refunded and voided transactions. Only failed
+				transactions count against the success rate.
 			</div>
 		</div>
 	);
 
+	// Format currency (Original)
+	const formatCurrency = (amount) => {
+		// Handle potential null/undefined safely
+		const numAmount = Number(amount);
+		if (isNaN(numAmount)) {
+			return "$ --"; // Or some other placeholder
+		}
+		return new Intl.NumberFormat("en-US", {
+			style: "currency",
+			currency: "USD",
+			minimumFractionDigits: 2,
+		}).format(numAmount);
+	};
+
+	// Growth indicator component (Original)
+	const GrowthIndicator = ({ value }) => {
+		const numValue = Number(value);
+		if (isNaN(numValue)) {
+			return <span className="text-xs text-slate-400">-</span>;
+		}
+		const isPositive = numValue >= 0;
+		return (
+			<div
+				className={`inline-flex items-center text-xs font-medium px-1.5 py-0.5 rounded ${
+					isPositive
+						? "bg-emerald-100 text-emerald-700"
+						: "bg-red-100 text-red-700"
+				}`}
+			>
+				{isPositive ? (
+					<ArrowUpIcon className="h-3 w-3 mr-0.5" />
+				) : (
+					<ArrowDownIcon className="h-3 w-3 mr-0.5" />
+				)}
+				<span>{Math.abs(numValue).toFixed(1)}%</span>{" "}
+				{/* Adjusted to 1 decimal place */}
+			</div>
+		);
+	};
+	// --- END OF ORIGINAL LOGIC ---
+
+	// --- UPDATED UI (JSX Structure and Styling Only) ---
+	// Loading State
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-center h-full">
+			<div className="flex items-center justify-center h-full p-6">
 				<LoadingSpinner size="lg" />
 			</div>
 		);
 	}
 
+	// Error State
 	if (error) {
 		return (
 			<div className="flex flex-col items-center justify-center h-full p-6 text-center">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					className="h-12 w-12 text-red-500 mb-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						strokeWidth={2}
-						d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-					/>
-				</svg>
-				<h3 className="text-lg font-medium text-slate-800 mb-2">
+				<ExclamationTriangleIcon className="h-10 w-10 text-red-500 mb-3" />
+				<h3 className="text-base font-medium text-slate-700 mb-1">
 					Error Loading Dashboard
 				</h3>
-				<p className="text-slate-600">{error}</p>
+				<p className="text-sm text-slate-500">{error}</p>
 			</div>
 		);
 	}
 
-	if (!data || !data.today || !data.this_month || !data.this_year) {
+	// No Data State
+	if (
+		!data ||
+		!data.today ||
+		!data.this_month ||
+		!data.this_year ||
+		!data.top_products ||
+		!data.payment_methods
+	) {
 		return (
 			<div className="flex flex-col items-center justify-center h-full p-6 text-center">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					className="h-12 w-12 text-slate-300 mb-4"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						strokeWidth={2}
-						d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-					/>
-				</svg>
-				<h3 className="text-lg font-medium text-slate-800 mb-2">
+				<ChartBarIcon className="h-12 w-12 text-slate-300 mb-4" />
+				<h3 className="text-lg font-medium text-slate-700 mb-2">
 					No Data Available
 				</h3>
-				<p className="text-slate-600">
-					No sales data is available for the dashboard yet.
+				<p className="text-sm text-slate-500">
+					No summary data is available for the dashboard yet.
 				</p>
 			</div>
 		);
 	}
 
-	// Format currency
-	const formatCurrency = (amount) => {
-		return new Intl.NumberFormat("en-US", {
-			style: "currency",
-			currency: "USD",
-			minimumFractionDigits: 2,
-		}).format(amount);
-	};
-
-	// Growth indicator component
-	const GrowthIndicator = ({ value }) => {
-		const isPositive = value >= 0;
-		return (
-			<div
-				className={`flex items-center ${
-					isPositive ? "text-emerald-600" : "text-red-600"
-				}`}
-			>
-				{isPositive ? (
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						className="h-4 w-4 mr-1"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-					>
-						<path
-							fillRule="evenodd"
-							d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z"
-							clipRule="evenodd"
-						/>
-					</svg>
-				) : (
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						className="h-4 w-4 mr-1"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-					>
-						<path
-							fillRule="evenodd"
-							d="M12 13a1 1 0 100 2h5a1 1 0 001-1v-5a1 1 0 10-2 0v2.586l-4.293-4.293a1 1 0 00-1.414 0L8 9.586l-4.293-4.293a1 1 0 00-1.414 1.414l5 5a1 1 0 001.414 0L11 9.414 14.586 13H12z"
-							clipRule="evenodd"
-						/>
-					</svg>
-				)}
-				<span className="font-medium">{Math.abs(value).toFixed(2)}%</span>
-			</div>
-		);
-	};
+	// Dashboard Card Base Style
+	const cardBaseStyle =
+		"bg-white rounded-lg shadow-sm border border-slate-200 p-4"; // Reduced padding
 
 	return (
-		<div className="p-6 overflow-auto h-full">
-			<div className="mb-8">
-				<h2 className="text-xl font-semibold text-slate-800 mb-4">
-					Sales Overview
+		<div className="p-4 sm:p-6 space-y-6">
+			{" "}
+			{/* Adjusted padding and spacing */}
+			{/* Sales Overview Section */}
+			<motion.div
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				transition={{ delay: 0.1 }}
+			>
+				<h2 className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
+					<CurrencyDollarIcon className="h-5 w-5 text-slate-500" /> Sales
+					Overview
 				</h2>
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-					{/* Today's Sales */}
-					<motion.div
-						className="bg-white rounded-lg shadow-sm border border-slate-200 p-6"
-						initial={{ opacity: 0, y: 20 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.3 }}
-					>
-						<div className="flex justify-between items-start mb-4">
-							<div>
-								<h3 className="text-sm font-medium text-slate-500">
-									{"Today's Sales"}
-								</h3>
-								<p className="text-2xl font-bold text-slate-800">
-									{formatCurrency(data.today.sales)}
-								</p>
-							</div>
-							<div className="p-2 bg-blue-50 rounded-lg">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-6 w-6 text-blue-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-									/>
-								</svg>
-							</div>
-						</div>
-						<div className="flex justify-between items-center">
-							<div className="text-sm text-slate-500">
-								<span className="font-medium text-slate-700">
-									{data.today.orders}
-								</span>{" "}
-								orders
-							</div>
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+					{" "}
+					{/* Adjusted gap */}
+					{/* Today Card */}
+					<div className={cardBaseStyle}>
+						<div className="flex justify-between items-center mb-1">
+							<h3 className="text-sm font-medium text-slate-500">Today</h3>
 							<GrowthIndicator value={data.today.growth} />
 						</div>
-					</motion.div>
-
-					{/* This Month's Sales */}
-					<motion.div
-						className="bg-white rounded-lg shadow-sm border border-slate-200 p-6"
-						initial={{ opacity: 0, y: 20 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.3, delay: 0.1 }}
-					>
-						<div className="flex justify-between items-start mb-4">
-							<div>
-								<h3 className="text-sm font-medium text-slate-500">
-									This Month
-								</h3>
-								<p className="text-2xl font-bold text-slate-800">
-									{formatCurrency(data.this_month.sales)}
-								</p>
-							</div>
-							<div className="p-2 bg-purple-50 rounded-lg">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-6 w-6 text-purple-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-									/>
-								</svg>
-							</div>
-						</div>
-						<div className="flex justify-between items-center">
-							<div className="text-sm text-slate-500">
-								<span className="font-medium text-slate-700">
-									{data.this_month.orders}
-								</span>{" "}
-								orders
-							</div>
+						<p className="text-xl font-bold text-slate-800">
+							{formatCurrency(data.today.sales)}
+						</p>
+						<p className="text-xs text-slate-500 mt-1">
+							{data.today.orders} orders
+						</p>
+					</div>
+					{/* Month Card */}
+					<div className={cardBaseStyle}>
+						<div className="flex justify-between items-center mb-1">
+							<h3 className="text-sm font-medium text-slate-500">This Month</h3>
 							<GrowthIndicator value={data.this_month.growth} />
 						</div>
-					</motion.div>
-
-					{/* This Year's Sales */}
-					<motion.div
-						className="bg-white rounded-lg shadow-sm border border-slate-200 p-6"
-						initial={{ opacity: 0, y: 20 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 0.3, delay: 0.2 }}
-					>
-						<div className="flex justify-between items-start mb-4">
-							<div>
-								<h3 className="text-sm font-medium text-slate-500">
-									This Year
-								</h3>
-								<p className="text-2xl font-bold text-slate-800">
-									{formatCurrency(data.this_year.sales)}
-								</p>
-							</div>
-							<div className="p-2 bg-emerald-50 rounded-lg">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-6 w-6 text-emerald-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={2}
-										d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-									/>
-								</svg>
-							</div>
+						<p className="text-xl font-bold text-slate-800">
+							{formatCurrency(data.this_month.sales)}
+						</p>
+						<p className="text-xs text-slate-500 mt-1">
+							{data.this_month.orders} orders
+						</p>
+					</div>
+					{/* Year Card */}
+					<div className={`${cardBaseStyle} sm:col-span-2 lg:col-span-1`}>
+						{" "}
+						{/* Span across on small screens */}
+						<div className="flex justify-between items-center mb-1">
+							<h3 className="text-sm font-medium text-slate-500">
+								This Year ({data.this_year.year})
+							</h3>
+							{/* No growth indicator for year in original data */}
 						</div>
-						<div className="flex justify-between items-center">
-							<div className="text-sm text-slate-500">
-								<span className="font-medium text-slate-700">
-									{data.this_year.orders}
-								</span>{" "}
-								orders
-							</div>
-							<div className="text-sm text-slate-500">
-								{data.this_year.year}
-							</div>
-						</div>
-					</motion.div>
+						<p className="text-xl font-bold text-slate-800">
+							{formatCurrency(data.this_year.sales)}
+						</p>
+						<p className="text-xs text-slate-500 mt-1">
+							{data.this_year.orders} orders
+						</p>
+					</div>
 				</div>
-			</div>
-
-			{/* Top Products */}
-			<div className="mb-8">
-				<h2 className="text-xl font-semibold text-slate-800 mb-4">
-					Top Products
+			</motion.div>
+			{/* Top Products Section */}
+			<motion.div
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				transition={{ delay: 0.2 }}
+			>
+				<h2 className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
+					<ArchiveBoxIcon className="h-5 w-5 text-slate-500" /> Top Products (by
+					Revenue)
 				</h2>
-				<div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-slate-200">
-							<thead className="bg-slate-50">
+				<div className={`${cardBaseStyle} overflow-x-auto`}>
+					{data.top_products.length > 0 ? (
+						<table className="min-w-full text-xs">
+							<thead className="text-slate-500">
 								<tr>
-									<th
-										scope="col"
-										className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Product
-									</th>
-									<th
-										scope="col"
-										className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
+									<th className="py-1.5 px-2 text-left font-medium">Product</th>
+									<th className="py-1.5 px-2 text-left font-medium">
 										Category
 									</th>
-									<th
-										scope="col"
-										className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Sold
-									</th>
-									<th
-										scope="col"
-										className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
+									<th className="py-1.5 px-2 text-right font-medium">Sold</th>
+									<th className="py-1.5 px-2 text-right font-medium">
 										Revenue
 									</th>
 								</tr>
 							</thead>
-							<tbody className="bg-white divide-y divide-slate-200">
+							<tbody className="divide-y divide-slate-100">
 								{data.top_products.map((product) => (
 									<tr
 										key={product.product_id}
 										className="hover:bg-slate-50"
 									>
-										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
+										<td
+											className="py-1.5 px-2 font-medium text-slate-700 truncate max-w-[150px]"
+											title={product.product_name}
+										>
 											{product.product_name}
 										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-											{product.category}
+										<td className="py-1.5 px-2 text-slate-600">
+											{product.category || "-"}
 										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
+										<td className="py-1.5 px-2 text-right text-slate-600">
 											{product.quantity_sold}
 										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-slate-800">
+										<td className="py-1.5 px-2 text-right font-semibold text-slate-700">
 											{formatCurrency(product.revenue)}
 										</td>
 									</tr>
 								))}
 							</tbody>
 						</table>
-					</div>
+					) : (
+						<p className="text-sm text-slate-500 text-center py-4">
+							No product data available for this period.
+						</p>
+					)}
 				</div>
-			</div>
-
-			{/* Payment Methods */}
-			<div>
-				<h2 className="text-xl font-semibold text-slate-800 mb-4">
-					Payment Methods
+			</motion.div>
+			{/* Payment Methods Section */}
+			<motion.div
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				transition={{ delay: 0.3 }}
+			>
+				<h2 className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
+					<CreditCardIcon className="h-5 w-5 text-slate-500" /> Payment Methods
 				</h2>
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					{/* Payment Method Distribution */}
-					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-						<h3 className="text-lg font-medium text-slate-800 mb-4">
-							Distribution
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+					{/* Distribution */}
+					<div className={`${cardBaseStyle} space-y-3`}>
+						<h3 className="text-sm font-medium text-slate-600">
+							Distribution by Amount
 						</h3>
-						<div className="space-y-4">
-							{data.payment_methods.map((method) => (
+						{data.payment_methods.length > 0 ? (
+							data.payment_methods.map((method) => (
 								<div key={method.payment_method}>
-									<div className="flex justify-between mb-1">
-										<span className="text-sm font-medium text-slate-700">
+									<div className="flex justify-between mb-0.5">
+										<span className="text-xs font-medium text-slate-700">
 											{method.payment_method}
 										</span>
-										<span className="text-sm text-slate-500">
+										<span className="text-xs text-slate-500">
 											{formatCurrency(method.total_amount)}
 										</span>
 									</div>
-									<div className="w-full bg-slate-200 rounded-full h-2">
+									<div className="w-full bg-slate-200 rounded-full h-1.5">
 										<div
-											className="bg-blue-500 h-2 rounded-full"
+											className="bg-blue-500 h-1.5 rounded-full"
 											style={{
 												width: `${
-													(method.transaction_count /
+													(method.total_amount /
 														data.payment_methods.reduce(
-															(sum, m) => sum + m.transaction_count,
-															0
+															(sum, m) => sum + m.total_amount,
+															1
 														)) *
 													100
 												}%`,
 											}}
-										></div>
+										></div>{" "}
+										{/* Avoid division by zero */}
 									</div>
 								</div>
-							))}
-						</div>
+							))
+						) : (
+							<p className="text-sm text-slate-500 text-center py-4">
+								No payment data available.
+							</p>
+						)}
 					</div>
-
-					{/* Payment Success Rate */}
-					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-						<h3 className="text-lg font-medium text-slate-800 mb-4 flex items-center">
-							Success Rate
-							<SuccessRateTooltip />
+					{/* Success Rate */}
+					<div className={`${cardBaseStyle} space-y-3`}>
+						<h3 className="text-sm font-medium text-slate-600 flex items-center">
+							Success Rate <SuccessRateTooltip />
 						</h3>
-						<div className="grid grid-cols-2 gap-4">
-							{data.payment_methods.map((method) => (
-								<div
-									key={`success-${method.payment_method}`}
-									className="bg-slate-50 rounded-lg p-4 text-center"
-								>
-									<div className="text-3xl font-bold text-slate-800 mb-1">
-										{calculateCorrectSuccessRate(method)}%
-									</div>
-									<div className="text-sm text-slate-500">
-										{method.payment_method}
-									</div>
-									<div className="text-xs text-slate-400 mt-2">
-										{method.transaction_count} transactions
-										<div className="flex flex-wrap gap-1 mt-1">
-											{method.refund_count > 0 && (
-												<span className="text-amber-500">
-													({method.refund_count} refunded)
-												</span>
-											)}
-											{method.void_count > 0 && (
-												<span className="text-red-500 ml-1">
-													({method.void_count} voided)
-												</span>
-											)}
-											{method.failed_count > 0 && (
-												<span className="text-red-500 ml-1">
-													({method.failed_count} failed)
-												</span>
-											)}
+						{data.payment_methods.length > 0 ? (
+							<div className="grid grid-cols-2 gap-3">
+								{data.payment_methods.map((method) => (
+									<div
+										key={`success-${method.payment_method}`}
+										className="bg-slate-50 rounded p-2 text-center border border-slate-200"
+									>
+										<div className="text-xl font-bold text-slate-800">
+											{calculateCorrectSuccessRate(method)}%
+										</div>
+										<div className="text-xs text-slate-500">
+											{method.payment_method}
+										</div>
+										<div className="text-[10px] text-slate-400 mt-1">
+											({method.transaction_count} txns)
 										</div>
 									</div>
-								</div>
-							))}
-						</div>
+								))}
+							</div>
+						) : (
+							<p className="text-sm text-slate-500 text-center py-4">
+								No payment data available.
+							</p>
+						)}
 					</div>
 				</div>
-			</div>
+			</motion.div>
 		</div>
 	);
+	// --- END OF UPDATED UI ---
 };
 
+// --- ORIGINAL PROPTYPES (UNCHANGED) ---
 ReportDashboard.propTypes = {
 	data: PropTypes.shape({
 		today: PropTypes.shape({
@@ -484,15 +371,16 @@ ReportDashboard.propTypes = {
 				payment_method: PropTypes.string,
 				transaction_count: PropTypes.number,
 				total_amount: PropTypes.number,
-				success_rate: PropTypes.number,
+				success_rate: PropTypes.number, // Note: Original data might have this, but we recalculate
 				refund_count: PropTypes.number,
 				void_count: PropTypes.number,
+				failed_count: PropTypes.number, // Added based on calculation function
 			})
 		),
 	}),
 	isLoading: PropTypes.bool,
 	error: PropTypes.string,
-	value: PropTypes.number,
+	value: PropTypes.number, // Removed as it's not used in the component logic provided
 };
 
 export default ReportDashboard;

@@ -1,33 +1,44 @@
-// src/pages/payments/RefundConfirmation.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react"; // Added React, Fragment import
 import PropTypes from "prop-types";
-import Modal from "../../components/common/Modal"; // Assuming Modal component exists and works
-
+// Icons
+import {
+	ExclamationTriangleIcon,
+	ArrowPathIcon,
+	ArrowUturnLeftIcon,
+} from "@heroicons/react/24/outline";
+import { XMarkIcon } from "@heroicons/react/24/solid";
+import { Transition, Dialog } from "@headlessui/react";
+/**
+ * RefundConfirmation Component (Logic Preserved from User Provided Code)
+ *
+ * Modal to confirm refund details before processing.
+ * UI updated for a modern look and feel; Logic remains unchanged.
+ */
 export default function RefundConfirmation({
 	isOpen,
 	onClose,
-	transaction, // ** Specific transaction to refund **
+	transaction, // Specific transaction to refund
 	onConfirm,
 	isProcessing = false,
+	// Removed unused 'payment' prop based on provided logic
 }) {
-	// State for the refund amount, defaulting to the transaction's full amount
+	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
 	const [refundAmount, setRefundAmount] = useState("");
 	const [refundReason, setRefundReason] = useState("requested_by_customer");
 	const [confirmationText, setConfirmationText] = useState("");
 	const [isValidAmount, setIsValidAmount] = useState(true);
 
-	// Reset state when modal opens or transaction changes
+	// Reset state when modal opens or transaction changes (Original)
 	useEffect(() => {
 		if (isOpen && transaction) {
-			// Set refund amount to full transaction amount when modal opens
 			setRefundAmount(transaction.amount?.toString() || "0");
 			setRefundReason("requested_by_customer");
 			setConfirmationText("");
-			setIsValidAmount(true); // Assume valid initially
+			setIsValidAmount(true);
 		}
-	}, [isOpen, transaction]); // Rerun when transaction changes
+	}, [isOpen, transaction]);
 
-	// Validate amount input whenever refundAmount or transaction changes
+	// Validate amount input (Original)
 	useEffect(() => {
 		if (!transaction) {
 			setIsValidAmount(false);
@@ -35,13 +46,12 @@ export default function RefundConfirmation({
 		}
 		const amountNum = parseFloat(refundAmount);
 		const transactionAmountNum = parseFloat(transaction.amount || 0);
-
 		const valid =
 			!isNaN(amountNum) && amountNum > 0 && amountNum <= transactionAmountNum;
 		setIsValidAmount(valid);
 	}, [refundAmount, transaction]);
 
-	// Format currency
+	// Format currency (Original)
 	const formatCurrency = (amount) => {
 		const numAmount = Number(amount);
 		if (isNaN(numAmount)) return "$0.00";
@@ -51,218 +61,271 @@ export default function RefundConfirmation({
 		}).format(numAmount);
 	};
 
-	// Handle the final confirmation
+	// Handle the final confirmation (Original)
 	const handleConfirm = () => {
-		// Double check transaction exists before proceeding
 		if (!transaction || !isValidAmount || confirmationText !== "REFUND") {
 			console.error("Refund confirmation check failed:", {
 				transaction,
 				isValidAmount,
 				confirmationText,
 			});
+			// Optionally show a toast error here
 			return;
 		}
-		// const amountToRefund = parseFloat(refundAmount); // Keep this for validation logic if needed internally
-		const formattedAmountString = Number(refundAmount).toFixed(2);
-
+		const formattedAmountString = Number(refundAmount).toFixed(2); // Ensure 2 decimal places string
 		const refundData = {
 			transaction_id: transaction.id, // Pass the PaymentTransaction ID
-			amount: formattedAmountString, // <<< Use the formatted string amount
+			amount: formattedAmountString,
 			reason: refundReason,
 		};
-		onConfirm(refundData);
+		onConfirm(refundData); // Call original prop function
 	};
+	// --- END OF ORIGINAL LOGIC ---
 
-	// --- Helper function REMOVED ---
-	// const calculateRefundAmount = ... (Removed as it was causing errors)
+	// --- UPDATED UI (JSX Structure and Styling Only) ---
+	// Input field base class
+	const inputBaseClass =
+		"block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 sm:text-sm disabled:bg-slate-100";
+	const inputNormalClass = `${inputBaseClass} border-slate-300 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400`;
+	const inputErrorClass = `${inputBaseClass} border-red-400 text-red-800 focus:ring-red-500 focus:border-red-500 placeholder-red-300`;
+	const selectClass = `${inputNormalClass} appearance-none bg-white bg-no-repeat bg-right-3`;
+	const labelClass = "block text-xs font-medium text-slate-600 mb-1";
+	const baseButtonClass =
+		"inline-flex justify-center items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed";
+	const dangerButtonClass = `${baseButtonClass} bg-red-600 text-white hover:bg-red-700 focus:ring-red-500`;
+	const secondaryButtonClass = `${baseButtonClass} bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 focus:ring-slate-500`;
 
-	// Render logic
-	if (!isOpen || !transaction) return null;
+	if (!isOpen || !transaction) return null; // Keep original condition
 
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={onClose}
-			title={`Refund Transaction #${transaction.id}`}
-			size="md"
+		// Use Headless UI Transition/Dialog for accessibility and animations
+		<Transition
+			appear
+			show={isOpen}
+			as={Fragment}
 		>
-			<div className="space-y-4">
-				{/* Display Transaction Details */}
-				<div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-					<h4 className="text-sm font-medium text-slate-600 mb-2">
-						Transaction Details:
-					</h4>
-					<div className="flex justify-between mb-1">
-						<span className="text-sm">Method:</span>
-						<span className="text-sm font-medium">
-							{transaction.payment_method?.toUpperCase()}
-						</span>
+			<Dialog
+				as="div"
+				className="relative z-[60]"
+				onClose={onClose}
+			>
+				{" "}
+				{/* High z-index */}
+				<Transition.Child
+					as={Fragment}
+					enter="ease-out duration-200"
+					enterFrom="opacity-0"
+					enterTo="opacity-100"
+					leave="ease-in duration-150"
+					leaveFrom="opacity-100"
+					leaveTo="opacity-0"
+				>
+					<div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+				</Transition.Child>
+				<div className="fixed inset-0 overflow-y-auto">
+					<div className="flex min-h-full items-center justify-center p-4 text-center">
+						<Transition.Child
+							as={Fragment}
+							enter="ease-out duration-200"
+							enterFrom="opacity-0 scale-95"
+							enterTo="opacity-100 scale-100"
+							leave="ease-in duration-150"
+							leaveFrom="opacity-100 scale-100"
+							leaveTo="opacity-0 scale-95"
+						>
+							<Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-lg bg-white text-left align-middle shadow-xl transition-all border border-slate-200">
+								{/* Modal Header */}
+								<div className="flex justify-between items-center p-4 border-b border-slate-200">
+									<Dialog.Title
+										as="h3"
+										className="text-lg font-semibold leading-6 text-slate-800"
+									>
+										Refund Transaction #{transaction.id}
+									</Dialog.Title>
+									<button
+										onClick={onClose}
+										className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+										aria-label="Close modal"
+									>
+										<XMarkIcon className="h-5 w-5" />
+									</button>
+								</div>
+
+								{/* Modal Body */}
+								<div className="p-5 space-y-4">
+									{/* Transaction Details */}
+									<div className="p-3 bg-slate-50 rounded-md border border-slate-200 space-y-1">
+										<h4 className="text-xs font-semibold text-slate-600 mb-1">
+											Transaction to Refund:
+										</h4>
+										<div className="flex justify-between text-xs">
+											<span>Method:</span>{" "}
+											<span className="font-medium">
+												{transaction.payment_method?.toUpperCase()}
+											</span>
+										</div>
+										<div className="flex justify-between text-xs">
+											<span>Amount:</span>{" "}
+											<span className="font-semibold">
+												{formatCurrency(transaction.amount)}
+											</span>
+										</div>
+										{transaction.transaction_id && (
+											<div className="flex justify-between text-xs">
+												<span>Ref ID:</span>{" "}
+												<span className="font-mono bg-slate-100 px-1 rounded">
+													{transaction.transaction_id}
+												</span>
+											</div>
+										)}
+									</div>
+
+									{/* Refund Amount Input */}
+									<div>
+										<label
+											htmlFor="refund-amount"
+											className={labelClass}
+										>
+											Refund Amount:
+										</label>
+										<div className="relative">
+											<span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
+												$
+											</span>
+											<input
+												type="number"
+												id="refund-amount"
+												value={refundAmount}
+												onChange={(e) => setRefundAmount(e.target.value)}
+												max={transaction.amount}
+												min="0.01"
+												step="0.01"
+												className={`pl-7 pr-3 ${
+													isValidAmount ? inputNormalClass : inputErrorClass
+												}`}
+												placeholder={`Max ${formatCurrency(
+													transaction.amount
+												)}`}
+												required
+											/>
+										</div>
+										{!isValidAmount && refundAmount && (
+											<p className="mt-1 text-xs text-red-600">
+												Amount must be between $0.01 and{" "}
+												{formatCurrency(transaction.amount)}.
+											</p>
+										)}
+									</div>
+
+									{/* Refund Reason */}
+									<div>
+										<label
+											htmlFor="refund-reason"
+											className={labelClass}
+										>
+											Reason for Refund:
+										</label>
+										<select
+											id="refund-reason"
+											value={refundReason}
+											onChange={(e) => setRefundReason(e.target.value)}
+											className={selectClass}
+										>
+											<option value="requested_by_customer">
+												Requested by customer
+											</option>
+											<option value="duplicate">Duplicate</option>
+											<option value="fraudulent">Fraudulent</option>
+											<option value="order_cancelled">Order Cancelled</option>
+											<option value="product_unsatisfactory">
+												Product Unsatisfactory
+											</option>
+											<option value="other">Other</option>
+										</select>
+									</div>
+
+									{/* Final Confirmation */}
+									<div className="bg-amber-50 border-l-4 border-amber-400 p-3 my-3 rounded-r-md">
+										<p className="text-xs text-amber-800 flex items-start gap-1.5">
+											<ExclamationTriangleIcon className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+											<span>
+												Warning: This action cannot be undone. Type{" "}
+												<strong>REFUND</strong> below to confirm.
+											</span>
+										</p>
+									</div>
+									<div>
+										<label
+											htmlFor="confirmation-text"
+											className={labelClass}
+										>
+											Confirm by typing REFUND:
+										</label>
+										<input
+											type="text"
+											id="confirmation-text"
+											value={confirmationText}
+											onChange={(e) => setConfirmationText(e.target.value)}
+											className={`font-mono tracking-widest ${
+												confirmationText !== "REFUND" && confirmationText !== ""
+													? inputErrorClass
+													: inputNormalClass
+											}`}
+											placeholder="REFUND"
+											required
+										/>
+									</div>
+								</div>
+
+								{/* Modal Footer */}
+								<div className="mt-5 sm:mt-6 px-5 pb-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0">
+									<button
+										type="button"
+										onClick={onClose}
+										className={secondaryButtonClass}
+										disabled={isProcessing}
+									>
+										Cancel
+									</button>
+									<button
+										type="button"
+										onClick={handleConfirm}
+										disabled={
+											!isValidAmount ||
+											confirmationText !== "REFUND" ||
+											isProcessing
+										}
+										className={`${dangerButtonClass} flex items-center gap-1.5`}
+									>
+										{isProcessing ? (
+											<ArrowPathIcon className="h-4 w-4 animate-spin" />
+										) : (
+											<ArrowUturnLeftIcon className="h-4 w-4" />
+										)}
+										{isProcessing
+											? "Processing..."
+											: `Refund ${formatCurrency(refundAmount)}`}
+									</button>
+								</div>
+							</Dialog.Panel>
+						</Transition.Child>
 					</div>
-					<div className="flex justify-between">
-						<span className="text-sm">Original Amount:</span>
-						<span className="text-sm font-semibold">
-							{formatCurrency(transaction.amount)}
-						</span>
-					</div>
-					{transaction.transaction_id && (
-						<div className="flex justify-between mt-1">
-							<span className="text-sm">Reference ID:</span>
-							<span className="text-xs font-mono bg-slate-100 px-1 rounded">
-								{transaction.transaction_id}
-							</span>
-						</div>
-					)}
 				</div>
-
-				{/* Refund Amount Input */}
-				<div>
-					<label
-						htmlFor="refund-amount"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
-						Refund Amount:
-					</label>
-					<input
-						type="number"
-						id="refund-amount"
-						value={refundAmount}
-						onChange={(e) => setRefundAmount(e.target.value)}
-						max={transaction.amount}
-						min="0.01"
-						step="0.01"
-						className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none sm:text-sm ${
-							isValidAmount
-								? "border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-								: "border-red-500 ring-red-500 focus:ring-red-500 focus:border-red-500"
-						}`}
-						placeholder={`Max ${formatCurrency(transaction.amount)}`}
-						required
-					/>
-					{!isValidAmount && refundAmount && (
-						<p className="mt-1 text-xs text-red-600">
-							Amount must be between $0.01 and{" "}
-							{formatCurrency(transaction.amount)}.
-						</p>
-					)}
-				</div>
-
-				{/* Refund Reason */}
-				<div>
-					<label
-						htmlFor="refund-reason"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
-						Reason for Refund:
-					</label>
-					<select
-						id="refund-reason"
-						value={refundReason}
-						onChange={(e) => setRefundReason(e.target.value)}
-						className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-					>
-						<option value="requested_by_customer">Requested by customer</option>
-						<option value="duplicate">Duplicate</option>
-						<option value="fraudulent">Fraudulent</option>
-						<option value="order_cancelled">Order Cancelled</option>
-						<option value="product_unsatisfactory">
-							Product Unsatisfactory
-						</option>
-						<option value="other">Other</option>
-					</select>
-				</div>
-
-				{/* Final Confirmation */}
-				<div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 my-4">
-					<p className="text-sm text-yellow-700">
-						Warning: This action cannot be undone. Type <strong>REFUND</strong>{" "}
-						below to confirm.
-					</p>
-				</div>
-				<div>
-					<label
-						htmlFor="confirmation-text"
-						className="block text-sm font-medium text-gray-700 mb-1"
-					>
-						Confirm by typing REFUND:
-					</label>
-					<input
-						type="text"
-						id="confirmation-text"
-						value={confirmationText}
-						onChange={(e) => setConfirmationText(e.target.value)}
-						className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none sm:text-sm font-mono ${
-							confirmationText !== "REFUND" && confirmationText !== ""
-								? "border-red-500"
-								: "border-gray-300"
-						}`}
-						placeholder="REFUND"
-						required
-					/>
-				</div>
-
-				{/* Action Buttons */}
-				<div className="mt-5 sm:mt-6 flex justify-end space-x-3">
-					<button
-						type="button"
-						onClick={onClose}
-						className="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
-						disabled={isProcessing}
-					>
-						Cancel
-					</button>
-					<button
-						type="button"
-						onClick={handleConfirm}
-						disabled={
-							!isValidAmount || confirmationText !== "REFUND" || isProcessing
-						}
-						className={`inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-							!isValidAmount || confirmationText !== "REFUND" || isProcessing
-								? "bg-red-300 cursor-not-allowed"
-								: "bg-red-600 hover:bg-red-700 focus-visible:ring-red-500"
-						}`}
-					>
-						{isProcessing ? (
-							<>
-								{/* Loading spinner SVG */}
-								<svg
-									className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-									xmlns="http://www.w3.org/2000/svg"
-									fill="none"
-									viewBox="0 0 24 24"
-								>
-									<circle
-										className="opacity-25"
-										cx="12"
-										cy="12"
-										r="10"
-										stroke="currentColor"
-										strokeWidth="4"
-									></circle>
-									<path
-										className="opacity-75"
-										fill="currentColor"
-										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-									></path>
-								</svg>
-								Processing...
-							</>
-						) : (
-							// Use state for amount display
-							`Refund ${formatCurrency(refundAmount)}`
-						)}
-					</button>
-				</div>
-			</div>
-		</Modal>
+			</Dialog>
+		</Transition>
 	);
+	// --- END OF UPDATED UI ---
 }
 
+// --- ORIGINAL PROPTYPES (UNCHANGED) ---
 RefundConfirmation.propTypes = {
 	isOpen: PropTypes.bool.isRequired,
 	onClose: PropTypes.func.isRequired,
-	payment: PropTypes.object, // Keep parent payment for context if needed
+	// payment: PropTypes.object, // Removed unused prop
 	transaction: PropTypes.object, // Specific transaction to refund
 	onConfirm: PropTypes.func.isRequired,
 	isProcessing: PropTypes.bool,
 };
+
+// Renamed export to match original file if needed, otherwise keep as is.
+// export default RefundConfirmation;

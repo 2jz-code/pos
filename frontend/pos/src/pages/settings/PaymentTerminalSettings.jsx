@@ -1,156 +1,261 @@
-// pages/settings/PaymentTerminalSettings.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 import { settingsService } from "../../api/services/settingsService";
-import { DeviceTabletIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
-import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
+import { toast } from "react-toastify";
+import {
+	DeviceTabletIcon, // Section Icon
+	ArrowPathIcon, // Sync Icon
+	PlusIcon, // Register Button Icon
+	CheckCircleIcon, // Online Status / Success
+	XCircleIcon, // Offline Status / Error
+	ExclamationTriangleIcon, // Error Icon
+	InformationCircleIcon, // Help Text Icon
+} from "@heroicons/react/24/outline";
+
+// Helper component for form fields
+const FormField = ({
+	label,
+	id,
+	children,
+	required = false,
+	helpText = null,
+	error = null,
+	className = "",
+}) => (
+	<div className={className}>
+		<label
+			htmlFor={id}
+			className="mb-1 block text-xs font-medium text-slate-700"
+		>
+			{" "}
+			{/* Adjusted label size */}
+			{label} {required && <span className="text-red-500">*</span>}
+		</label>
+		{children}
+		{helpText && !error && (
+			<p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+				<InformationCircleIcon className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+				{helpText}
+			</p>
+		)}
+		{error && (
+			<p className="mt-1 flex items-center gap-1 text-xs text-red-600">
+				<ExclamationTriangleIcon className="h-3.5 w-3.5 flex-shrink-0" />
+				{error}
+			</p>
+		)}
+	</div>
+);
+FormField.propTypes = {
+	label: PropTypes.string.isRequired,
+	id: PropTypes.string.isRequired,
+	children: PropTypes.node.isRequired,
+	required: PropTypes.bool,
+	helpText: PropTypes.string,
+	error: PropTypes.string,
+	className: PropTypes.string,
+};
+
+// Helper components for table styling
+const Th = ({ children, align = "left", className = "" }) => (
+	<th
+		scope="col"
+		className={`whitespace-nowrap px-4 py-2 text-${align} text-xs font-semibold uppercase tracking-wider text-slate-500 ${className}`}
+	>
+		{children}
+	</th>
+);
+Th.propTypes = {
+	children: PropTypes.node,
+	align: PropTypes.string,
+	className: PropTypes.string,
+};
+
+const Td = ({ children, align = "left", className = "" }) => (
+	<td
+		className={`px-4 py-2.5 text-${align} text-xs text-slate-600 ${className}`}
+	>
+		{" "}
+		{/* Adjusted padding/size */}
+		{children}
+	</td>
+);
+Td.propTypes = {
+	children: PropTypes.node,
+	align: PropTypes.string,
+	className: PropTypes.string,
+};
+
+// Helper: Format date string
+const formatDate = (dateString) => {
+	if (!dateString) return "Never";
+	try {
+		return new Date(dateString).toLocaleString(undefined, {
+			dateStyle: "short",
+			timeStyle: "short",
+		});
+	} catch {
+		return "Invalid Date";
+	}
+};
+
+// Helper: Get status pill styling
+const getStatusPill = (status) => {
+	const lowerStatus = status?.toLowerCase();
+	const baseClasses =
+		"px-2 py-0.5 rounded-full text-[10px] font-medium inline-flex items-center gap-1 border";
+	if (lowerStatus === "online") {
+		return (
+			<span
+				className={`${baseClasses} bg-emerald-50 text-emerald-700 border-emerald-200`}
+			>
+				<CheckCircleIcon className="h-3 w-3" /> ONLINE
+			</span>
+		);
+	} else {
+		// offline or unknown
+		return (
+			<span
+				className={`${baseClasses} bg-slate-100 text-slate-600 border-slate-200`}
+			>
+				<XCircleIcon className="h-3 w-3" />{" "}
+				{String(status || "OFFLINE").toUpperCase()}
+			</span>
+		);
+	}
+};
 
 export default function PaymentTerminalSettings() {
 	const [terminals, setTerminals] = useState([]);
-	const [isLoading, setIsLoading] = useState(true);
+	const [locations, setLocations] = useState([]);
+	const [isLoading, setIsLoading] = useState(true); // For fetching terminals/locations
 	const [isSyncing, setIsSyncing] = useState(false);
-	const [error, setError] = useState(null);
+	const [isRegistering, setIsRegistering] = useState(false);
+	const [error, setError] = useState(null); // General/fetch error
+	const [formError, setFormError] = useState(null); // Registration form error
 	const [successMessage, setSuccessMessage] = useState(null);
+	const [showRegisterForm, setShowRegisterForm] = useState(false);
+
+	// Registration form state
 	const [selectedLocation, setSelectedLocation] = useState("");
 	const [registrationCode, setRegistrationCode] = useState("");
 	const [readerLabel, setReaderLabel] = useState("");
-	const [locations, setLocations] = useState([]);
-	const [isRegistering, setIsRegistering] = useState(false);
-	const [showRegisterForm, setShowRegisterForm] = useState(false);
 
-	useEffect(() => {
-		fetchLocations();
-		fetchTerminals();
-	}, []);
-
-	const fetchLocations = async (syncWithStripe = false) => {
-		try {
-			const data = await settingsService.getLocations(syncWithStripe);
-			setLocations(data);
-		} catch (err) {
-			console.error("Error fetching locations:", err);
-		}
-	};
-
-	const fetchTerminals = async (syncWithStripe = false) => {
-		setIsLoading(true);
+	// Fetch initial data
+	const fetchData = useCallback(async (showLoading = true) => {
+		if (showLoading) setIsLoading(true);
 		setError(null);
 		try {
-			const data = await settingsService.getTerminalReaders(syncWithStripe);
-			setTerminals(data);
+			const [locationsData, terminalsData] = await Promise.all([
+				settingsService.getLocations(),
+				settingsService.getTerminalReaders(),
+			]);
+			setLocations(Array.isArray(locationsData) ? locationsData : []);
+			setTerminals(Array.isArray(terminalsData) ? terminalsData : []);
 		} catch (err) {
-			console.error("Error fetching terminals:", err);
-			setError("Failed to load terminal readers. Please try again.");
+			console.error("Error fetching settings data:", err);
+			setError("Failed to load locations or terminals. Please try refreshing.");
+			setLocations([]);
+			setTerminals([]);
 		} finally {
-			setIsLoading(false);
+			if (showLoading) setIsLoading(false);
 		}
-	};
+	}, []);
 
+	useEffect(() => {
+		fetchData();
+	}, [fetchData]);
+
+	// Sync locations and terminals with Stripe
 	const syncWithStripe = async () => {
 		setIsSyncing(true);
 		setError(null);
 		setSuccessMessage(null);
-
 		try {
-			// Sync both locations and readers
-			await settingsService.syncLocations();
-			const result = await settingsService.syncReaders();
-			setSuccessMessage(result.message);
-
-			// Fetch the updated lists
-			await fetchLocations();
-			await fetchTerminals();
+			// Sync both locations and readers sequentially or in parallel if API allows
+			await settingsService.syncLocations(); // Sync locations first
+			const result = await settingsService.syncReaders(); // Then sync readers
+			const message =
+				result.message ||
+				"Locations and Terminals synced with Stripe successfully!";
+			setSuccessMessage(message);
+			toast.success(message);
+			await fetchData(false); // Refresh lists without main loading indicator
 		} catch (err) {
 			console.error("Error syncing with Stripe:", err);
-			setError(
-				err.response?.data?.error ||
-					"Failed to sync with Stripe. Please try again."
-			);
+			const message =
+				err.response?.data?.error || "Failed to sync with Stripe.";
+			setError(message);
+			toast.error(message);
 		} finally {
 			setIsSyncing(false);
 		}
 	};
 
-	const registerNewTerminal = async () => {
-		if (!selectedLocation) {
-			setError("Please select a location for the new terminal");
-			return;
-		}
+	// Handle registration form submission
+	const registerNewTerminal = async (e) => {
+		e.preventDefault(); // Prevent default form submission
+		setFormError(null); // Clear previous form errors
+		setSuccessMessage(null);
 
-		if (!readerLabel) {
-			setError("Please enter a name for the terminal");
-			return;
-		}
-
-		if (!registrationCode) {
-			setError("Please enter the registration code");
+		if (!selectedLocation || !readerLabel || !registrationCode) {
+			setFormError("Please fill in all required fields for registration.");
 			return;
 		}
 
 		setIsRegistering(true);
-		setError(null);
-		setSuccessMessage(null);
-
 		try {
 			await settingsService.registerTerminalReader({
-				location: selectedLocation,
-				label: readerLabel,
-				registration_code: registrationCode,
+				location: selectedLocation, // Send ID
+				label: readerLabel.trim(),
+				registration_code: registrationCode.trim(),
 			});
-
-			// Clear form fields
+			const message = `Terminal "${readerLabel.trim()}" registered successfully!`;
+			setSuccessMessage(message);
+			toast.success(message);
+			// Reset form and hide
 			setSelectedLocation("");
 			setReaderLabel("");
 			setRegistrationCode("");
 			setShowRegisterForm(false);
-
-			// Show success message
-			setSuccessMessage("Terminal reader registered successfully!");
-
-			// Refresh terminal list
-			fetchTerminals();
+			await fetchData(false); // Refresh terminal list
 		} catch (err) {
 			console.error("Error registering terminal:", err);
-			setError(
-				err.response?.data?.error ||
-					"Failed to register terminal. Please try again."
-			);
+			const message =
+				err.response?.data?.error || "Failed to register terminal.";
+			setFormError(message); // Show error specific to the form
+			toast.error(message);
 		} finally {
 			setIsRegistering(false);
 		}
 	};
 
-	const handleLocationChange = (e) => {
-		setSelectedLocation(e.target.value);
-	};
-
-	const handleLabelChange = (e) => {
-		setReaderLabel(e.target.value);
-	};
-
-	const handleRegistrationCodeChange = (e) => {
-		setRegistrationCode(e.target.value);
-	};
-
+	// --- Render Logic ---
 	return (
-		<div className="p-6">
-			{/* Page header with action buttons */}
-			<div className="flex justify-between items-center mb-4">
-				<h2 className="text-xl font-semibold text-slate-800">
+		<div className="p-4 sm:p-6">
+			{/* Section Header */}
+			<div className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+				<h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+					<DeviceTabletIcon className="h-5 w-5 text-blue-600" />
 					Payment Terminal Management
 				</h2>
-
-				<div className="flex space-x-3">
+				<div className="flex flex-shrink-0 gap-2">
 					<button
 						onClick={() => setShowRegisterForm(!showRegisterForm)}
-						className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+						className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={isSyncing || isLoading || isRegistering}
 					>
-						<DeviceTabletIcon className="h-4 w-4" />
-						{showRegisterForm ? "Cancel" : "Register Terminal"}
+						{showRegisterForm ? (
+							<XCircleIcon className="h-4 w-4" /> // Show Cancel icon when form is open
+						) : (
+							<PlusIcon className="h-4 w-4" /> // Show Add icon when form is closed
+						)}
+						{showRegisterForm ? "Cancel Registration" : "Register Terminal"}
 					</button>
 					<button
 						onClick={syncWithStripe}
-						className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
-						disabled={isSyncing || isLoading}
+						className="inline-flex items-center gap-1.5 rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={isSyncing || isLoading || isRegistering}
 					>
 						<ArrowPathIcon
 							className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`}
@@ -160,199 +265,206 @@ export default function PaymentTerminalSettings() {
 				</div>
 			</div>
 
+			{/* Error/Success Messages */}
 			{error && (
-				<div className="mb-3 p-2 bg-red-50 text-red-700 rounded-lg flex items-center text-sm">
-					<XCircleIcon className="h-4 w-4 mr-2 flex-shrink-0" />
-					{error}
+				<div
+					role="alert"
+					className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+				>
+					<ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
+					<span>{error}</span>
 				</div>
 			)}
-
 			{successMessage && (
-				<div className="mb-3 p-2 bg-green-50 text-green-700 rounded-lg flex items-center text-sm">
-					<CheckCircleIcon className="h-4 w-4 mr-2 flex-shrink-0" />
-					{successMessage}
+				<div
+					role="alert"
+					className="mb-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700"
+				>
+					<CheckCircleIcon className="h-5 w-5 flex-shrink-0" />
+					<span>{successMessage}</span>
 				</div>
 			)}
 
 			{/* Collapsible Registration Form */}
 			{showRegisterForm && (
-				<div className="bg-white rounded-lg border border-slate-200 p-4 mb-4">
-					<div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-						<div className="md:col-span-4">
-							<label className="block text-xs font-medium text-slate-700 mb-1">
-								Location *
-							</label>
+				<form
+					onSubmit={registerNewTerminal}
+					className="mb-6 rounded-lg border border-slate-300 bg-slate-50 p-4"
+				>
+					<h3 className="mb-3 text-base font-medium text-slate-800">
+						Register New Terminal
+					</h3>
+					{formError && ( // Display form-specific errors here
+						<div
+							role="alert"
+							className="mb-3 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700"
+						>
+							<ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
+							<span>{formError}</span>
+						</div>
+					)}
+					<div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
+						<FormField
+							label="Location"
+							id="location"
+							required
+							className="md:col-span-1 lg:col-span-1"
+						>
 							<select
+								id="location"
 								value={selectedLocation}
-								onChange={handleLocationChange}
-								className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+								onChange={(e) => setSelectedLocation(e.target.value)}
 								required
+								className="block w-full rounded-md border-0 px-3 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
 							>
-								<option value="">Select a location</option>
-								{locations.map((location) => (
+								<option
+									value=""
+									disabled
+								>
+									Select location...
+								</option>
+								{locations.map((loc) => (
 									<option
-										key={location.id}
-										value={location.id}
+										key={loc.id}
+										value={loc.id}
 									>
-										{location.display_name}
+										{loc.display_name}
 									</option>
 								))}
 							</select>
-						</div>
-
-						<div className="md:col-span-3">
-							<label className="block text-xs font-medium text-slate-700 mb-1">
-								Terminal Name *
-							</label>
+						</FormField>
+						<FormField
+							label="Terminal Name"
+							id="readerLabel"
+							required
+							className="md:col-span-1 lg:col-span-1"
+						>
 							<input
 								type="text"
+								id="readerLabel"
 								value={readerLabel}
-								onChange={handleLabelChange}
-								className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-								placeholder="e.g., Front Counter"
+								onChange={(e) => setReaderLabel(e.target.value)}
 								required
+								placeholder="e.g., Front Counter"
+								className="block w-full rounded-md border-0 px-3 py-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
 							/>
-						</div>
-
-						<div className="md:col-span-3">
-							<label className="block text-xs font-medium text-slate-700 mb-1">
-								Registration Code *
-							</label>
+						</FormField>
+						<FormField
+							label="Registration Code"
+							id="registrationCode"
+							required
+							helpText="Find this on the terminal screen during setup."
+							className="md:col-span-1 lg:col-span-1"
+						>
 							<input
 								type="text"
+								id="registrationCode"
 								value={registrationCode}
-								onChange={handleRegistrationCodeChange}
-								className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-								placeholder="e.g., simulated-wpe"
+								onChange={(e) => setRegistrationCode(e.target.value)}
 								required
+								placeholder="e.g., cool-cactus-choice"
+								className="block w-full rounded-md border-0 px-3 py-1.5 font-mono text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 placeholder:normal-case placeholder:font-sans focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:leading-6"
 							/>
-						</div>
-
-						<div className="md:col-span-2 flex items-end">
+						</FormField>
+						<div className="flex items-end md:col-span-3 lg:col-span-1">
 							<button
-								onClick={registerNewTerminal}
-								className="w-full px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+								type="submit"
 								disabled={
 									isRegistering ||
 									!selectedLocation ||
 									!readerLabel ||
 									!registrationCode
 								}
+								className="inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:bg-blue-400"
 							>
-								{isRegistering ? "Registering..." : "Register"}
+								{isRegistering ? (
+									<>
+										<svg
+											className="animate-spin -ml-0.5 mr-1.5 h-4 w-4 text-white"
+											xmlns="http://www.w3.org/2000/svg"
+											fill="none"
+											viewBox="0 0 24 24"
+										>
+											<circle
+												className="opacity-25"
+												cx="12"
+												cy="12"
+												r="10"
+												stroke="currentColor"
+												strokeWidth="4"
+											></circle>
+											<path
+												className="opacity-75"
+												fill="currentColor"
+												d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+											></path>
+										</svg>
+										Registering...
+									</>
+								) : (
+									"Register"
+								)}
 							</button>
 						</div>
 					</div>
-					<p className="text-xs text-slate-500 mt-2">
-						For testing, use registration code: &quot;simulated-wpe&quot;
-					</p>
-				</div>
+				</form>
 			)}
 
-			{/* Terminals List */}
-			<div className="flex-1 overflow-auto bg-white rounded-lg border border-slate-200">
-				<div className="flex justify-between items-center p-3 border-b border-slate-200">
-					<h3 className="text-base font-medium text-slate-800">
-						Terminal Readers
-					</h3>
-					<span className="text-xs text-slate-500">
-						{terminals.length}{" "}
-						{terminals.length === 1 ? "terminal" : "terminals"}
-					</span>
-				</div>
-
-				{isLoading ? (
-					<div className="p-6 text-center text-slate-500">
-						Loading terminals...
-					</div>
-				) : terminals.length > 0 ? (
-					<div className="overflow-x-auto max-h-[calc(100vh-280px)]">
+			{/* Terminals List Table */}
+			<div className="overflow-x-auto">
+				{
+					isLoading && terminals.length === 0 ? (
+						<div className="py-10 text-center text-sm text-slate-500">
+							Loading terminals...
+						</div>
+					) : !isLoading && terminals.length === 0 && !error ? (
+						<div className="py-10 text-center text-sm text-slate-500">
+							No terminal readers found. Register one above or sync with Stripe.
+						</div>
+					) : terminals.length > 0 ? (
 						<table className="min-w-full divide-y divide-slate-200">
-							<thead className="bg-slate-50 sticky top-0">
+							<thead className="bg-slate-50">
 								<tr>
-									<th
-										scope="col"
-										className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Device ID
-									</th>
-									<th
-										scope="col"
-										className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Name
-									</th>
-									<th
-										scope="col"
-										className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Location
-									</th>
-									<th
-										scope="col"
-										className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Status
-									</th>
-									<th
-										scope="col"
-										className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Device Type
-									</th>
-									<th
-										scope="col"
-										className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider"
-									>
-										Last Seen
-									</th>
+									<Th>Name</Th>
+									<Th>Device ID</Th>
+									<Th>Location</Th>
+									<Th>Status</Th>
+									<Th>Device Type</Th>
+									<Th>Last Seen</Th>
+									{/* Add Actions column if needed (e.g., delete) */}
 								</tr>
 							</thead>
-							<tbody className="bg-white divide-y divide-slate-200">
+							<tbody className="divide-y divide-slate-100 bg-white">
 								{terminals.map((terminal) => (
 									<tr
 										key={terminal.id}
-										className="hover:bg-slate-50"
+										className="hover:bg-slate-50/50"
 									>
-										<td className="px-4 py-3 whitespace-nowrap text-xs font-medium text-slate-800">
-											{terminal.stripe_reader_id || terminal.id}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
+										<Td className="font-medium text-slate-800">
 											{terminal.label}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
-											{terminal.location_display || "Unknown"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-xs">
-											<span
-												className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-													terminal.status === "online"
-														? "bg-green-50 text-green-700"
-														: "bg-yellow-50 text-yellow-700"
-												}`}
-											>
-												{terminal.status || "offline"}
-											</span>
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
-											{terminal.device_type || "Unknown"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
-											{terminal.last_seen
-												? new Date(terminal.last_seen).toLocaleString()
-												: "Never"}
-										</td>
+										</Td>
+										<Td className="font-mono text-xs">
+											{terminal.stripe_reader_id || terminal.id}
+										</Td>
+										<Td>
+											{terminal.location_display || (
+												<span className="italic text-slate-400">Unknown</span>
+											)}
+										</Td>
+										<Td>{getStatusPill(terminal.status)}</Td>
+										<Td>
+											{terminal.device_type || (
+												<span className="italic text-slate-400">Unknown</span>
+											)}
+										</Td>
+										<Td>{formatDate(terminal.last_seen)}</Td>
+										{/* Add action buttons here if delete/edit functionality exists */}
 									</tr>
 								))}
 							</tbody>
 						</table>
-					</div>
-				) : (
-					<div className="p-6 text-center text-slate-500">
-						No terminal readers found. Register a terminal to get started with
-						in-person payments.
-					</div>
-				)}
+					) : null /* Error case handled above */
+				}
 			</div>
 		</div>
 	);

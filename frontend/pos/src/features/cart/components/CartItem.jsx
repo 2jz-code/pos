@@ -97,87 +97,112 @@ export const CartItem = memo(
 
 		return (
 			<>
-				<div className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-					<div
-						className="p-3 flex justify-between items-center cursor-pointer group"
-						onClick={onExpand}
-					>
-						<div className="flex items-center gap-3">
-							<ChevronRightIcon
-								className={`h-5 w-5 text-slate-400 transition-transform ${
-									isExpanded ? "rotate-90" : ""
-								}`}
-							/>
-							{/* Make quantity clickable */}
-							<span
-								className="text-slate-800 font-medium cursor-pointer hover:bg-blue-50 p-1 rounded"
-								onClick={handleQuantityClick} // Use the updated handler
-							>
-								{item.quantity}
-							</span>
-							<span className="text-slate-800 font-medium">× {item.name}</span>
-						</div>
-						<div className="flex items-center gap-3">
-							<span className="text-slate-700 font-medium">
-								${calculateItemTotal()}
-							</span>
-							<button
-								onClick={handleRemoveClick}
-								className="text-red-400 hover:text-red-500 transition-colors"
-							>
-								<XCircleIcon className="h-5 w-5" />
-							</button>
-						</div>
-					</div>
-
-					{isExpanded && (
-						<div className="p-3 border-t border-slate-200 bg-slate-50 rounded-b-lg">
-							<div className="flex gap-4">
-								{/* Quantity Section (Now just displays, click opens keypad) */}
-								<div className="flex-1">
-									<label className="text-sm font-medium text-slate-600 mb-1 block">
-										Quantity
-									</label>
-									<div
-										className="w-full px-3 py-2 border border-slate-200 rounded-md bg-white cursor-pointer text-center"
-										onClick={handleQuantityClick} // Use the updated handler
-									>
-										{parseInt(item.quantity, 10)}
-									</div>
-								</div>
-
-								{/* Discount Section (Now just displays, click opens keypad) */}
-								<div className="flex-1">
-									<label className="text-sm font-medium text-slate-600 mb-1 block">
-										Discount (%)
-									</label>
-									<div
-										className="w-full px-3 py-2 border border-slate-200 rounded-md bg-white cursor-pointer text-center"
-										onClick={handleDiscountClick} // Use the updated handler
-									>
-										{item.discount || 0}%
-									</div>
-								</div>
+				{/* Main item container - Apply modern styling */}
+				{/* Use py-1 instead of full bg for slightly tighter list */}
+				<div className="py-1">
+					<div className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow transition-shadow duration-150 ease-in-out">
+						{/* Clickable main row */}
+						<div
+							className="p-3 flex justify-between items-center cursor-pointer group"
+							onClick={onExpand} // Original handler
+						>
+							{/* Left side: Expand icon, Quantity, Name */}
+							<div className="flex items-center gap-3 flex-1 min-w-0">
+								{" "}
+								{/* Added flex-1 and min-w-0 */}
+								<ChevronRightIcon
+									className={`h-5 w-5 text-slate-400 transition-transform duration-200 ${
+										isExpanded ? "rotate-90" : "" // Original logic
+									}`}
+								/>
+								{/* Quantity - Styled to look clickable */}
+								<span
+									className="text-sm text-slate-800 font-medium cursor-pointer hover:bg-blue-50 active:bg-blue-100 px-2 py-1 rounded-md transition-colors"
+									onClick={handleQuantityClick} // Original handler
+									title="Click to edit quantity"
+								>
+									{item.quantity}
+								</span>
+								{/* Item Name - Allow truncation */}
+								<span
+									className="text-sm text-slate-800 font-medium truncate"
+									title={item.name}
+								>
+									× {item.name}
+								</span>
 							</div>
-
-							{/* Add discount preview (remains the same) */}
-							{getFormattedDiscount() > 0 && (
-								<div className="mt-2 text-sm text-green-600">
-									Discount: $
-									{(
-										(item.price * item.quantity * getFormattedDiscount()) /
-										100
-									).toFixed(2)}
-								</div>
-							)}
+							{/* Right side: Total Price, Remove Button */}
+							<div className="flex items-center gap-2 flex-shrink-0 ml-2">
+								{" "}
+								{/* Added flex-shrink-0 and margin */}
+								{/* Calculated Total */}
+								<span className="text-sm text-slate-700 font-semibold w-16 text-right">
+									{" "}
+									{/* Added width and text-right */}
+									{calculateItemTotal()} {/* Original function */}
+								</span>
+								{/* Remove Button - Styled */}
+								<button
+									onClick={handleRemoveClick} // Original handler
+									className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors duration-150 ease-in-out"
+									title="Remove item"
+								>
+									<XCircleIcon className="h-5 w-5" />
+								</button>
+							</div>
 						</div>
-					)}
+
+						{/* Expanded Section - Conditionally rendered based on original prop */}
+						{isExpanded && (
+							<div className="p-3 border-t border-slate-200 bg-slate-50 rounded-b-lg">
+								<div className="flex gap-4">
+									{/* Quantity Section - Styled clickable div */}
+									<div className="flex-1">
+										<label className="text-xs font-medium text-slate-600 mb-1 block">
+											Quantity
+										</label>
+										<div
+											className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white hover:bg-slate-50 cursor-pointer text-center text-sm transition-colors"
+											onClick={handleQuantityClick} // Original handler
+											title="Click to edit quantity"
+										>
+											{/* Display original quantity */}
+											{item.quantity}
+										</div>
+									</div>
+
+									{/* Discount Section - Styled clickable div */}
+									<div className="flex-1">
+										<label className="text-xs font-medium text-slate-600 mb-1 block">
+											Discount (%)
+										</label>
+										<div
+											className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white hover:bg-slate-50 cursor-pointer text-center text-sm transition-colors"
+											onClick={handleDiscountClick} // Original handler
+											title="Click to edit discount"
+										>
+											{/* Display original discount */}
+											{ensureNumber(item.discount)}%
+										</div>
+									</div>
+								</div>
+
+								{/* Discount Preview - Conditionally rendered based on original logic/value */}
+								{ensureNumber(item.discount) > 0 && (
+									<div className="mt-2 text-xs text-emerald-600">
+										Discount Amount: -{formatPrice(getFormattedDiscount())}
+									</div>
+								)}
+							</div>
+						)}
+					</div>
 				</div>
 
-				{/* Render Keypad conditionally */}
+				{/* Keypad Rendering - Conditionally rendered based on original state */}
 				{isKeypadOpen && <Keypad {...keypadProps} />}
 			</>
 		);
+		// --- END OF UPDATED UI ---
 	}
 );
 

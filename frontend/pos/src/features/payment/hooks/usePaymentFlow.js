@@ -20,7 +20,7 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 		totalTipAmount: 0, // Tracks cumulative tip
 	});
 	const [error, setError] = useState(null);
-	const [isProcessing, setIsProcessing] = useState(false);
+	// Removed isProcessing state as it wasn't reliably used across async operations
 	const epsilon = 0.01;
 	const isMountedRef = useRef(false);
 
@@ -30,7 +30,6 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 		console.log(
 			`PaymentFlow Hook: Mounted/totalAmount changed. Resetting state for total: ${totalAmount}`
 		);
-		// Simplified reset logic
 		setState({
 			orderId: useCartStore.getState().orderId, // Keep current orderId
 			currentView: "InitialOptions",
@@ -46,31 +45,24 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 			currentSplitMethod: null,
 			totalTipAmount: 0,
 		});
+		setError(null); // Clear error on reset
 		return () => {
 			isMountedRef.current = false;
 		};
 	}, [totalAmount]); // Dependency is totalAmount
 
 	// --- Helper Functions ---
-	// Calculates if BASE amount is fully paid
-	const isPaymentComplete = useCallback(() => {
-		const currentBasePaid = state.amountPaid;
-		const baseTotalRequired = totalAmount;
-		const isComplete = new Decimal(currentBasePaid).greaterThanOrEqualTo(
-			new Decimal(baseTotalRequired).minus(epsilon)
-		);
-		console.log("isPaymentComplete Check:", {
-			currentBasePaid,
-			baseTotalRequired,
-			isComplete,
-		});
-		return isComplete;
-	}, [state.amountPaid, totalAmount, epsilon]);
-
-	const isSplitPaymentComplete = useCallback(() => {
-		if (!state.splitMode) return false;
-		return isPaymentComplete(); // Use the main completion check
-	}, [state.splitMode, isPaymentComplete]); // Dependency on the main check function
+	// Internal helper to check completion based on a given amount
+	const isPaymentCompleteInternal = useCallback(
+		(paidAmount) => {
+			const baseTotalRequired = totalAmount;
+			const isComplete = new Decimal(paidAmount).greaterThanOrEqualTo(
+				new Decimal(baseTotalRequired).minus(epsilon)
+			);
+			return isComplete;
+		},
+		[totalAmount, epsilon]
+	);
 
 	const resetSplitState = useCallback(() => {
 		setState((prev) => ({
@@ -83,8 +75,8 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 	// --- Navigation ---
 	const handleNavigation = useCallback(
 		(nextView, direction = 1) => {
-			// Navigation logic needs to check based on BASE amount paid
-			const isFullyPaid = isPaymentComplete();
+			// Check completion using the current state's amountPaid
+			const isFullyPaid = isPaymentCompleteInternal(state.amountPaid);
 
 			console.log("NAVIGATION: Navigating", {
 				nextView,
@@ -119,8 +111,8 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				let newPaymentMethod = prev.paymentMethod;
 				let newSplitMode = prev.splitMode;
 
-				// Update method/mode when moving forward
 				if (direction > 0) {
+					// Moving forward
 					if (nextView === "Cash") newPaymentMethod = "cash";
 					if (nextView === "Credit") newPaymentMethod = "credit";
 					if (nextView === "Split") newSplitMode = true;
@@ -129,9 +121,10 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 					if (newSplitMode && (nextView === "Cash" || nextView === "Credit")) {
 						newSplitDetails = {
 							...(prev.splitDetails || {}),
-							currentSplitIndex: prev.splitDetails?.currentSplitIndex || 0,
+							currentSplitIndex: prev.splitDetails?.currentSplitIndex ?? 0, // Ensure index starts at 0
 						};
 					}
+
 					// Check for completion *before* moving from Split view forward
 					if (prev.currentView === "Split" && isFullyPaid) {
 						console.log(
@@ -158,11 +151,10 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 					// Moving back
 					const previousViews = [...prev.previousViews];
 					const lastView = previousViews.pop() || "InitialOptions";
-					// Reset state if going back to specific views
 					if (lastView === "InitialOptions" || lastView === "Split")
 						newPaymentMethod = null;
 					if (lastView === "InitialOptions") newSplitMode = false;
-					if (nextView === "Split") resetSplitState(); // Reset next amount when going back TO split view
+					if (nextView === "Split" || lastView === "Split") resetSplitState(); // Reset next amount when going back TO or FROM split view
 
 					return {
 						...prev,
@@ -180,20 +172,20 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 			state.splitMode,
 			state.currentView,
 			state.previousViews,
+			state.amountPaid,
 			resetSplitState,
-			isPaymentComplete,
-		] // Dependencies
+			isPaymentCompleteInternal,
+		]
 	);
 
 	const handleBack = useCallback(() => {
 		if (state.currentView === "InitialOptions") return false;
-		// If going back from Cash/Credit during a split, check completion first
+		// Use internal helper for checks during navigation logic
 		if (
 			state.splitMode &&
 			(state.currentView === "Cash" || state.currentView === "Credit")
 		) {
-			if (isPaymentComplete()) {
-				// Use the helper
+			if (isPaymentCompleteInternal(state.amountPaid)) {
 				console.log(
 					"NAV BACK: Split complete, navigating to Completion instead of Split"
 				);
@@ -206,7 +198,13 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 		}
 		handleNavigation(null, -1); // Normal back
 		return true;
-	}, [state.currentView, state.splitMode, handleNavigation, isPaymentComplete]);
+	}, [
+		state.currentView,
+		state.splitMode,
+		state.amountPaid,
+		handleNavigation,
+		isPaymentCompleteInternal,
+	]);
 
 	// --- PROCESS PAYMENT ---
 	const processPayment = useCallback(
@@ -217,13 +215,13 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				JSON.stringify(paymentDetails, null, 2)
 			);
 
-			setIsProcessing(true);
-			setError(null);
+			let calculatedNewAmountPaid = state.amountPaid; // Initialize with current value
+			let finalUpdatedTransactions = state.transactions; // Initialize with current value
+			let isNowFullyPaid = isPaymentCompleteInternal(calculatedNewAmountPaid); // Check initial state
 
 			try {
 				const method =
 					paymentDetails.method || state.paymentMethod || "unknown";
-				// Determine base amount and tip for *this* transaction
 				const tipThisTransaction =
 					paymentDetails?.flowData?.payment?.tipAmount ?? 0;
 				const baseAmountThisTransaction = new Decimal(amountCharged)
@@ -243,7 +241,6 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 					method: method,
 					amount: parseFloat(amountCharged.toFixed(2)),
 					baseAmountPaid: parseFloat(validatedBaseAmount.toFixed(2)),
-					// Corrected variable name
 					tipAmount: parseFloat(tipThisTransaction.toFixed(2)),
 					status: "completed",
 					timestamp: new Date().toISOString(),
@@ -262,7 +259,7 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 								mode: state.splitDetails.mode,
 								numberOfSplits: state.splitDetails.numberOfSplits,
 								customAmount: state.splitDetails.customAmount,
-								currentSplitIndex: state.splitDetails.currentSplitIndex || 0,
+								currentSplitIndex: state.splitDetails.currentSplitIndex ?? 0,
 							},
 						}),
 				};
@@ -271,19 +268,25 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 					newTransaction
 				);
 
-				let calculatedNewAmountPaid;
-				let calculatedNewTotalTip;
-
+				// Use a functional update to ensure calculations are based on the latest state
+				// before this specific update is applied.
+				let intermediateState = null;
 				setState((prev) => {
-					calculatedNewAmountPaid = new Decimal(prev.amountPaid)
-						.plus(new Decimal(validatedBaseAmount))
-						.toNumber();
-					calculatedNewTotalTip = new Decimal(prev.totalTipAmount)
-						.plus(new Decimal(tipThisTransaction))
-						.toNumber();
-					const updatedTransactions = [...prev.transactions, newTransaction];
-					let updatedOverallSplitDetails = prev.splitDetails;
+					const baseAmount = newTransaction.baseAmountPaid || 0;
+					const tipAmount = newTransaction.tipAmount || 0;
 
+					calculatedNewAmountPaid = new Decimal(prev.amountPaid)
+						.plus(new Decimal(baseAmount))
+						.toNumber();
+					const calculatedNewTotalTip = new Decimal(prev.totalTipAmount)
+						.plus(new Decimal(tipAmount))
+						.toNumber();
+					finalUpdatedTransactions = [...prev.transactions, newTransaction]; // Correct list for return
+
+					// *** Check completion using the newly calculated amount ***
+					isNowFullyPaid = isPaymentCompleteInternal(calculatedNewAmountPaid);
+
+					let updatedOverallSplitDetails = prev.splitDetails;
 					if (prev.splitMode) {
 						const currentSplitIndex = prev.splitDetails?.currentSplitIndex ?? 0;
 						updatedOverallSplitDetails = {
@@ -304,127 +307,143 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 						};
 					}
 
-					return {
+					intermediateState = {
+						// Store the calculated state
 						...prev,
 						amountPaid: calculatedNewAmountPaid,
 						totalTipAmount: calculatedNewTotalTip,
-						transactions: updatedTransactions,
+						transactions: finalUpdatedTransactions,
 						splitDetails: updatedOverallSplitDetails,
 						nextSplitAmount: null,
 						currentSplitMethod: null,
 					};
+					return intermediateState;
 				});
 
-				setIsProcessing(false);
-				// Return the cumulative BASE amount paid
+				// Now that setState has likely completed (though still technically async),
+				// log the final derived state for this operation.
+				console.log(
+					`PROCESS PAYMENT: After state update attempt - isNowFullyPaid=${isNowFullyPaid}, newAmountPaid=${calculatedNewAmountPaid}`
+				);
+
 				return {
 					success: true,
-					newAmountPaid:
-						calculatedNewAmountPaid ?? state.amountPaid + validatedBaseAmount,
+					newAmountPaid: calculatedNewAmountPaid, // Return final calculated value
+					updatedTransactions: finalUpdatedTransactions, // Return updated array
+					isNowComplete: isNowFullyPaid, // Return completion status
 				};
 			} catch (error) {
-				console.error("PROCESS PAYMENT: Error processing payment:", error);
-				setError(error.message || "Failed to record payment locally");
-				setIsProcessing(false);
+				console.error(
+					"PROCESS PAYMENT: Error processing payment/updating state:",
+					error
+				);
 				return { success: false, error: error.message || "Processing failed" };
 			}
 		},
-		// Depends on state variables used *inside* the function and totalAmount prop
-		[state, totalAmount] // Use state directly as dependency
+		[state, totalAmount, isPaymentCompleteInternal] // Dependencies
 	);
 
 	// --- Complete Payment Flow ---
-	const completePaymentFlow = useCallback(async () => {
-		// Capture state at the start of this specific execution
-		const currentState = state;
-
-		try {
-			console.log("COMPLETE FLOW: Starting completePaymentFlow");
-
-			// *** FIX: Recalculate base paid from transactions for accuracy ***
-			const currentBasePaidFromTxns = currentState.transactions.reduce(
-				(sum, tx) => sum + (tx.baseAmountPaid || 0),
-				0 // Sum baseAmountPaid from each tx
-			);
-			const isFullyPaid = new Decimal(
-				currentBasePaidFromTxns
-			).greaterThanOrEqualTo(new Decimal(totalAmount).minus(epsilon));
-			// *** END FIX ***
-
-			console.log("COMPLETE FLOW: Completion Check", {
-				totalAmount, // Base order total
-				// Use the recalculated amount for the check log
-				amountPaid: currentBasePaidFromTxns,
-				remaining: totalAmount - currentBasePaidFromTxns,
-				isFullyPaid,
-				totalTip: currentState.totalTipAmount,
-			});
-
-			if (!isFullyPaid) {
+	// Accepts finalTransactions array directly from the calling component
+	const completePaymentFlow = useCallback(
+		async (finalTransactions) => {
+			if (!finalTransactions || !Array.isArray(finalTransactions)) {
 				console.error(
-					"COMPLETE FLOW: Attempted to complete flow but base amount is not fully paid (calculated from txns)."
+					"COMPLETE FLOW: Invalid or missing finalTransactions array provided."
 				);
-				setError("Base payment amount is not fully complete.");
+				setError("Internal error: Transaction data missing for completion.");
 				return false;
 			}
 
-			// Prepare the payload using the captured state
-			const paymentPayload = {
-				transactions: currentState.transactions,
-				totalPaid: currentBasePaidFromTxns + currentState.totalTipAmount, // Use recalculated base + total tip
-				baseAmountPaid: currentBasePaidFromTxns, // Send recalculated base
-				totalTipAmount: currentState.totalTipAmount,
-				paymentMethod: currentState.splitMode
-					? "split"
-					: currentState.paymentMethod,
-				splitPayment: currentState.splitMode,
-				splitDetails: currentState.splitMode ? currentState.splitDetails : null,
-				orderId: currentState.orderId || useCartStore.getState().orderId,
-				completed_at: new Date().toISOString(),
-			};
-
-			console.log(
-				"COMPLETE FLOW: Calling onComplete with payload:",
-				JSON.stringify(paymentPayload, null, 2)
+			const currentBasePaidFromTxns = finalTransactions.reduce(
+				(sum, tx) => sum + (tx.baseAmountPaid || 0),
+				0
 			);
+			const currentTotalTipFromTxns = finalTransactions.reduce(
+				(sum, tx) => sum + (tx.tipAmount || 0),
+				0
+			);
+			// Use internal helper for consistency
+			const isFullyPaid = isPaymentCompleteInternal(currentBasePaidFromTxns);
 
-			const success = await onComplete?.(paymentPayload);
-
-			if (success) {
+			try {
 				console.log(
-					"COMPLETE FLOW: onComplete successful. Navigating to Completion view."
+					"COMPLETE FLOW: Starting completePaymentFlow (with explicit transactions)"
 				);
-				// Use functional setState to ensure update is based on latest state *before* navigation
-				setState((prev) => ({
-					...prev,
-					currentView: "Completion",
-					previousViews: [...prev.previousViews, prev.currentView],
-				}));
-				useCartStore.getState().setRewardsProfile(null);
-				useCartStore.getState().removeOrderDiscount();
-				return true;
-			} else {
-				console.error("COMPLETE FLOW: onComplete callback reported failure.");
-				setError("Failed to finalize the order with the backend.");
+				console.log("COMPLETE FLOW: Completion Check", {
+					totalAmount,
+					amountPaid: currentBasePaidFromTxns,
+					remaining: totalAmount - currentBasePaidFromTxns,
+					isFullyPaid,
+					totalTip: currentTotalTipFromTxns,
+					numTransactions: finalTransactions.length,
+				});
+
+				if (!isFullyPaid) {
+					console.error(
+						"COMPLETE FLOW: Base amount check failed inside completePaymentFlow."
+					);
+					setError("Base payment amount is not fully complete.");
+					return false;
+				}
+
+				// Build payload using finalTransactions and current state for mode/details
+				const paymentPayload = {
+					transactions: finalTransactions,
+					totalPaid: currentBasePaidFromTxns + currentTotalTipFromTxns,
+					baseAmountPaid: currentBasePaidFromTxns,
+					totalTipAmount: currentTotalTipFromTxns,
+					paymentMethod: state.splitMode ? "split" : state.paymentMethod,
+					splitPayment: state.splitMode,
+					splitDetails: state.splitMode ? state.splitDetails : null,
+					orderId: state.orderId || useCartStore.getState().orderId,
+					completed_at: new Date().toISOString(),
+				};
+				console.log(
+					"COMPLETE FLOW: Calling onComplete with payload:",
+					JSON.stringify(paymentPayload, null, 2)
+				);
+
+				const success = await onComplete?.(paymentPayload); // Call the callback (useCartActions.completeOrder)
+
+				if (success) {
+					console.log(
+						"COMPLETE FLOW: onComplete successful. POS view should navigate."
+					);
+					useCartStore.getState().setRewardsProfile(null);
+					useCartStore.getState().removeOrderDiscount();
+					return true;
+				} else {
+					console.error("COMPLETE FLOW: onComplete callback reported failure.");
+					setError("Failed backend finalization.");
+					return false;
+				}
+			} catch (error) {
+				console.error("COMPLETE FLOW: Error:", error);
+				setError(error.message || "Error completing.");
 				return false;
 			}
-		} catch (error) {
-			console.error("COMPLETE FLOW: Error in completePaymentFlow:", error);
-			setError(error.message || "An error occurred during payment completion.");
-			return false;
-		}
-		// Dependencies should include things used *outside* the direct state reads if possible
-		// But since we capture state, 'state' itself is the main dependency conceptually
-	}, [state, totalAmount, epsilon, onComplete]);
+		},
+		[
+			state.paymentMethod,
+			state.splitMode,
+			state.splitDetails,
+			state.orderId,
+			totalAmount,
+			epsilon,
+			onComplete,
+			isPaymentCompleteInternal,
+		] // Dependencies
+	);
 
 	// --- Start New Order ---
 	const handleStartNewOrder = useCallback(async () => {
-		// ... (same logic as before) ...
 		try {
 			console.log("Starting new order from payment flow hook");
-			await onNewOrder?.();
+			await onNewOrder?.(); // Call prop function
+			// Reset state fully after new order is started by parent
 			setState({
-				orderId: useCartStore.getState().orderId,
+				orderId: useCartStore.getState().orderId, // Get potentially new ID
 				currentView: "InitialOptions",
 				previousViews: [],
 				paymentMethod: null,
@@ -438,25 +457,29 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				currentSplitMethod: null,
 				totalTipAmount: 0,
 			});
-			useCartStore.getState().setOrderDiscount(null);
+			useCartStore.getState().setOrderDiscount(null); // Also reset these in cart store
 			useCartStore.getState().setRewardsProfile(null);
 		} catch (error) {
 			console.error("Error starting new order in payment flow hook:", error);
 		}
-	}, [onNewOrder]);
+	}, [onNewOrder]); // Dependency
+
+	// Expose the public check using the current state
+	const isPaymentCompletePublic = useCallback(() => {
+		return isPaymentCompleteInternal(state.amountPaid);
+	}, [state.amountPaid, isPaymentCompleteInternal]);
 
 	return {
 		state,
-		setState,
+		setState, // Expose setState if needed externally (use with caution)
 		error,
-		isProcessing,
+		// Removed isProcessing state
 		handleNavigation,
 		handleBack,
 		processPayment,
 		completePaymentFlow,
-		// *** FIX: Expose the actual check function ***
-		isPaymentComplete: isPaymentComplete,
-		isSplitPaymentComplete, // Keep this one as well
+		isPaymentComplete: isPaymentCompletePublic, // Expose the public check
+		// Removed isSplitPaymentComplete as it was identical to isPaymentComplete
 		handleStartNewOrder,
 		resetSplitState,
 	};

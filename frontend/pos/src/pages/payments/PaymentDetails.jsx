@@ -1,505 +1,626 @@
-// src/pages/payments/PaymentDetails.jsx
 import { useState, useEffect } from "react";
+import PropTypes from "prop-types"; // Import PropTypes
 import { useParams, useNavigate } from "react-router-dom";
 import { paymentService } from "../../api/services/paymentService";
 import { authService } from "../../api/services/authService";
-// Removed unused import: axiosInstance
-import RefundConfirmation from "./RefundConfirmation"; // Will update this component next
-import RefundSuccessModal from "./RefundSuccessModal";
-import LoadingSpinner from "../reports/components/LoadingSpinner";
+import RefundConfirmation from "./RefundConfirmation"; // Assuming this is styled consistently
+import RefundSuccessModal from "./RefundSuccessModal"; // Assuming this is styled consistently
+import LoadingSpinner from "../reports/components/LoadingSpinner"; // Common loading spinner
+import { formatPrice } from "../../utils/numberUtils"; // Utility for formatting currency
+
+// Import icons from Heroicons
 import {
 	ArrowLeftIcon,
 	BanknotesIcon,
 	CreditCardIcon,
 	ArrowUturnLeftIcon,
 	TicketIcon,
-} from "@heroicons/react/24/outline";
+	InformationCircleIcon,
+	DocumentTextIcon,
+	HashtagIcon, // Added for IDs
+	ClockIcon as ClockOutlineIcon, // Use outline for general info
+	CalendarDaysIcon, // For dates
+} from "@heroicons/react/24/outline"; // Using outline for consistency and general info
 import {
 	CheckCircleIcon,
 	XCircleIcon,
-	ClockIcon,
-	ExclamationTriangleIcon,
-} from "@heroicons/react/24/solid";
+	ClockIcon as ClockSolidIcon, // Use solid for status indicators
+	ExclamationTriangleIcon, // Use solid for status indicators
+} from "@heroicons/react/24/solid"; // Use solid for status/alerts
+
+// --- Helper Functions ---
+
+/**
+ * Formats a timestamp into a locale-specific date and time string.
+ * @param {string | null} timestamp - The ISO date string or null.
+ * @returns {string} Formatted date string or 'N/A'.
+ */
+const formatDate = (timestamp) =>
+	timestamp ? new Date(timestamp).toLocaleString() : "N/A";
+
+/**
+ * Determines the Tailwind CSS classes for a status pill based on the status string.
+ * @param {string | null} status - The payment or transaction status (e.g., 'completed', 'refunded').
+ * @returns {string} Tailwind CSS classes for the status pill.
+ */
+const getStatusPillClasses = (status) => {
+	const lowerStatus = status?.toLowerCase();
+	// Base classes for all pills: padding, rounded corners, font size/weight, inline display, border, subtle shadow
+	const baseClasses =
+		"px-2.5 py-0.5 rounded-full text-xs font-medium inline-flex items-center border shadow-sm whitespace-nowrap";
+
+	switch (lowerStatus) {
+		case "completed":
+			return `${baseClasses} bg-emerald-50 text-emerald-700 border-emerald-200`;
+		case "refunded":
+			return `${baseClasses} bg-rose-50 text-rose-700 border-rose-200`; // Use rose for refund
+		case "partially_refunded":
+			return `${baseClasses} bg-amber-50 text-amber-700 border-amber-200`; // Use amber for partial
+		case "failed":
+			return `${baseClasses} bg-red-50 text-red-700 border-red-200`; // Use red for failed
+		case "pending":
+		case "processing": // Added processing case
+			return `${baseClasses} bg-sky-50 text-sky-700 border-sky-200`; // Use sky for pending/processing
+		default:
+			return `${baseClasses} bg-slate-100 text-slate-600 border-slate-200`; // Default fallback
+	}
+};
+
+/**
+ * Gets the appropriate icon and label JSX for a payment method.
+ * @param {string | null} method - The payment method string (e.g., 'cash', 'credit').
+ * @param {boolean} isSplit - Whether the payment is a split payment.
+ * @returns {JSX.Element} A span containing the icon and label.
+ */
+const getPaymentMethodDisplay = (method, isSplit) => {
+	// Base classes for consistent alignment and spacing
+	const baseClasses = "inline-flex items-center gap-1.5 text-sm";
+
+	if (isSplit) {
+		return (
+			<span className={`${baseClasses} font-medium text-purple-700`}>
+				<TicketIcon className="h-4 w-4 text-purple-500 flex-shrink-0" />
+				Split Payment
+			</span>
+		);
+	}
+
+	switch (method?.toLowerCase()) {
+		case "cash":
+			return (
+				<span className={`${baseClasses} font-medium text-green-700`}>
+					<BanknotesIcon className="h-4 w-4 text-green-500 flex-shrink-0" />
+					Cash
+				</span>
+			);
+		case "credit":
+		case "card": // Added 'card' as a possible value
+			return (
+				<span className={`${baseClasses} font-medium text-blue-700`}>
+					<CreditCardIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+					Credit Card
+				</span>
+			);
+		default:
+			// Fallback for unknown or null methods
+			return (
+				<span className={`${baseClasses} font-medium text-slate-600`}>
+					<TicketIcon className="h-4 w-4 text-slate-400 flex-shrink-0" />
+					{method ? method.toUpperCase() : "N/A"}
+				</span>
+			);
+	}
+};
+
+/**
+ * Gets the appropriate icon for a status string.
+ * @param {string | null} status - The status string.
+ * @returns {JSX.Element | null} A Heroicon component or null.
+ */
+const getStatusIcon = (status) => {
+	const lowerStatus = status?.toLowerCase();
+	const iconClasses = "h-4 w-4 mr-1"; // Consistent icon size and margin
+
+	switch (lowerStatus) {
+		case "completed":
+			return <CheckCircleIcon className={`${iconClasses} text-emerald-500`} />;
+		case "refunded":
+			return <XCircleIcon className={`${iconClasses} text-rose-500`} />;
+		case "partially_refunded":
+			return (
+				<ExclamationTriangleIcon className={`${iconClasses} text-amber-500`} />
+			);
+		case "failed":
+			return <XCircleIcon className={`${iconClasses} text-red-500`} />;
+		case "pending":
+		case "processing":
+			return <ClockSolidIcon className={`${iconClasses} text-sky-500`} />;
+		default:
+			return <ClockSolidIcon className={`${iconClasses} text-slate-400`} />;
+	}
+};
+
+// --- Helper Component for Detail Items ---
+
+/**
+ * Renders a definition list item (label and value) with an optional icon.
+ * @param {object} props - Component props.
+ * @param {string} props.label - The label text.
+ * @param {React.ReactNode} props.value - The value to display (can be string, number, or JSX).
+ * @param {React.ElementType | null} [props.icon] - Optional Heroicon component.
+ * @returns {JSX.Element} A div containing the dt and dd elements.
+ */
+const DetailItem = ({ label, value, icon: IconComponent }) => (
+	<div>
+		{/* Definition Term (Label) */}
+		<dt className="text-xs font-medium text-slate-500 mb-0.5 flex items-center gap-1">
+			{/* Render icon if provided */}
+			{IconComponent && (
+				<IconComponent className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+			)}
+			{label}
+		</dt>
+		{/* Definition Description (Value) */}
+		<dd className="text-sm text-slate-800 break-words">
+			{/* Display value or a placeholder if value is falsy */}
+			{value || <span className="italic text-slate-400">N/A</span>}
+		</dd>
+	</div>
+);
+
+// Define PropTypes for the DetailItem component
+DetailItem.propTypes = {
+	label: PropTypes.string.isRequired,
+	value: PropTypes.node, // Can be string, number, or JSX element
+	icon: PropTypes.elementType, // Expecting a React component type (like a Heroicon)
+};
+
+// --- Main PaymentDetails Component ---
 
 export default function PaymentDetails() {
-	const { paymentId } = useParams();
-	const navigate = useNavigate();
+	const { paymentId } = useParams(); // Get payment ID from URL parameters
+	const navigate = useNavigate(); // Hook for programmatic navigation
 
-	// State
-	const [payment, setPayment] = useState(null);
-	const [isAdmin, setIsAdmin] = useState(false);
-	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState(null);
-	const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
-	const [isProcessingRefund, setIsProcessingRefund] = useState(false);
-	const [refundSuccessData, setRefundSuccessData] = useState(null);
-	const [transactionToRefund, setTransactionToRefund] = useState(null); // Store the specific transaction being refunded
+	// --- State Variables ---
+	const [payment, setPayment] = useState(null); // Holds the fetched payment details
+	const [isAdmin, setIsAdmin] = useState(false); // Tracks if the current user is an admin
+	const [isLoading, setIsLoading] = useState(true); // Loading state for data fetching
+	const [error, setError] = useState(null); // Stores any errors during fetch or refund
+	const [isRefundModalOpen, setIsRefundModalOpen] = useState(false); // Controls visibility of the refund confirmation modal
+	const [isProcessingRefund, setIsProcessingRefund] = useState(false); // Indicates if a refund is currently being processed
+	const [refundSuccessData, setRefundSuccessData] = useState(null); // Stores data from a successful refund for the success modal
+	const [transactionToRefund, setTransactionToRefund] = useState(null); // Stores the specific transaction selected for refund
 
-	// Fetch payment details (includes nested transactions and order ID)
+	// --- Effects ---
+
+	// Effect to fetch payment details and user status on component mount or when paymentId changes
 	useEffect(() => {
 		const fetchPaymentDetails = async () => {
-			setIsLoading(true);
-			setError(null);
+			setIsLoading(true); // Start loading
+			setError(null); // Clear previous errors
 			try {
+				// Fetch payment data and user auth status concurrently
 				const [paymentResponse, authResponse] = await Promise.all([
 					paymentService.getPaymentById(paymentId),
-					authService.checkStatus(),
+					authService.checkStatus(), // Check if user is admin
 				]);
-
-				// Log the raw payment data received
-				console.log("Fetched Payment Data:", paymentResponse);
-
-				setPayment(paymentResponse);
-				setIsAdmin(authResponse.is_admin);
-			} catch (error) {
-				console.error("Error fetching payment details:", error);
-				setError("Failed to load payment details. Please try again.");
+				console.log("Fetched Payment Data:", paymentResponse); // Log fetched data for debugging
+				setPayment(paymentResponse); // Store payment data
+				setIsAdmin(authResponse.is_admin); // Store admin status
+			} catch (err) {
+				console.error("Error fetching payment details:", err);
+				// Set a user-friendly error message
+				setError(
+					err.response?.data?.detail || // Use backend error message if available
+						"Failed to load payment details. Please try again."
+				);
 			} finally {
-				setIsLoading(false);
+				setIsLoading(false); // Stop loading regardless of success or failure
 			}
 		};
-
 		fetchPaymentDetails();
-	}, [paymentId]);
+	}, [paymentId]); // Dependency array: re-run effect if paymentId changes
 
-	// --- Helper Functions ---
-	const formatCurrency = (amount) => {
-		// Ensure amount is a valid number before formatting
-		const numAmount = Number(amount);
-		if (isNaN(numAmount)) {
-			return "$0.00"; // Or handle as appropriate
-		}
-		return new Intl.NumberFormat("en-US", {
-			style: "currency",
-			currency: "USD",
-		}).format(numAmount);
-	};
-	const formatDate = (timestamp) =>
-		timestamp ? new Date(timestamp).toLocaleString() : "N/A";
+	// --- Event Handlers ---
 
-	const getStatusPill = (status) => {
-		status = status?.toLowerCase();
-		const baseClasses =
-			"px-2 py-1 rounded-full text-xs font-medium inline-flex items-center";
-		switch (status) {
-			case "completed":
-				return (
-					<span className={`${baseClasses} bg-emerald-50 text-emerald-700`}>
-						<CheckCircleIcon className="h-3 w-3 mr-1" />
-						COMPLETED
-					</span>
-				);
-			case "refunded":
-				return (
-					<span className={`${baseClasses} bg-red-50 text-red-700`}>
-						<ArrowUturnLeftIcon className="h-3 w-3 mr-1" />
-						REFUNDED
-					</span>
-				);
-			case "partially_refunded":
-				return (
-					<span className={`${baseClasses} bg-orange-50 text-orange-700`}>
-						<ArrowUturnLeftIcon className="h-3 w-3 mr-1" />
-						PARTIALLY REFUNDED
-					</span>
-				);
-			case "failed":
-				return (
-					<span className={`${baseClasses} bg-amber-50 text-amber-700`}>
-						<XCircleIcon className="h-3 w-3 mr-1" />
-						FAILED
-					</span>
-				);
-			case "pending":
-				return (
-					<span className={`${baseClasses} bg-slate-50 text-slate-700`}>
-						<ClockIcon className="h-3 w-3 mr-1" />
-						PENDING
-					</span>
-				);
-			default:
-				return (
-					<span className={`${baseClasses} bg-slate-50 text-slate-700`}>
-						{String(status).toUpperCase()}
-					</span>
-				);
-		}
-	};
-
-	const getPaymentMethodIcon = (method) => {
-		switch (method?.toLowerCase()) {
-			case "cash":
-				return <BanknotesIcon className="h-4 w-4 mr-1.5 text-green-600" />;
-			case "credit":
-				return <CreditCardIcon className="h-4 w-4 mr-1.5 text-blue-600" />;
-			default:
-				return <TicketIcon className="h-4 w-4 mr-1.5 text-gray-500" />; // Default icon
-		}
-	};
-
-	// --- Refund Handling ---
+	/**
+	 * Opens the refund confirmation modal for a specific transaction.
+	 * Checks if the transaction is eligible for refund ('completed' status).
+	 * @param {object} transaction - The transaction object to be refunded.
+	 */
 	const openRefundModal = (transaction) => {
+		// Prevent refunding non-completed transactions
 		if (transaction?.status !== "completed") {
-			alert("Only completed transactions can be refunded.");
+			alert("Only completed transactions can be refunded."); // Simple alert for now
 			return;
 		}
-		setTransactionToRefund(transaction);
-		setIsRefundModalOpen(true);
+		setTransactionToRefund(transaction); // Set the transaction to be refunded
+		setIsRefundModalOpen(true); // Open the modal
 	};
 
+	/**
+	 * Handles the confirmation of the refund action from the modal.
+	 * Sends the refund request to the backend.
+	 * @param {object} refundInputData - Data from the refund form (amount, reason).
+	 */
 	const handleConfirmRefund = async (refundInputData) => {
+		// Ensure payment and transaction data are available
 		if (!payment || !transactionToRefund) return;
 
-		setIsProcessingRefund(true);
+		setIsProcessingRefund(true); // Indicate refund processing started
 		setError(null); // Clear previous errors
+
 		try {
-			// Prepare data for the service call
+			// Prepare payload for the refund API endpoint
 			const refundPayload = {
-				transaction_id: transactionToRefund.id, // Pass the PaymentTransaction PK
-				amount: refundInputData.amount,
-				reason: refundInputData.reason,
+				transaction_id: transactionToRefund.id,
+				amount: refundInputData.amount, // Amount from the modal form
+				reason: refundInputData.reason, // Reason from the modal form
 			};
 
-			console.log(
-				`Processing refund for Payment ${payment.id}, Transaction ${transactionToRefund.id}`,
-				refundPayload
-			);
+			// Call the refund service
 			const response = await paymentService.processRefund(
 				payment.id,
 				refundPayload
 			);
 
+			// Check if the backend indicated success
 			if (response.success) {
-				console.log("Refund successful:", response);
-				// --- Refresh payment data from server after successful refund ---
+				// Refetch payment data to show updated status/transactions
 				const updatedPaymentData = await paymentService.getPaymentById(
 					paymentId
 				);
-				setPayment(updatedPaymentData);
-				// ---
-				setIsRefundModalOpen(false);
-				setRefundSuccessData(response); // Store the full success response
-				setTransactionToRefund(null);
+				setPayment(updatedPaymentData); // Update state with fresh data
+				setIsRefundModalOpen(false); // Close the confirmation modal
+				setRefundSuccessData(response); // Set data for the success modal
+				setTransactionToRefund(null); // Clear the selected transaction
 			} else {
-				// Handle backend success=false case
+				// If backend responds with success: false or an error message
 				throw new Error(
-					response.message || "Refund processing failed on backend."
+					response.message || "Refund processing failed on the backend."
 				);
 			}
-		} catch (error) {
-			console.error("Error processing refund:", error);
+		} catch (err) {
+			console.error("Error processing refund:", err);
+			// Extract a user-friendly error message from the error object
 			const errorMsg =
-				error.response?.data?.error ||
-				error.message ||
-				"Failed to process refund.";
-			setError(errorMsg); // Set error state to display in UI
-			alert(`Refund Failed: ${errorMsg}`); // Also show alert
+				err.response?.data?.error || // Check for specific error field from backend response
+				err.message || // Use general error message if available
+				"An unexpected error occurred during the refund process."; // Fallback message
+			setError(errorMsg); // Set the error state to display to the user
+			// Optionally, show an alert immediately as well
+			// alert(`Refund Failed: ${errorMsg}`);
 		} finally {
-			setIsProcessingRefund(false);
+			setIsProcessingRefund(false); // Indicate refund processing finished
 		}
 	};
 
 	// --- Render Logic ---
 
+	// Display loading spinner while fetching data
 	if (isLoading) {
 		return (
-			<div className="w-screen h-screen flex items-center justify-center bg-slate-50">
+			<div className="flex h-screen w-screen items-center justify-center bg-slate-50">
 				<LoadingSpinner size="lg" />
 			</div>
 		);
 	}
 
+	// Display error message if fetching failed and no payment data is available
 	if (error && !payment) {
-		// Only show full error page if payment failed to load initially
 		return (
-			<div className="w-screen h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
-				<ExclamationTriangleIcon className="h-16 w-16 text-red-400 mb-4" />
-				<h1 className="text-2xl font-bold text-slate-800 mb-2">
+			<div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-100 p-6 text-center">
+				<ExclamationTriangleIcon className="mb-4 h-16 w-16 text-red-400" />
+				<h1 className="mb-2 text-2xl font-bold text-slate-800">
 					Error Loading Payment
 				</h1>
-				<p className="text-slate-600 mb-6">{error}</p>
+				<p className="mb-6 text-slate-600">{error}</p>
 				<button
-					className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-					onClick={() => navigate("/payments")}
+					className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+					onClick={() => navigate("/payments")} // Navigate back to the payments list
 				>
+					<ArrowLeftIcon className="h-4 w-4" />
 					Return to Payments
 				</button>
 			</div>
 		);
 	}
 
+	// Display message if payment data is not found (but no fetch error occurred)
 	if (!payment) {
-		// Handle case where payment is null after loading attempt
 		return (
-			<div className="w-screen h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
-				<CreditCardIcon className="h-16 w-16 text-slate-400 mb-4" />
-				<h1 className="text-2xl font-bold text-slate-800 mb-2">
+			<div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-100 p-6 text-center">
+				<CreditCardIcon className="mb-4 h-16 w-16 text-slate-400" />
+				<h1 className="mb-2 text-2xl font-bold text-slate-800">
 					Payment Not Found
 				</h1>
-				<p className="text-slate-600 mb-6">
+				<p className="mb-6 text-slate-600">
 					The requested payment could not be found.
 				</p>
 				<button
-					className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-					onClick={() => navigate("/payments")}
+					className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+					onClick={() => navigate("/payments")} // Navigate back to the payments list
 				>
+					<ArrowLeftIcon className="h-4 w-4" />
 					Return to Payments
 				</button>
 			</div>
 		);
 	}
 
-	// Ensure transactions is an array, default to empty if not present
+	// Ensure transactions is always an array, even if null/undefined from API
 	const transactions = Array.isArray(payment.transactions)
 		? payment.transactions
 		: [];
+	// Check if any transaction is potentially refundable (completed status and user is admin)
+	const canRefundAny =
+		isAdmin && transactions.some((txn) => txn.status === "completed");
 
+	// --- Main Component JSX ---
 	return (
-		<div className="w-screen h-screen flex flex-col bg-slate-50 text-slate-800 p-6 overflow-hidden">
-			{/* Header */}
-			<div className="flex justify-between items-center mb-6 flex-shrink-0">
-				<div className="flex items-center space-x-3">
-					<h1 className="text-2xl font-bold text-slate-800">Payment Details</h1>
-					<span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-						#{paymentId}
+		// Full screen container with padding and background color
+		<div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-100 p-4 text-slate-900 sm:p-6">
+			{/* Header Section */}
+			<header className="mb-4 flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+					{/* Page Title */}
+					<h1 className="text-xl font-bold text-slate-800 sm:text-2xl">
+						Payment Details
+					</h1>
+					{/* Payment ID Badge */}
+					<span className="flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
+						<HashtagIcon className="mr-1 h-3 w-3" />
+						{paymentId}
 					</span>
-					{getStatusPill(payment.status)}
-					<span
-						className={`px-2 py-1 rounded-full text-xs font-medium ${
-							payment.is_split_payment
-								? "bg-purple-50 text-purple-700"
-								: "bg-slate-50 text-slate-700"
-						}`}
-					>
-						{payment.is_split_payment ? "SPLIT" : "SINGLE"}
+					{/* Payment Status Pill */}
+					<span className={getStatusPillClasses(payment.status)}>
+						{getStatusIcon(payment.status)}
+						{payment.status?.replace("_", " ").toUpperCase()}
 					</span>
 				</div>
+				{/* Back Button */}
 				<button
-					className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 flex items-center gap-1.5"
-					onClick={() => navigate("/payments")}
+					className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+					onClick={() => navigate("/payments")} // Go back to the payments list page
 				>
-					<ArrowLeftIcon className="h-5 w-5" /> Back
+					<ArrowLeftIcon className="h-4 w-4" /> Back
 				</button>
-			</div>
+			</header>
 
-			{/* Display Refund Processing Error if occurs */}
+			{/* Display Refund Processing Error if it occurs */}
 			{error && (
-				<div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg flex items-center text-sm">
-					<XCircleIcon className="h-5 w-5 mr-2 flex-shrink-0" />
-					{error}
+				<div className="mb-4 flex items-center rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 shadow-sm">
+					<XCircleIcon className="mr-2 h-5 w-5 flex-shrink-0" />
+					<span className="flex-1">{error}</span>
+					<button
+						onClick={() => setError(null)} // Allow dismissing the error
+						className="ml-2 rounded p-0.5 text-red-600 hover:bg-red-100"
+						aria-label="Dismiss error"
+					>
+						<XCircleIcon className="h-4 w-4" />
+					</button>
 				</div>
 			)}
 
-			{/* Main Content Area */}
-			<div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
+			{/* Main Content Area - Grid layout for responsiveness */}
+			<div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-3 sm:gap-6">
 				{/* Left Panel: Summary & Order Info */}
-				<div className="lg:col-span-1 bg-white rounded-xl shadow-sm p-4 flex flex-col border border-slate-200 overflow-y-auto">
-					{/* Payment Summary */}
-					<div className="border-b border-slate-100 pb-4 mb-4">
-						<h2 className="text-base font-semibold text-slate-800 mb-3">
+				<div className="custom-scrollbar flex flex-col overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:col-span-1 sm:p-5">
+					{/* Payment Summary Section */}
+					<div className="mb-4 border-b border-slate-100 pb-4">
+						<h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-700">
+							<InformationCircleIcon className="h-5 w-5 text-slate-400" />
 							Payment Summary
 						</h2>
-						<div className="space-y-2 text-sm">
-							<div className="flex justify-between">
-								<span className="text-slate-500">Payment ID:</span>{" "}
-								<span className="font-medium text-slate-700">{payment.id}</span>
+						{/* Definition List for Payment Details */}
+						<dl className="space-y-3">
+							<DetailItem
+								label="Payment ID"
+								value={`#${payment.id}`}
+								icon={HashtagIcon}
+							/>
+							<DetailItem
+								label="Total Amount"
+								value={
+									<span className="text-lg font-semibold text-slate-900">
+										{formatPrice(payment.amount)}
+									</span>
+								}
+								// No specific icon needed here, amount is primary info
+							/>
+							{/* Status displayed inline */}
+							<div className="flex items-center justify-between">
+								<dt className="flex items-center gap-1 text-xs font-medium text-slate-500">
+									<ClockOutlineIcon className="h-3.5 w-3.5 text-slate-400" />
+									Status
+								</dt>
+								<dd>
+									<span className={getStatusPillClasses(payment.status)}>
+										{getStatusIcon(payment.status)}
+										{payment.status?.replace("_", " ").toUpperCase()}
+									</span>
+								</dd>
 							</div>
-							<div className="flex justify-between">
-								<span className="text-slate-500">Total Amount:</span>{" "}
-								<span className="font-semibold text-lg text-slate-800">
-									{formatCurrency(payment.amount)}
-								</span>
-							</div>
-							<div className="flex justify-between">
-								<span className="text-slate-500">Overall Status:</span>{" "}
-								{getStatusPill(payment.status)}
-							</div>
-							<div className="flex justify-between">
-								<span className="text-slate-500">Method:</span>{" "}
-								<span className="font-medium text-slate-700">
-									{payment.payment_method
-										? payment.payment_method.toUpperCase()
-										: "N/A"}
-								</span>
-							</div>
-							<div className="flex justify-between">
-								<span className="text-slate-500">Date:</span>{" "}
-								<span className="font-medium text-slate-700">
-									{formatDate(payment.created_at)}
-								</span>
-							</div>
-						</div>
+							<DetailItem
+								label="Method"
+								value={getPaymentMethodDisplay(
+									payment.payment_method,
+									payment.is_split_payment
+								)}
+								icon={
+									payment.is_split_payment
+										? TicketIcon
+										: payment.payment_method === "cash"
+										? BanknotesIcon
+										: CreditCardIcon
+								}
+							/>
+							<DetailItem
+								label="Date Created"
+								value={formatDate(payment.created_at)}
+								icon={CalendarDaysIcon}
+							/>
+							<DetailItem
+								label="Last Updated"
+								value={formatDate(payment.updated_at)}
+								icon={ClockOutlineIcon}
+							/>
+						</dl>
 					</div>
 
-					{/* Order Info */}
+					{/* Associated Order Info Section */}
 					{payment.order ? (
-						<div className="border-b border-slate-100 pb-4 mb-4">
-							<h2 className="text-base font-semibold text-slate-800 mb-3">
+						<div>
+							<h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-700">
+								<DocumentTextIcon className="h-5 w-5 text-slate-400" />
 								Associated Order
 							</h2>
-							<div className="space-y-2 text-sm">
-								<div className="flex justify-between">
-									<span className="text-slate-500">Order ID:</span>{" "}
-									<button
-										onClick={() => navigate(`/orders/${payment.order}`)}
-										className="text-blue-600 hover:underline font-medium"
-									>
-										#{payment.order}
-									</button>
-								</div>
-								{/* Add more order details if the Order object is expanded in the serializer */}
-							</div>
+							<dl className="space-y-3">
+								<DetailItem
+									label="Order ID"
+									value={
+										// Make the Order ID clickable to navigate to the order details page
+										<button
+											onClick={() => navigate(`/orders/${payment.order}`)}
+											className="text-sm font-medium text-blue-600 hover:underline focus:outline-none"
+										>
+											#{payment.order}
+										</button>
+									}
+									icon={HashtagIcon}
+								/>
+								{/* Potential future expansion: Add more order details here if needed */}
+								{/* e.g., fetch order status or customer name */}
+							</dl>
 						</div>
 					) : (
-						<div className="text-sm text-slate-500 italic">
+						// Display if no order is associated
+						<div className="flex items-center gap-2 text-sm text-slate-500 italic">
+							<InformationCircleIcon className="h-4 w-4 flex-shrink-0" />
 							No associated order found.
 						</div>
 					)}
-
-					{/* Refund All Button (Removed - refund per transaction is safer) */}
-					{/* If you want a "Refund All", it needs careful backend logic */}
 				</div>
 
 				{/* Right Panel: Transaction List */}
-				<div className="lg:col-span-2 bg-white rounded-xl shadow-sm flex flex-col border border-slate-200 overflow-hidden">
-					<div className="p-4 border-b border-slate-200 flex-shrink-0">
-						<h2 className="text-base font-semibold text-slate-800">
-							Transactions
+				<div className="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:col-span-2">
+					{/* Panel Header */}
+					<div className="flex-shrink-0 border-b border-slate-200 p-4">
+						<h2 className="text-base font-semibold text-slate-700">
+							Transactions ({transactions.length})
 						</h2>
 					</div>
-					<div className="flex-1 overflow-y-auto">
+					{/* Transaction Table Area */}
+					<div className="custom-scrollbar flex-1 overflow-auto">
 						{transactions.length === 0 ? (
-							<div className="p-6 text-center text-slate-500">
-								No individual transactions recorded for this payment.
+							// Message when no transactions exist
+							<div className="p-6 text-center text-sm text-slate-500">
+								No individual transactions found for this payment.
 							</div>
 						) : (
-							<div className="divide-y divide-slate-100">
-								{transactions.map((txn) => (
-									<div
-										key={txn.id}
-										className="p-4 hover:bg-slate-50"
-									>
-										<div className="flex flex-wrap justify-between items-start gap-2">
-											{/* Left Side: Method, Amount, Status */}
-											<div className="flex-1 min-w-[150px]">
-												<div className="flex items-center font-medium text-slate-800 mb-1">
-													{getPaymentMethodIcon(txn.payment_method)}
-													<span>
-														{txn.payment_method
-															? txn.payment_method.toUpperCase()
-															: "N/A"}
-													</span>
-													<span className="ml-2 text-lg font-semibold">
-														{formatCurrency(txn.amount)}
-													</span>
-												</div>
-												{getStatusPill(txn.status)}
-												<div className="text-xs text-slate-400 mt-1">
-													ID: {txn.id}
-												</div>
-											</div>
+							// Table for displaying transactions
+							<table className="min-w-full divide-y divide-slate-100">
+								{/* Table Header */}
+								<thead className="sticky top-0 z-10 bg-slate-50">
+									<tr>
+										<th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+											ID / Method
+										</th>
+										<th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+											Amount
+										</th>
+										<th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+											Status
+										</th>
 
-											{/* Middle: Details (Card/Cash/ID) */}
-											<div className="flex-1 min-w-[200px] text-xs text-slate-500 space-y-1">
-												{txn.payment_method === "credit" &&
-													txn.metadata?.card_last4 && (
-														<div>
-															<strong>Card:</strong>{" "}
-															{txn.metadata.card_brand || "CARD"} ****
-															{txn.metadata.card_last4}
-														</div>
-													)}
-												{txn.payment_method === "cash" &&
-													txn.metadata?.cashTendered !== undefined && ( // Check specifically for tendered
-														<div>
-															<strong>Tendered:</strong>{" "}
-															{formatCurrency(txn.metadata.cashTendered)}
-															{txn.metadata?.change !== undefined &&
-																` | Change: ${formatCurrency(
-																	txn.metadata.change
-																)}`}
-														</div>
-													)}
-												{txn.transaction_id && (
-													<div>
-														<strong>Ref ID:</strong>{" "}
-														<span className="font-mono bg-slate-100 px-1 rounded break-all">
-															{txn.transaction_id}
-														</span>
-													</div>
-												)}
-												{txn.metadata?.refund_id_webhook && (
-													<div className="text-red-600">
-														<strong>Refund Ref:</strong>{" "}
-														<span className="font-mono bg-red-50 px-1 rounded break-all">
-															{txn.metadata.refund_id_webhook}
-														</span>
-													</div>
-												)}
-												<div>
-													<strong>Timestamp:</strong>{" "}
-													{formatDate(txn.timestamp)}
+										{/* Only show Actions header if refunds are possible */}
+										{canRefundAny && (
+											<th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+												Actions
+											</th>
+										)}
+									</tr>
+								</thead>
+								{/* Table Body */}
+								<tbody className="divide-y divide-slate-100 bg-white">
+									{transactions.map((txn) => (
+										<tr
+											key={txn.id}
+											className="hover:bg-slate-50/50"
+										>
+											{/* Transaction ID and Method */}
+											<td className="whitespace-nowrap px-4 py-3 align-top">
+												<div className="text-xs font-medium text-slate-800">
+													#{txn.id}
 												</div>
-											</div>
-
-											{/* Right Side: Refund Button */}
-											<div className="flex-shrink-0 pt-1">
-												{isAdmin && txn.status === "completed" && (
-													<button
-														onClick={() => openRefundModal(txn)}
-														className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs hover:bg-red-100 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-														disabled={isProcessingRefund} // Disable while any refund is processing
-													>
-														<ArrowUturnLeftIcon className="h-3.5 w-3.5" />{" "}
-														Refund
-													</button>
+												<div className="mt-0.5 text-[11px] text-slate-500">
+													{getPaymentMethodDisplay(txn.payment_method, false)}
+												</div>
+											</td>
+											{/* Transaction Amount */}
+											<td className="whitespace-nowrap px-4 py-3 text-right align-top text-sm font-medium text-slate-800">
+												{formatPrice(txn.amount)}
+												{/* Indicate if it was a refund */}
+												{txn.status === "refunded" && (
+													<span className="ml-1 text-xs font-normal text-rose-600">
+														(Refund)
+													</span>
 												)}
-												{txn.status === "refunded" &&
-													txn.metadata?.refund_details?.refund_id && (
-														<div className="text-xs text-red-500 mt-1 pt-1 border-t border-red-100">
-															Refund ID:{" "}
-															<span className="font-mono">
-																{txn.metadata.refund_details.refund_id}
-															</span>
-														</div>
+											</td>
+											{/* Transaction Status */}
+											<td className="whitespace-nowrap px-4 py-3 align-top">
+												<span className={getStatusPillClasses(txn.status)}>
+													{getStatusIcon(txn.status)}
+													{txn.status?.replace("_", " ").toUpperCase()}
+												</span>
+											</td>
+											{/* Action Buttons (Refund) */}
+											{canRefundAny && ( // Only render cell if refunds are possible
+												<td className="whitespace-nowrap px-4 py-3 text-right align-top">
+													{/* Show refund button only for completed transactions and if user is admin */}
+													{isAdmin && txn.status === "completed" && (
+														<button
+															onClick={() => openRefundModal(txn)}
+															disabled={isProcessingRefund} // Disable while another refund is processing
+															className="flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+														>
+															<ArrowUturnLeftIcon className="h-3.5 w-3.5" />
+															Refund
+														</button>
 													)}
-											</div>
-										</div>
-									</div>
-								))}
-							</div>
+												</td>
+											)}
+										</tr>
+									))}
+								</tbody>
+							</table>
 						)}
 					</div>
 				</div>
 			</div>
 
-			{/* Modals */}
-			{isRefundModalOpen && transactionToRefund && payment && (
+			{/* Refund Confirmation Modal */}
+			{isRefundModalOpen && transactionToRefund && (
 				<RefundConfirmation
 					isOpen={isRefundModalOpen}
 					onClose={() => {
 						setIsRefundModalOpen(false);
-						setTransactionToRefund(null);
+						setTransactionToRefund(null); // Clear selection on close
 					}}
-					payment={payment} // Pass parent payment (might not be needed by modal anymore)
-					transaction={transactionToRefund} // Pass specific transaction
 					onConfirm={handleConfirmRefund}
+					transaction={transactionToRefund}
 					isProcessing={isProcessingRefund}
+					paymentId={payment.id} // Pass paymentId if needed by modal
 				/>
 			)}
+
+			{/* Refund Success Modal */}
 			{refundSuccessData && (
 				<RefundSuccessModal
 					isOpen={!!refundSuccessData}
-					onClose={() => setRefundSuccessData(null)}
-					// Pass specific refund details if available in the response
-					refundData={
-						refundSuccessData.refund_details || {
-							amount: refundSuccessData.amount,
-						}
-					}
-					paymentMethod={
-						transactionToRefund?.payment_method || payment?.payment_method || ""
-					}
+					onClose={() => setRefundSuccessData(null)} // Clear success data on close
+					refundDetails={refundSuccessData} // Pass refund details to display
+					originalPaymentId={payment.id}
 				/>
 			)}
 		</div>

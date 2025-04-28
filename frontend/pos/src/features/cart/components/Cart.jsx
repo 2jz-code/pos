@@ -53,7 +53,7 @@ export const Cart = () => {
 	const cartTotals = calculateCartTotals(cart, orderDiscount);
 
 	return (
-		<div className="relative w-1/3 bg-white flex flex-col border-l border-slate-200 shadow-lg h-full">
+		<div className="relative w-full bg-white flex flex-col border-l border-slate-200 shadow-lg h-full">
 			<CartHeader
 				activeOrderId={orderId}
 				setActiveOrderId={cartActions.setOrderId}

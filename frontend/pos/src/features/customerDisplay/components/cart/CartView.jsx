@@ -1,11 +1,14 @@
-// features/customerDisplay/components/cart/CartView.jsx
-
-import { motion, AnimatePresence } from "framer-motion";
 import PropTypes from "prop-types";
-import { formatPrice } from "../../../../utils/numberUtils";
-import { ShoppingCartIcon } from "@heroicons/react/24/outline"; // Example icon
+import { motion, AnimatePresence } from "framer-motion";
+import { formatPrice } from "../../../../utils/numberUtils"; // Ensure path is correct
+import { ShoppingCartIcon, TagIcon } from "@heroicons/react/24/outline";
 
+/**
+ * CartView Component (UI Revamped)
+ * Displays the customer's current cart items and totals on the customer display.
+ */
 const CartView = ({ cartData }) => {
+	// Destructure with defaults
 	const {
 		items = [],
 		subtotal = 0,
@@ -13,12 +16,15 @@ const CartView = ({ cartData }) => {
 		total = 0,
 		discountAmount = 0,
 		orderDiscount = null,
-	} = cartData;
+	} = cartData || {}; // Add fallback for potentially null cartData
 
 	// Animation variants
 	const containerVariants = {
 		hidden: { opacity: 0 },
-		visible: { opacity: 1, transition: { staggerChildren: 0.07 } },
+		visible: {
+			opacity: 1,
+			transition: { staggerChildren: 0.05, delayChildren: 0.1 },
+		}, // Stagger item appearance
 		exit: { opacity: 0 },
 	};
 
@@ -27,7 +33,7 @@ const CartView = ({ cartData }) => {
 		visible: {
 			opacity: 1,
 			x: 0,
-			transition: { type: "spring", stiffness: 300, damping: 30 },
+			transition: { type: "spring", stiffness: 300, damping: 25 },
 		},
 		exit: { opacity: 0, x: 20, transition: { duration: 0.2 } },
 	};
@@ -37,79 +43,85 @@ const CartView = ({ cartData }) => {
 		visible: {
 			opacity: 1,
 			y: 0,
-			transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0.2 },
+			transition: { duration: 0.4, ease: "easeOut", delay: 0.2 },
 		},
 		exit: { opacity: 0 },
 	};
 
 	return (
 		<motion.div
-			key="cart"
-			className="w-full h-screen bg-slate-50 flex flex-col"
+			key="cart-view" // Unique key for AnimatePresence
+			className="flex h-full w-full flex-col bg-slate-50" // Light background
 			variants={containerVariants}
 			initial="hidden"
 			animate="visible"
 			exit="exit"
 		>
-			{/* Header (Optional, often omitted in modern displays) */}
-			{/* <div className="p-6 border-b border-slate-200 text-center">
-                <h1 className="text-2xl font-semibold text-gray-900">Your Order</h1>
-            </div> */}
+			{/* Optional Header */}
+			<div className="flex-shrink-0 border-b border-slate-200 bg-white p-4 text-center shadow-sm">
+				<h1 className="text-xl font-semibold text-slate-800">Your Order</h1>
+			</div>
 
-			{/* Cart Items List */}
-			<div className="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10 custom-scrollbar">
+			{/* Cart Items List - Scrollable */}
+			<div className="flex-1 overflow-y-auto p-4 custom-scrollbar sm:p-6">
 				<AnimatePresence initial={false}>
 					{" "}
-					{/* Allow exit animations */}
+					{/* Animate items in/out */}
 					{items.length === 0 ? (
 						<motion.div
 							key="empty-cart"
-							className="flex flex-col items-center justify-center h-full text-slate-400 pt-16"
+							className="flex h-full flex-col items-center justify-center pt-10 text-slate-400"
 							initial={{ opacity: 0, scale: 0.9 }}
 							animate={{ opacity: 1, scale: 1 }}
 							exit={{ opacity: 0, scale: 0.9 }}
-							transition={{ duration: 0.4 }}
+							transition={{ duration: 0.3 }}
 						>
 							<ShoppingCartIcon
-								className="h-24 w-24 mb-6 text-slate-300"
+								className="mb-4 h-20 w-20 text-slate-300"
 								strokeWidth={1}
 							/>
-							<p className="text-2xl text-slate-500">
-								Your cart is currently empty
-							</p>
+							<p className="text-xl text-slate-500">Your order is empty</p>
 						</motion.div>
 					) : (
 						<motion.div
-							className="space-y-4"
+							className="space-y-3"
 							variants={containerVariants}
 						>
-							{items.map((item) => (
+							{items.map((item, index) => (
 								<motion.div
-									key={item.id} // Use unique item ID
+									key={item.id || `item-${index}`} // Use index as fallback key if id is missing
 									layout // Animate layout changes
 									variants={itemVariants}
-									exit="exit" // Apply exit animation
-									className="bg-white rounded-lg p-5 flex justify-between items-center gap-4 border border-slate-100 shadow-sm"
+									exit="exit"
+									className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-white p-4 shadow-sm"
 								>
-									<div className="flex-1">
-										<div className="flex items-center gap-3">
-											<span className="font-semibold text-base text-slate-500 bg-slate-100 rounded px-2 py-0.5">
-												{item.quantity}x
-											</span>
-											<h3 className="font-medium text-lg text-gray-900">
-												{item.name}
-											</h3>
-										</div>
-										{/* Optional: Modifiers/details can go here */}
+									<div className="flex min-w-0 items-center gap-3">
+										{/* Quantity Badge */}
+										<span className="flex-shrink-0 rounded bg-slate-100 px-2 py-0.5 text-sm font-semibold text-slate-600">
+											{item.quantity}x
+										</span>
+										{/* Item Name */}
+										<span
+											className="truncate font-medium text-base text-slate-800"
+											title={item.name}
+										>
+											{item.name}
+										</span>
+										{/* Item-level Discount (if applicable) */}
 										{item.discount > 0 && (
-											<div className="mt-1.5 text-sm text-green-600 font-medium">
-												{item.discount}% discount applied
-											</div>
+											<span className="ml-1 flex-shrink-0 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 border border-emerald-200">
+												-{item.discount}%
+											</span>
 										)}
 									</div>
-									<div className="text-right font-semibold text-lg text-gray-900 flex-shrink-0">
-										${formatPrice(item.price * item.quantity)}
-									</div>
+									{/* Item Total Price */}
+									<span className="flex-shrink-0 font-semibold text-base text-slate-800">
+										{formatPrice(
+											(item.price || 0) *
+												(item.quantity || 1) *
+												(1 - (item.discount || 0) / 100)
+										)}
+									</span>
 								</motion.div>
 							))}
 						</motion.div>
@@ -117,44 +129,51 @@ const CartView = ({ cartData }) => {
 				</AnimatePresence>
 			</div>
 
-			{/* Order Summary Footer */}
+			{/* Order Summary Footer - Only show if items exist */}
 			{items.length > 0 && (
 				<motion.div
-					layout
+					layout // Animate size changes
 					variants={summaryVariants}
-					className="bg-white border-t-2 border-slate-200 p-6 md:p-8 lg:p-10 shadow-[0_-4px_10px_-5px_rgba(0,0,0,0.05)]" // Top shadow
+					className="flex-shrink-0 border-t-2 border-slate-200 bg-white p-4 shadow-[0_-4px_10px_-5px_rgba(0,0,0,0.05)] sm:p-6" // Top shadow
 				>
-					<div className="space-y-3 mb-5 text-lg">
+					<div className="mb-4 space-y-2 text-base">
+						{/* Subtotal */}
 						<div className="flex justify-between text-slate-600">
 							<span>Subtotal</span>
 							<span className="font-medium text-slate-800">
-								${formatPrice(subtotal)}
+								{formatPrice(subtotal)}
 							</span>
 						</div>
 
+						{/* Discount */}
 						{discountAmount > 0 && (
-							<div className="flex justify-between text-green-600">
-								<span>
+							<div className="flex justify-between text-emerald-600">
+								<span className="flex items-center gap-1">
+									<TagIcon className="h-4 w-4" />
 									Discount {orderDiscount ? `(${orderDiscount.name})` : ""}
 								</span>
 								<span className="font-medium">
-									-${formatPrice(discountAmount)}
+									-{formatPrice(discountAmount)}
 								</span>
 							</div>
 						)}
 
+						{/* Tax */}
 						<div className="flex justify-between text-slate-600">
 							<span>Tax</span>
 							<span className="font-medium text-slate-800">
-								${formatPrice(taxAmount)}
+								{formatPrice(taxAmount)}
 							</span>
 						</div>
 					</div>
+
 					{/* Total */}
-					<div className="mt-5 pt-5 border-t border-slate-200 flex justify-between items-baseline">
-						<span className="text-2xl font-bold text-gray-900">Total</span>
-						<span className="text-3xl font-bold text-blue-600">
-							${formatPrice(total)}
+					<div className="mt-4 flex items-baseline justify-between border-t border-slate-200 pt-4">
+						<span className="text-xl font-bold text-slate-900 sm:text-2xl">
+							Total
+						</span>
+						<span className="text-2xl font-bold text-blue-600 sm:text-3xl">
+							{formatPrice(total)}
 						</span>
 					</div>
 				</motion.div>
@@ -163,7 +182,6 @@ const CartView = ({ cartData }) => {
 	);
 };
 
-// Updated PropTypes
 CartView.propTypes = {
 	cartData: PropTypes.shape({
 		items: PropTypes.arrayOf(
@@ -171,16 +189,21 @@ CartView.propTypes = {
 				id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
 					.isRequired,
 				name: PropTypes.string.isRequired,
-				price: PropTypes.number.isRequired,
+				price: PropTypes.number, // Price might be optional if fetched later
 				quantity: PropTypes.number.isRequired,
-				discount: PropTypes.number,
+				discount: PropTypes.number, // Item-level discount
 			})
 		),
 		subtotal: PropTypes.number,
 		taxAmount: PropTypes.number,
 		total: PropTypes.number,
-		discountAmount: PropTypes.number,
-		orderDiscount: PropTypes.object,
+		discountAmount: PropTypes.number, // Order-level discount amount
+		orderDiscount: PropTypes.shape({
+			// Details of the applied discount
+			id: PropTypes.number,
+			name: PropTypes.string,
+			// Add other discount fields if needed
+		}),
 	}),
 };
 

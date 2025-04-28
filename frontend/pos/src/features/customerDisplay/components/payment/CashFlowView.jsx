@@ -1,83 +1,94 @@
-// features/customerDisplay/components/payment/CashFlowView.jsx
-
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import PropTypes from "prop-types";
-import { formatPrice } from "../../../../utils/numberUtils";
+import { motion, AnimatePresence } from "framer-motion";
+import { formatPrice } from "../../../../utils/numberUtils"; // Ensure path is correct
 import {
-	BanknotesIcon,
-	CheckCircleIcon,
-	ClockIcon,
-	ExclamationTriangleIcon,
-} from "@heroicons/react/24/solid"; // Solid icons
+	BanknotesIcon, // Main icon
+	CheckCircleIcon, // Success icon
+	ClockIcon, // Waiting icon
+	ExclamationTriangleIcon, // Remaining due icon
+	TagIcon, // Discount icon
+} from "@heroicons/react/24/solid"; // Using solid icons
 
+/**
+ * CashFlowView Component (UI Revamped)
+ * Displays cash payment progress (total, tendered, change) on the customer display.
+ */
 const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
-	const [stage, setStage] = useState("processing"); // processing, complete
+	const [stage, setStage] = useState("processing"); // 'processing', 'complete'
 
-	// Safely extract data
+	// Safely extract data from props
 	const {
 		subtotal = 0,
 		tax = 0,
-		total = 0,
+		total = 0, // Amount due for this specific cash transaction/step
 		discountAmount = 0,
-		// orderDiscount = null,
+		orderDiscount = null,
 		isSplitPayment = false,
-		originalTotal,
+		originalTotal, // Total of the original order before splitting
 	} = orderData || {};
-	const { cashTendered = 0, change = 0 } = cashData || {};
-	// More robust calculation for remaining amount, especially for splits
-	const effectiveTotal = isSplitPayment ? total : originalTotal || total; // Use original total if split, otherwise current total
-	const accumulatedPaid = cashData?.amountPaid || 0; // Use amountPaid from cashData if available
-	const remainingAmount = Math.max(0, effectiveTotal - accumulatedPaid);
-	const isFullyPaid = remainingAmount < 0.01; // Use tolerance
+	const {
+		cashTendered = 0,
+		change = 0,
+		amountPaid = 0, // Accumulated amount paid *before* this step (for splits)
+	} = cashData || {};
 
+	// Calculate remaining amount based on the *original* total if splitting
+	const effectiveTotal = isSplitPayment ? originalTotal ?? total : total;
+	// Amount remaining includes the amount for the *current* step ('total')
+	const remainingAmount = Math.max(
+		0,
+		effectiveTotal - amountPaid - total + change
+	); // Simplified logic
+	const isFullyPaid = remainingAmount < 0.01; // Check if fully paid with tolerance
+
+	// Update stage based on isComplete prop from parent
 	useEffect(() => {
-		if (isComplete && stage !== "complete") setStage("complete");
-		else if (!isComplete && stage === "complete") setStage("processing"); // Allow reset
+		if (isComplete && stage !== "complete") {
+			setStage("complete");
+		} else if (!isComplete && stage === "complete") {
+			// Allow resetting if needed (e.g., cashier cancels completion)
+			setStage("processing");
+		}
 	}, [isComplete, stage]);
 
+	// Call onComplete when the 'complete' stage is reached and data is available
 	useEffect(() => {
+		let timerId = null;
 		if (stage === "complete" && onComplete && cashData) {
-			const timer = setTimeout(() => {
+			timerId = setTimeout(() => {
 				onComplete({
 					status: "success",
 					method: "cash",
 					timestamp: new Date().toISOString(),
-					cashTendered,
+					cashTendered: cashTendered,
 					changeGiven: change,
-					amountPaid: total /* Amount for *this* transaction */,
+					amountPaid: total, // Amount paid in *this* specific cash transaction
 				});
-			}, 2500); // Shorter delay
-			return () => clearTimeout(timer);
+			}, 2000); // Delay before signaling completion
 		}
+		return () => clearTimeout(timerId); // Cleanup timer
 	}, [stage, onComplete, cashData, total, change, cashTendered]);
 
-	// Brand colors
-	const primaryColor = "blue-600";
-	const successColor = "green-500";
-	const warningColor = "orange-500";
-
-	// Animation settings
+	// Animation variants
 	const variants = {
 		hidden: { opacity: 0, y: 20 },
 		visible: {
 			opacity: 1,
 			y: 0,
-			transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+			transition: { duration: 0.4, ease: "easeOut" },
 		},
 		exit: { opacity: 0, y: -10, transition: { duration: 0.2 } },
 	};
 
 	return (
 		<motion.div
-			key="cashflow"
-			className="w-full h-screen bg-white flex flex-col items-center justify-center p-8 md:p-12 lg:p-16 text-center"
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-			exit={{ opacity: 0 }}
+			key="cashflow-container" // Key for potential parent AnimatePresence
+			className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-8 text-center md:p-12 lg:p-16" // Cash-themed gradient
 		>
 			<AnimatePresence mode="wait">
 				{stage === "processing" ? (
+					// --- Processing Stage ---
 					<motion.div
 						key="processing"
 						className="w-full max-w-md"
@@ -86,99 +97,95 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 						animate="visible"
 						exit="exit"
 					>
-						{/* Header */}
-						<BanknotesIcon
-							className={`w-16 h-16 md:w-20 md:h-20 text-${primaryColor} mx-auto mb-5`}
-						/>
-						<h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-2">
+						<BanknotesIcon className="mx-auto mb-5 h-16 w-16 text-emerald-500 md:h-20 md:w-20" />
+						<h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
 							Cash Payment
 						</h1>
-						<p className="text-lg text-slate-600 mb-8">
+						<p className="mb-8 text-lg text-slate-600">
 							{isSplitPayment
 								? "Split Payment Details"
 								: "Please provide payment to cashier"}
 						</p>
 
-						{/* Order Summary Card */}
-						<div className="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-200 text-left space-y-2 text-lg">
-							<div className="flex justify-between text-slate-600">
-								<span>Subtotal</span>
-								<span className="font-medium text-slate-800">
-									{formatPrice(subtotal)}
-								</span>
-							</div>
-							{discountAmount > 0 && (
-								<div className="flex justify-between text-green-600">
-									<span>Discount</span>
-									<span className="font-medium">
-										-{formatPrice(discountAmount)}
+						{/* Order Summary */}
+						<div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 text-left text-base shadow-sm">
+							<div className="space-y-1.5">
+								<div className="flex justify-between text-slate-600">
+									<span>Subtotal</span>
+									<span className="font-medium text-slate-800">
+										{formatPrice(subtotal)}
 									</span>
 								</div>
-							)}
-							<div className="flex justify-between text-slate-600">
-								<span>Tax</span>
-								<span className="font-medium text-slate-800">
-									{formatPrice(tax)}
-								</span>
+								{discountAmount > 0 && (
+									<div className="flex justify-between text-emerald-600">
+										<span className="flex items-center gap-1">
+											<TagIcon className="h-4 w-4" />
+											Discount
+										</span>
+										<span className="font-medium">
+											-{formatPrice(discountAmount)}
+										</span>
+									</div>
+								)}
+								<div className="flex justify-between text-slate-600">
+									<span>Tax</span>
+									<span className="font-medium text-slate-800">
+										{formatPrice(tax)}
+									</span>
+								</div>
 							</div>
-							<div className="flex justify-between pt-3 border-t border-slate-200 mt-2">
-								<span className="font-semibold text-gray-900">Total Due</span>
-								<span className="font-bold text-xl text-blue-600">
+							<div className="mt-3 flex justify-between border-t border-slate-200 pt-3">
+								<span className="font-semibold text-slate-900">
+									Amount Due Now
+								</span>
+								<span className="text-xl font-bold text-blue-600">
 									{formatPrice(total)}
 								</span>
 							</div>
-							{isSplitPayment && originalTotal && (
-								<div className="text-sm text-slate-500 pt-1">
-									Original Total: ${formatPrice(originalTotal)}
+							{isSplitPayment && originalTotal != null && (
+								<div className="mt-1 text-right text-xs text-slate-500">
+									(Original Total: {formatPrice(originalTotal)})
 								</div>
 							)}
 						</div>
 
-						{/* Payment Status Card */}
-						<div className="bg-blue-50 rounded-xl p-6 border border-blue-200 min-h-[8rem] flex flex-col justify-center items-center space-y-2 text-lg">
+						{/* Payment Status */}
+						<div className="flex min-h-[6rem] flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-lg">
 							{cashTendered > 0 ? (
-								<>
-									<div className="flex justify-between w-full text-blue-800">
+								<div className="w-full space-y-1.5 text-emerald-800">
+									<div className="flex justify-between">
 										<span className="font-medium">Tendered:</span>
 										<span className="font-semibold">
 											{formatPrice(cashTendered)}
 										</span>
 									</div>
 									{(change > 0 || isFullyPaid) && (
-										<div className="flex justify-between w-full text-blue-800 font-semibold pt-2 border-t border-blue-200/50 mt-1">
-											<span>Change:</span>
-											<span>{formatPrice(change)}</span>
+										<div className="mt-1 flex justify-between border-t border-emerald-200/60 pt-1.5">
+											<span className="font-medium">Change Due:</span>
+											<span className="font-semibold">
+												{formatPrice(change)}
+											</span>
 										</div>
 									)}
-								</>
+								</div>
 							) : (
-								<div className="flex items-center text-blue-700">
-									<ClockIcon className="w-6 h-6 mr-2 animate-pulse" />
+								<div className="flex items-center text-emerald-700">
+									<ClockIcon className="mr-2 h-6 w-6 animate-pulse" />
 									<span className="font-medium">Awaiting Cash...</span>
 								</div>
 							)}
 						</div>
 
-						{/* Remaining Amount / Status */}
-						<div className="mt-6 min-h-[3rem]">
-							{!isFullyPaid && remainingAmount > 0.01 && cashTendered > 0 && (
-								<div
-									className={`flex items-center justify-center text-${warningColor} font-medium text-lg`}
-								>
-									<ExclamationTriangleIcon className="w-6 h-6 mr-2" />
-									<span>Remaining Due: {formatPrice(remainingAmount)}</span>
-								</div>
-							)}
-							{isFullyPaid && cashTendered > 0 && (
-								<div className="flex items-center justify-center text-green-600 font-medium text-lg">
-									<CheckCircleIcon className="w-6 h-6 mr-2" />
-									<span>Payment Received - Processing...</span>
-								</div>
-							)}
-						</div>
+						{/* Remaining Amount (only if split and not fully paid yet) */}
+						{isSplitPayment && !isFullyPaid && remainingAmount > 0.01 && (
+							<div className="mt-4 flex items-center justify-center gap-1 text-sm font-medium text-orange-600">
+								<ExclamationTriangleIcon className="h-4 w-4" />
+								Remaining Order Total: {formatPrice(remainingAmount)}
+							</div>
+						)}
 					</motion.div>
 				) : (
-					// Complete stage
+					// --- Complete Stage ---
 					<motion.div
 						key="complete"
 						className="w-full max-w-md"
@@ -187,34 +194,34 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 						animate="visible"
 						exit="exit"
 					>
-						<CheckCircleIcon
-							className={`w-20 h-20 md:w-24 md:h-24 text-${successColor} mx-auto mb-6`}
-						/>
-						<h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+						<CheckCircleIcon className="mx-auto mb-6 h-20 w-20 text-green-500 md:h-24 md:w-24" />
+						<h1 className="mb-3 text-3xl font-bold text-slate-900 md:text-4xl">
 							Payment Complete
 						</h1>
-						<p className="text-lg md:text-xl text-slate-600 mb-8">Thank you!</p>
-						<div className="bg-slate-50 rounded-xl p-6 border border-slate-200 text-left space-y-2 text-lg">
+						<p className="mb-8 text-lg text-slate-600 md:text-xl">Thank you!</p>
+						<div className="space-y-2 rounded-xl border border-slate-200 bg-white p-5 text-left text-base shadow-sm">
 							<div className="flex justify-between text-slate-600">
-								<span>Total Paid:</span>
+								<span>Amount Paid:</span>
 								<span className="font-medium text-slate-800">
 									{formatPrice(total)}
 								</span>
 							</div>
-							<div className="flex justify-between text-slate-600 pt-2 border-t border-slate-200/80 mt-2">
-								<span>Tendered:</span>
+							<div className="flex justify-between text-slate-600">
+								<span>Cash Tendered:</span>
 								<span className="font-medium text-slate-800">
 									{formatPrice(cashTendered)}
 								</span>
 							</div>
-							<div className="flex justify-between text-slate-600">
-								<span>Change:</span>
-								<span className="font-medium text-slate-800">
+							<div className="flex justify-between border-t border-slate-200 pt-2 mt-2">
+								<span className="font-semibold text-slate-900">
+									Change Given:
+								</span>
+								<span className="font-semibold text-emerald-600">
 									{formatPrice(change)}
 								</span>
 							</div>
 						</div>
-						<p className="text-base text-slate-500 mt-8">
+						<p className="mt-8 text-base text-slate-500">
 							Your receipt is printing.
 						</p>
 					</motion.div>
@@ -228,21 +235,19 @@ CashFlowView.propTypes = {
 	orderData: PropTypes.shape({
 		subtotal: PropTypes.number,
 		tax: PropTypes.number,
-		total: PropTypes.number, // Amount for this specific cash transaction
+		total: PropTypes.number, // Amount due for this cash step
 		discountAmount: PropTypes.number,
 		orderDiscount: PropTypes.object,
 		isSplitPayment: PropTypes.bool,
-		originalTotal: PropTypes.number,
+		originalTotal: PropTypes.number, // Original total before splitting
 	}),
 	cashData: PropTypes.shape({
 		cashTendered: PropTypes.number,
 		change: PropTypes.number,
-		amountPaid: PropTypes.number, // Accumulated amount paid if split
-		// remainingAmount removed as it's calculated internally
-		isFullyPaid: PropTypes.bool, // Is original order fully paid?
+		amountPaid: PropTypes.number, // Accumulated amount paid *before* this step
 	}),
 	onComplete: PropTypes.func,
-	isComplete: PropTypes.bool, // Trigger from cashier that transaction step is done
+	isComplete: PropTypes.bool, // Signal from POS that this cash step is done
 };
 
 export default CashFlowView;

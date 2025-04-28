@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 
-export const HardwareStatus = () => {
+const HardwareStatus = () => {
 	const { connections, sendMessage, endpoints } = useWebSocketContext();
 	const [testResponse, setTestResponse] = useState(null);
 
@@ -112,3 +112,5 @@ export const HardwareStatus = () => {
 		</div>
 	);
 };
+
+export default HardwareStatus;

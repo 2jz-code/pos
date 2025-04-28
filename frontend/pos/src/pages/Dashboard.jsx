@@ -1,225 +1,260 @@
-// Updated Dashboard.jsx with User Management button for admins
-import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import LogoutButton from "../components/LogoutButton";
+import { Link } from "react-router-dom";
+import PropTypes from "prop-types"; // Import PropTypes
+import LogoutButton from "../components/LogoutButton"; // Assuming this is correctly styled
 import { authService } from "../api/services/authService";
 import {
-	CurrencyDollarIcon,
-	ClipboardDocumentListIcon,
-	ClockIcon,
-	ChartBarIcon,
-	CreditCardIcon,
-	UserGroupIcon,
-	CogIcon,
-	GiftIcon,
-	TagIcon,
-} from "@heroicons/react/24/outline";
-// import { HardwareStatus } from "../components/HardwareStatus";
+	BuildingStorefrontIcon, // For POS Title
+	CurrencyDollarIcon, // POS Link
+	SquaresPlusIcon, // Products Link (Updated from Clipboard)
+	ClockIcon, // Orders Link
+	ChartBarIcon, // Reports Link
+	CreditCardIcon, // Payments Link
+	UserGroupIcon, // Users Link
+	Cog6ToothIcon, // Settings Link (Updated from CogIcon)
+	GiftIcon, // Rewards Link
+	TagIcon, // Discounts Link
+	SignalIcon, // Online Status
+	ChevronRightIcon, // Card link indicator
+} from "@heroicons/react/24/outline"; // Using outline icons
+
+// Helper component for Navigation Cards
+const NavCard = ({
+	to,
+	title,
+	description,
+	icon: Icon,
+	iconBgClass,
+	iconTextClass,
+	isAdminOnly = false,
+	currentUserIsAdmin = false,
+}) => {
+	// Hide admin-only cards if the current user is not an admin
+	if (isAdminOnly && !currentUserIsAdmin) {
+		return null;
+	}
+
+	return (
+		<Link
+			to={to}
+			className="group relative block rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+		>
+			<div className="flex items-center gap-4">
+				{/* Icon */}
+				<div
+					className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${iconBgClass} ${iconTextClass}`}
+				>
+					<Icon className="h-6 w-6" />
+				</div>
+				{/* Text Content */}
+				<div>
+					<h3 className="text-base font-semibold text-slate-800">{title}</h3>
+					<p className="mt-1 text-sm text-slate-600">{description}</p>
+				</div>
+			</div>
+			{/* Optional: Add an arrow or indicator for clickable cards */}
+			<span className="absolute top-4 right-4 text-slate-300 transition-transform group-hover:translate-x-1 group-focus:translate-x-1 rtl:group-hover:-translate-x-1 rtl:group-focus:-translate-x-1">
+				<ChevronRightIcon className="h-5 w-5" />
+			</span>
+		</Link>
+	);
+};
+
+NavCard.propTypes = {
+	to: PropTypes.string.isRequired,
+	title: PropTypes.string.isRequired,
+	description: PropTypes.string.isRequired,
+	icon: PropTypes.elementType.isRequired,
+	iconBgClass: PropTypes.string.isRequired, // Tailwind background class for icon circle
+	iconTextClass: PropTypes.string.isRequired, // Tailwind text color class for icon
+	isAdminOnly: PropTypes.bool, // Flag for admin-only links
+	currentUserIsAdmin: PropTypes.bool, // Current user's admin status
+};
 
 export default function Dashboard() {
 	const [userStatus, setUserStatus] = useState({
 		authenticated: false,
-		username: "",
+		username: "User", // Default username
 		is_admin: false,
 	});
+	const [isLoading, setIsLoading] = useState(true); // Add loading state
 
+	// Fetch user status on mount
 	useEffect(() => {
+		let isMounted = true; // Track mount status
 		const fetchUserStatus = async () => {
-			const status = await authService.checkStatus();
-			setUserStatus(status);
+			setIsLoading(true);
+			try {
+				const status = await authService.checkStatus();
+				if (isMounted) {
+					setUserStatus(status);
+				}
+			} catch (error) {
+				console.error("Failed to fetch user status:", error);
+				if (isMounted) {
+					// Handle error state if needed, maybe redirect to login
+					setUserStatus({
+						authenticated: false,
+						username: "Error",
+						is_admin: false,
+					});
+				}
+			} finally {
+				if (isMounted) {
+					setIsLoading(false);
+				}
+			}
 		};
 		fetchUserStatus();
+		return () => {
+			isMounted = false;
+		}; // Cleanup function
 	}, []);
 
-	const getUserRole = (isAdmin) => {
-		return isAdmin ? "Admin" : "Staff";
-	};
+	// Define navigation items
+	const navItems = [
+		{
+			to: "/pos",
+			title: "Point of Sale",
+			description: "Process sales and manage transactions.",
+			icon: CurrencyDollarIcon,
+			bg: "bg-blue-50",
+			text: "text-blue-600",
+		},
+		{
+			to: "/products",
+			title: "Product Management",
+			description: "Manage products, categories, and stock.",
+			icon: SquaresPlusIcon,
+			bg: "bg-indigo-50",
+			text: "text-indigo-600",
+		},
+		{
+			to: "/orders",
+			title: "Order History",
+			description: "View past orders and details.",
+			icon: ClockIcon,
+			bg: "bg-amber-50",
+			text: "text-amber-600",
+		},
+		{
+			to: "/payments",
+			title: "Payment Management",
+			description: "Track payments and process refunds.",
+			icon: CreditCardIcon,
+			bg: "bg-green-50",
+			text: "text-green-600",
+		},
+		{
+			to: "/reports",
+			title: "Reports",
+			description: "Generate sales and performance reports.",
+			icon: ChartBarIcon,
+			bg: "bg-emerald-50",
+			text: "text-emerald-600",
+			adminOnly: true,
+		},
+		{
+			to: "/users",
+			title: "User Management",
+			description: "Manage staff accounts and permissions.",
+			icon: UserGroupIcon,
+			bg: "bg-purple-50",
+			text: "text-purple-600",
+			adminOnly: true,
+		},
+		{
+			to: "/rewards",
+			title: "Rewards Program",
+			description: "Configure and manage customer rewards.",
+			icon: GiftIcon,
+			bg: "bg-pink-50",
+			text: "text-pink-600",
+			adminOnly: true,
+		},
+		{
+			to: "/discounts",
+			title: "Discounts",
+			description: "Create and manage discounts.",
+			icon: TagIcon,
+			bg: "bg-orange-50",
+			text: "text-orange-600",
+			adminOnly: true,
+		},
+		{
+			to: "/settings",
+			title: "Settings",
+			description: "Configure system and admin settings.",
+			icon: Cog6ToothIcon,
+			bg: "bg-slate-100",
+			text: "text-slate-600",
+			adminOnly: true,
+		},
+	];
 
-	// Updated Dashboard with more modern UI
+	const getUserRole = (isAdmin) => (isAdmin ? "Admin" : "Staff");
+
 	return (
-		<div className="w-screen h-screen flex flex-col bg-slate-50 text-slate-800 p-6">
-			{/* <HardwareStatus /> */}
-			{/* Header Section - Updated with cleaner design */}
-			<header className="bg-white shadow-sm rounded-xl p-5 flex justify-between items-center mb-8">
-				<div className="flex items-center space-x-4">
-					<h1 className="text-xl font-bold text-slate-800">Ajeen Bakery POS</h1>
-					<span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium flex items-center">
-						<span className="w-2 h-2 bg-emerald-500 rounded-full mr-1.5"></span>
-						Online
-					</span>
+		<div className="flex h-screen w-screen flex-col bg-slate-100">
+			{/* Header */}
+			<header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
+				<div className="flex items-center gap-3">
+					<BuildingStorefrontIcon className="h-6 w-6 text-blue-600" />
+					<h1 className="text-lg font-semibold text-slate-800">
+						Ajeen POS Dashboard
+					</h1>
 				</div>
-				<div className="flex items-center space-x-4">
-					<LogoutButton />
+				<div className="flex items-center gap-3">
+					<span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+						<SignalIcon className="h-3 w-3" /> Online
+					</span>
+					<LogoutButton /> {/* Assuming LogoutButton is styled */}
 				</div>
 			</header>
 
-			{/* Main Content - Enhanced card design */}
-			<div className="flex-1 flex items-center justify-center">
-				<div className="w-full max-w-4xl">
-					<h2 className="text-2xl font-semibold text-slate-800 mb-8 text-center">
+			{/* Main Content Area */}
+			<main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+				<div className="mx-auto max-w-5xl">
+					{" "}
+					{/* Constrain width */}
+					<h2 className="mb-6 text-xl font-semibold text-slate-800 sm:text-2xl">
 						Quick Access
 					</h2>
-
-					{/* Navigation Grid - Updated with more modern cards */}
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-						<Link
-							to="/pos"
-							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-						>
-							<div className="mb-4 p-3 bg-blue-50 rounded-full group-hover:bg-blue-100 transition-colors">
-								<CurrencyDollarIcon className="w-10 h-10 text-blue-600" />
-							</div>
-							<h3 className="text-lg font-medium text-slate-800 mb-2">
-								Point of Sale
-							</h3>
-							<p className="text-sm text-slate-500 text-center">
-								Access the POS interface for daily transactions
-							</p>
-						</Link>
-
-						<Link
-							to="/products"
-							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-						>
-							<div className="mb-4 p-3 bg-indigo-50 rounded-full group-hover:bg-indigo-100 transition-colors">
-								<ClipboardDocumentListIcon className="w-10 h-10 text-indigo-600" />
-							</div>
-							<h3 className="text-lg font-medium text-slate-800 mb-2">
-								Product Management
-							</h3>
-							<p className="text-sm text-slate-500 text-center">
-								Manage products, categories, and inventory
-							</p>
-						</Link>
-
-						<Link
-							to="/orders"
-							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-						>
-							<div className="mb-4 p-3 bg-amber-50 rounded-full group-hover:bg-amber-100 transition-colors">
-								<ClockIcon className="w-10 h-10 text-amber-600" />
-							</div>
-							<h3 className="text-lg font-medium text-slate-800 mb-2">
-								Order History
-							</h3>
-							<p className="text-sm text-slate-500 text-center">
-								View and manage order history and receipts
-							</p>
-						</Link>
-
-						{/* Payment Management Card */}
-						<Link
-							to="/payments"
-							className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-						>
-							<div className="mb-4 p-3 bg-green-50 rounded-full group-hover:bg-green-100 transition-colors">
-								<CreditCardIcon className="w-10 h-10 text-green-600" />
-							</div>
-							<h3 className="text-lg font-medium text-slate-800 mb-2">
-								Payment Management
-							</h3>
-							<p className="text-sm text-slate-500 text-center">
-								Track payments and process refunds
-							</p>
-						</Link>
-						{userStatus.is_admin && (
-							<Link
-								to="/reports"
-								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-							>
-								<div className="mb-4 p-3 bg-emerald-50 rounded-full group-hover:bg-emerald-100 transition-colors">
-									<ChartBarIcon className="w-10 h-10 text-emerald-600" />
-								</div>
-								<h3 className="text-lg font-medium text-slate-800 mb-2">
-									Reports
-								</h3>
-								<p className="text-sm text-slate-500 text-center">
-									Generate sales reports and analytics
-								</p>
-							</Link>
-						)}
-
-						{/* User Management Card - Only visible to admins */}
-						{userStatus.is_admin && (
-							<Link
-								to="/users"
-								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-							>
-								<div className="mb-4 p-3 bg-purple-50 rounded-full group-hover:bg-purple-100 transition-colors">
-									<UserGroupIcon className="w-10 h-10 text-purple-600" />
-								</div>
-								<h3 className="text-lg font-medium text-slate-800 mb-2">
-									User Management
-								</h3>
-								<p className="text-sm text-slate-500 text-center">
-									Manage system users and permissions
-								</p>
-							</Link>
-						)}
-						{userStatus.is_admin && (
-							<Link
-								to="/rewards"
-								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-							>
-								<div className="mb-4 p-3 bg-pink-50 rounded-full group-hover:bg-pink-100 transition-colors">
-									<GiftIcon className="w-10 h-10 text-pink-600" />
-								</div>
-								<h3 className="text-lg font-medium text-slate-800 mb-2">
-									Rewards Program
-								</h3>
-								<p className="text-sm text-slate-500 text-center">
-									Manage rewards program, points rules and redemptions
-								</p>
-							</Link>
-						)}
-						{userStatus.is_admin && (
-							<Link
-								to="/discounts"
-								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-							>
-								<div className="mb-4 p-3 bg-orange-50 rounded-full group-hover:bg-orange-100 transition-colors">
-									<TagIcon className="w-10 h-10 text-orange-600" />
-								</div>
-								<h3 className="text-lg font-medium text-slate-800 mb-2">
-									Discount Management
-								</h3>
-								<p className="text-sm text-slate-500 text-center">
-									Create and manage store discounts and promotions
-								</p>
-							</Link>
-						)}
-						{/* Settings Card - Only visible to admins */}
-						{userStatus.is_admin && (
-							<Link
-								to="/settings"
-								className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col items-center group"
-							>
-								<div className="mb-4 p-3 bg-slate-50 rounded-full group-hover:bg-slate-100 transition-colors">
-									<CogIcon className="w-10 h-10 text-slate-600" />
-								</div>
-								<h3 className="text-lg font-medium text-slate-800 mb-2">
-									Admin Settings
-								</h3>
-								<p className="text-sm text-slate-500 text-center">
-									Configure system and application settings
-								</p>
-							</Link>
-						)}
-					</div>
+					{isLoading ? (
+						<div className="flex justify-center pt-10">
+							{/* Optional: Add a simple loading indicator */}
+							<p className="text-slate-500">Loading dashboard...</p>
+						</div>
+					) : (
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5 lg:gap-6">
+							{navItems.map((item) => (
+								<NavCard
+									key={item.to}
+									to={item.to}
+									title={item.title}
+									description={item.description}
+									icon={item.icon}
+									iconBgClass={item.bg}
+									iconTextClass={item.text}
+									isAdminOnly={item.adminOnly}
+									currentUserIsAdmin={userStatus.is_admin}
+								/>
+							))}
+						</div>
+					)}
 				</div>
-			</div>
+			</main>
 
-			{/* Status Bar - Updated with more subtle design */}
-			<div className="bg-slate-800 text-white px-5 py-3 rounded-xl flex justify-between text-xs mt-8">
-				<span className="flex items-center">
-					<span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
-					System Status: Operational
-				</span>
-				<span>Version: 1.0.0</span>
+			{/* Footer Status Bar */}
+			<footer className="flex h-10 flex-shrink-0 items-center justify-between border-t border-slate-200 bg-white px-4 text-xs text-slate-600 sm:px-6 lg:px-8">
+				<span>Version: 1.0.1</span> {/* Example version */}
 				<span>
-					User: {userStatus.username} ({getUserRole(userStatus.is_admin)})
+					User:{" "}
+					{isLoading
+						? "..."
+						: `${userStatus.username} (${getUserRole(userStatus.is_admin)})`}
 				</span>
-			</div>
+			</footer>
 		</div>
 	);
 }

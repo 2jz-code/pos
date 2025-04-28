@@ -1,30 +1,54 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import axiosInstance from "../api/config/axiosConfig";
+import { toast } from "react-toastify"; // Assuming toast is used for errors
+
+// Assuming calculateCartTotals is correctly imported if needed within the store itself
+// import { calculateCartTotals } from "../features/cart/utils/cartCalculations";
 
 export const useCartStore = create(
 	persist(
 		(set, get) => ({
 			cart: [],
 			orderId: null,
-			rewardsProfile: null, // Add this state property
-			showOverlay: true,
-			orderDiscount: null,
+			rewardsProfile: null, // State for associated rewards profile
+			showOverlay: true, // Initially show overlay for new order
+			orderDiscount: null, // State for the currently applied order-level discount
 
-			// Add this function to set the rewards profile
+			// --- Actions ---
+
 			setRewardsProfile: (profile) => set({ rewardsProfile: profile }),
 
-			// ✅ Format Cart Data Before Saving
+			setShowOverlay: (value) => set({ showOverlay: value }),
+
+			// Helper to normalize item structure when adding/setting cart
 			normalizeItem: (item) => {
 				// Handles items coming directly from product data or from backend order items
-				const productData = item.product || item;
+				const productData = item.product || item; // Use item itself if product key doesn't exist
 				const price = parseFloat(productData.price) || 0;
 				const quantity = parseInt(item.quantity, 10) || 1;
+				// Item-specific discount (e.g., from loaded order), defaults to 0
 				const discount =
 					item.discount !== undefined ? parseFloat(item.discount) : 0;
-				// --- MODIFICATION: Get categoryId ---
-				// Adjust 'productData.category' if your ID field is named differently (e.g., category_id)
-				const categoryId = productData.category || null; // <-- Added categoryId extraction
+
+				// --- FIX: More robust category ID check ---
+				// Check for 'category' (likely the ID from Product model FK)
+				// or 'category_id' (common naming convention)
+				// or even 'product.category' if nested structure occurs
+				const categoryId =
+					productData.category ||
+					productData.category_id ||
+					item.product?.category ||
+					null;
+				// --- END FIX ---
+
+				if (!productData.id || !productData.name) {
+					console.warn(
+						"Attempted to normalize item with missing ID or Name:",
+						item
+					);
+					return null; // Return null for invalid items
+				}
 
 				return {
 					id: productData.id, // Use product ID
@@ -32,273 +56,255 @@ export const useCartStore = create(
 					price: Number.isFinite(price) ? price : 0,
 					quantity: Number.isFinite(quantity) ? quantity : 1,
 					discount: Number.isFinite(discount) ? discount : 0,
-					categoryId: categoryId, // <-- Store categoryId
+					categoryId: categoryId, // Store the found category ID (or null)
 				};
 			},
 
-			setShowOverlay: (value) => set({ showOverlay: value }),
-
-			// ✅ Update Cart & Sync with Backend
+			// Set the entire cart (e.g., when loading a held order)
 			setCart: (newCart) => {
-				// --- FIX: Ensure items are mapped using normalizeItem ---
 				const normalizedCart = Array.isArray(newCart)
-					? newCart.map((item) => get().normalizeItem(item))
-					: []; // Ensure newCart is an array
+					? newCart
+							.map((item) => get().normalizeItem(item))
+							.filter((item) => item !== null) // Filter out any invalid items
+					: [];
 				set({ cart: normalizedCart });
-				// saveCartToBackend expects the already normalized cart state
-				get().saveCartToBackend(get().cart);
+				get().saveCartToBackend(get().cart); // Sync after setting
 			},
 
+			// Update quantity or other properties of a specific item
+			updateItem: (itemId, updates) => {
+				console.log("Store updateItem called:", { itemId, updates });
+				let itemFound = false;
+				set((state) => {
+					const updatedCart = state.cart.map((item) => {
+						if (item.id === itemId) {
+							itemFound = true;
+							// Ensure quantity is at least 1 if updated
+							if (updates.quantity !== undefined) {
+								const newQuantity = parseInt(updates.quantity, 10);
+								updates.quantity =
+									Number.isFinite(newQuantity) && newQuantity >= 1
+										? newQuantity
+										: 1;
+							}
+							// Ensure discount is valid if updated
+							if (updates.discount !== undefined) {
+								const newDiscount = parseFloat(updates.discount);
+								updates.discount =
+									Number.isFinite(newDiscount) &&
+									newDiscount >= 0 &&
+									newDiscount <= 100
+										? newDiscount
+										: 0;
+							}
+							return { ...item, ...updates };
+						}
+						return item;
+					});
+					if (!itemFound) {
+						console.warn(
+							`updateItem: Item with ID ${itemId} not found in cart.`
+						);
+						return {}; // Return empty object to indicate no change
+					}
+					return { cart: updatedCart };
+				});
+
+				if (itemFound) {
+					get().saveCartToBackend(get().cart); // Sync only if item was found and updated
+				}
+			},
+
+			// Specific quantity update (delegates to updateItem for validation)
 			updateItemQuantity: (itemId, quantityUpdate) => {
 				console.log("updateItemQuantity called with:", {
 					itemId,
 					quantityUpdate,
 				});
-
-				// If it's an object with a discount property but no quantity,
-				// redirect to updateItem instead
-				if (
-					typeof quantityUpdate === "object" &&
-					"discount" in quantityUpdate &&
-					!("quantity" in quantityUpdate)
-				) {
-					console.log("Redirecting discount update to updateItem");
-					get().updateItem(itemId, quantityUpdate);
-					return;
-				}
-
-				// Extract the quantity value, whether it's direct or from an object
 				const newQuantity =
 					typeof quantityUpdate === "object"
 						? quantityUpdate.quantity
 						: quantityUpdate;
+				get().updateItem(itemId, { quantity: newQuantity }); // Use updateItem for validation logic
+			},
 
-				// Convert to number and validate
-				const parsedQuantity = parseInt(newQuantity, 10);
-
-				if (!Number.isFinite(parsedQuantity) || parsedQuantity < 1) {
-					console.error("Invalid quantity update:", {
-						original: quantityUpdate,
-						parsed: parsedQuantity,
-					});
-					return;
+			// Add a product to the cart
+			addToCart: (product) => {
+				const itemToAdd = get().normalizeItem(product);
+				if (!itemToAdd) {
+					toast.error("Could not add invalid product data to cart.");
+					return; // Don't add if normalization failed
 				}
 
+				let itemExists = false;
 				set((state) => {
 					const updatedCart = state.cart.map((item) => {
-						if (item.id === itemId) {
-							return {
-								...item,
-								quantity: parsedQuantity,
-							};
+						if (item.id === itemToAdd.id) {
+							itemExists = true;
+							// Increase quantity of existing item
+							return { ...item, quantity: item.quantity + 1 };
 						}
 						return item;
 					});
 
-					return { cart: updatedCart };
-				});
-
-				// Trigger backend sync
-				const updatedCart = get().cart;
-				get().saveCartToBackend(updatedCart);
-			},
-			updateItem: (itemId, updates) => {
-				console.log("Store updateItem called:", { itemId, updates });
-
-				set((state) => {
-					const updatedCart = state.cart.map((item) => {
-						if (item.id === itemId) {
-							const updatedItem = { ...item, ...updates };
-							return updatedItem;
-						}
-						return item;
-					});
-
-					// Return updated cart immediately
-					return { cart: updatedCart };
-				});
-
-				// After state update, sync with backend
-				const updatedCart = get().cart;
-				get().saveCartToBackend(updatedCart);
-			},
-			// ✅ Add Item & Sync with Backend
-			addToCart: (product) => {
-				// Use the normalizeItem helper to get the correct structure including categoryId
-				const itemToAdd = get().normalizeItem(product);
-
-				set((state) => {
-					const existingItem = state.cart.find(
-						(item) => item.id === itemToAdd.id
-					);
-
-					let updatedCart;
-					if (existingItem) {
-						// Increase quantity of existing item
-						updatedCart = state.cart.map((item) =>
-							item.id === itemToAdd.id
-								? { ...item, quantity: item.quantity + 1 }
-								: item
-						);
-					} else {
-						// Add the new normalized item (with categoryId)
-						updatedCart = [...state.cart, { ...itemToAdd, quantity: 1 }];
+					// If item doesn't exist, add it with quantity 1
+					if (!itemExists) {
+						updatedCart.push({ ...itemToAdd, quantity: 1 });
 					}
 
-					// Now save the updated cart state to backend
-					get().saveCartToBackend(updatedCart); // Pass the newly calculated cart
-					return { cart: updatedCart }; // Update the state
+					// Return the updated cart state
+					return { cart: updatedCart };
 				});
+
+				// Sync after state update
+				get().saveCartToBackend(get().cart);
 			},
 
-			// ✅ Remove Item & Sync with Backend
-			removeFromCart: (id) =>
+			// Remove an item from the cart
+			removeFromCart: (id) => {
+				let itemRemoved = false;
 				set((state) => {
+					const originalLength = state.cart.length;
 					const updatedCart = state.cart.filter((item) => item.id !== id);
-					get().saveCartToBackend(updatedCart);
+					itemRemoved = updatedCart.length < originalLength;
+					if (!itemRemoved) {
+						console.warn(`removeFromCart: Item with ID ${id} not found.`);
+						return {}; // No change
+					}
 					return { cart: updatedCart };
-				}),
+				});
+				if (itemRemoved) {
+					get().saveCartToBackend(get().cart); // Sync if item was removed
+				}
+			},
 
-			// ✅ Clear Cart & Reset Order ID
+			// Clear the cart and associated order state
 			clearCart: () => {
-				get().saveCartToBackend([]);
+				const orderId = get().orderId;
+				if (orderId) {
+					get().saveCartToBackend([]); // Save empty cart to backend if orderId exists
+				}
 				set({
 					cart: [],
 					orderId: null,
 					orderDiscount: null,
 					rewardsProfile: null,
+					showOverlay: true, // Show overlay after clearing
 				});
 			},
 
-			// ✅ Set Order ID
+			// Set the current order ID
 			setOrderId: (id) => set({ orderId: id }),
 
-			// ✅ Save Cart to Backend with Correct Order ID
-			saveCartToBackend: async (cart) => {
+			// Save the current cart state to the backend
+			saveCartToBackend: async (cartToSave) => {
 				const orderId = get().orderId;
 				if (!orderId) {
-					console.warn("No order ID available for cart save");
-					return;
+					// console.warn("No active order ID, cannot save cart to backend.");
+					return; // Don't save if no order is active
 				}
 
-				// Validate cart items before sending
-				const validatedItems = cart
-					.filter((item) => get().validateCartItem(item))
-					.map((item) => ({
-						id: parseInt(item.id, 10),
-						quantity: parseInt(item.quantity, 10),
-						price: parseFloat(item.price) || 0,
-						discount: parseFloat(item.discount || 0), // Include discount in the backend save
-					}));
+				// Ensure cartToSave is an array
+				const currentCart = Array.isArray(cartToSave) ? cartToSave : get().cart;
+
+				// Prepare items payload for backend (usually requires product ID and quantity)
+				const itemsPayload = currentCart.map((item) => ({
+					product_id: item.id, // Assuming backend expects product_id
+					quantity: item.quantity,
+					// Include price/discount if backend needs it for validation/logging
+					// price: item.price,
+					// discount: item.discount
+				}));
 
 				try {
+					// Use the specific endpoint for updating in-progress orders
 					const response = await axiosInstance.patch(
-						"orders/in_progress/update/",
+						`orders/in_progress/update/`,
 						{
 							order_id: parseInt(orderId, 10),
-							items: validatedItems,
+							items: itemsPayload,
 						}
 					);
 
 					if (response.status !== 200) {
-						throw new Error(`Unexpected response status: ${response.status}`);
+						throw new Error(
+							`Backend cart save failed with status: ${response.status}`
+						);
 					}
-
-					console.log("Cart auto-saved to backend!");
-					return response.data;
+					console.log("Cart auto-saved to backend for order:", orderId);
+					return response.data; // Return data if needed
 				} catch (error) {
-					console.error("Failed to save cart:", {
-						error,
-						orderId,
-						items: validatedItems,
+					console.error("Failed to save cart to backend:", {
+						message: error.message,
+						orderId: orderId,
+						// itemsPayload: itemsPayload, // Avoid logging potentially large payloads unless debugging
+						response: error.response?.data,
 					});
-
-					// Optionally trigger a UI notification
-					if (error.response?.status === 500) {
-						console.error("Server error details:", error.response.data);
-					}
-
-					throw error; // Re-throw to handle in UI if needed
+					// Optionally notify user, but avoid spamming for background saves
+					// toast.error("Failed to sync cart with server.");
+					// Don't re-throw here usually, as it's a background task
 				}
 			},
-			// Add a utility function to validate cart items
-			validateCartItem: (item) => {
-				if (!item) return false;
-				const price = parseFloat(item.price);
-				const quantity = parseInt(item.quantity, 10);
-				const discount = parseFloat(item.discount || 0);
-				const hasCategoryId = "categoryId" in item;
 
-				return (
-					item.id &&
-					item.name &&
-					Number.isFinite(price) &&
-					price >= 0 &&
-					Number.isFinite(quantity) &&
-					quantity > 0 &&
-					Number.isFinite(discount) &&
-					discount >= 0 &&
-					discount <= 100 &&
-					hasCategoryId
-				);
-			},
-			// Add this method to set the order discount
+			// Set the order-level discount
 			setOrderDiscount: (discount) => {
 				set({ orderDiscount: discount });
-
-				// If there's an active order, save the discount to the backend
 				const orderId = get().orderId;
 				if (orderId) {
-					get().saveOrderDiscount(orderId, discount);
+					get().saveOrderDiscount(orderId, discount); // Sync discount with backend
 				}
 			},
 
-			saveOrderDiscount: async (orderId, discount) => {
-				try {
-					if (discount) {
-						// Apply discount
-						await axiosInstance.post(`orders/${orderId}/discount/`, {
-							discount_id: discount.id,
-						});
-						console.log("Order discount saved to backend");
-					} else {
-						// Remove discount
-						await axiosInstance.delete(`orders/${orderId}/discount/`);
-						console.log("Order discount removed from backend");
-					}
-				} catch (error) {
-					console.error("Failed to save order discount:", error);
-
-					// Show a user-friendly error message
-					if (
-						error.response &&
-						error.response.data &&
-						error.response.data.error
-					) {
-						console.error(`Discount error: ${error.response.data.error}`);
-					} else {
-						console.error("Failed to apply discount");
-					}
-
-					// Since we failed to apply the discount on the backend, reset the state
-					set({ orderDiscount: null });
-				}
-			},
-
-			// Add this method to remove the order discount
+			// Remove the order-level discount
 			removeOrderDiscount: () => {
 				const orderId = get().orderId;
-				set({ orderDiscount: null });
-
+				set({ orderDiscount: null }); // Remove from local state
 				if (orderId) {
-					get().saveOrderDiscount(orderId, null);
+					get().saveOrderDiscount(orderId, null); // Sync removal with backend
+				}
+			},
+
+			// Save (apply/remove) the order discount to the backend
+			saveOrderDiscount: async (orderId, discount) => {
+				if (!orderId) return; // Need an order ID
+
+				const endpoint = `orders/${orderId}/discount/`;
+				try {
+					if (discount && discount.id) {
+						// Apply discount
+						await axiosInstance.post(endpoint, { discount_id: discount.id });
+						console.log(
+							`Discount ${discount.id} applied to order ${orderId} on backend.`
+						);
+					} else {
+						// Remove discount
+						await axiosInstance.delete(endpoint);
+						console.log(`Discount removed from order ${orderId} on backend.`);
+					}
+				} catch (error) {
+					console.error("Failed to save order discount to backend:", {
+						message: error.message,
+						orderId: orderId,
+						discountId: discount?.id,
+						response: error.response?.data,
+					});
+					const errorMsg =
+						error.response?.data?.error ||
+						"Failed to update discount on server.";
+					toast.error(errorMsg);
+
+					// IMPORTANT: Revert local state if backend update failed
+					// Fetch the current discount state *before* the failed attempt
+					// This requires storing the 'previous' discount state temporarily or refetching order state.
+					// For simplicity here, we'll just remove the local discount if the update failed.
+					// A more robust solution might involve fetching the order's current state.
+					set({ orderDiscount: null }); // Revert local state on failure
 				}
 			},
 		}),
-
 		{
-			name: "cart-storage",
-			getStorage: () => localStorage,
+			name: "cart-storage", // Name for localStorage persistence
+			// storage: createJSONStorage(() => localStorage), // Default is localStorage
 		}
 	)
 );

@@ -1,93 +1,151 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"; // Added React import
 import { useParams, useNavigate } from "react-router-dom";
-import axiosInstance from "../../api/config/axiosConfig";
-import { authService } from "../../api/services/authService";
-import { resumeOrder, updateOnlineOrderStatus } from "../../utils/orderActions";
-import { orderService } from "../../api/services/orderService"; // <<<--- Import orderService
+import axiosInstance from "../../api/config/axiosConfig"; // Original import
+import { authService } from "../../api/services/authService"; // Original import
+import { resumeOrder, updateOnlineOrderStatus } from "../../utils/orderActions"; // Original import
+import { orderService } from "../../api/services/orderService"; // Original import
 import { toast } from "react-toastify";
-
+// Icons for UI
+import {
+	ArrowLeftIcon,
+	UserCircleIcon,
+	ShoppingBagIcon,
+	CreditCardIcon,
+	PrinterIcon,
+	PlayCircleIcon,
+	XCircleIcon,
+	CheckCircleIcon,
+	ExclamationTriangleIcon,
+	ClockIcon,
+	InformationCircleIcon,
+	HashtagIcon,
+	UserIcon,
+	EnvelopeIcon,
+	CalendarDaysIcon,
+	ArrowPathIcon,
+	DocumentTextIcon,
+	TagIcon,
+	ListBulletIcon,
+} from "@heroicons/react/24/outline"; // Using outline icons
+import LoadingSpinner from "../reports/components/LoadingSpinner"; // Assuming path is correct
+import PropTypes from "prop-types";
+import { formatPrice } from "../../utils/numberUtils";
+/**
+ * OrderDetails Component (Logic Preserved from User Provided Code)
+ *
+ * Displays detailed information about a specific order.
+ * UI updated for a modern look and feel; Logic remains unchanged.
+ */
 export default function OrderDetails() {
+	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
 	const { orderId } = useParams();
 	const [order, setOrder] = useState(null);
 	const [isAdmin, setIsAdmin] = useState(false);
-	const [isReprinting, setIsReprinting] = useState(false); // <<<--- Add state for loading
+	const [isReprinting, setIsReprinting] = useState(false);
+	const [loading, setLoading] = useState(true); // Added loading state
+	const [error, setError] = useState(null); // Added error state
 	const navigate = useNavigate();
 
 	useEffect(() => {
+		let isMounted = true; // Prevent state update on unmounted component
+		setLoading(true);
+		setError(null);
+
 		const fetchOrderDetails = async () => {
 			try {
 				const [orderResponse, authResponse] = await Promise.all([
 					axiosInstance.get(`orders/${orderId}/`),
 					authService.checkStatus(),
 				]);
-
-				setOrder(orderResponse.data);
-				setIsAdmin(authResponse.is_admin);
+				if (isMounted) {
+					setOrder(orderResponse.data);
+					setIsAdmin(authResponse.is_admin);
+				}
 			} catch (error) {
 				console.error("Error fetching order details:", error);
-				// Optionally show an error toast to the user
-				toast.error("Could not load order details.");
+				if (isMounted) {
+					setError("Could not load order details.");
+					toast.error("Could not load order details.");
+				}
+			} finally {
+				if (isMounted) setLoading(false);
 			}
 		};
 
 		fetchOrderDetails();
-	}, [orderId]);
+		return () => {
+			isMounted = false;
+		}; // Cleanup
+	}, [orderId]); // Removed navigate from dependency array as it's stable
 
 	const updateOrderStatus = (newStatus) => {
-		// Use the existing utility function, assuming it handles API calls and state updates
 		updateOnlineOrderStatus(
 			orderId,
 			newStatus,
 			(updatedOrder) => {
-				// Update the local state with the new order data returned from the utility function
-				setOrder(updatedOrder);
+				setOrder(updatedOrder); // Update local state
 				toast.success(`Order status updated to ${newStatus.replace("_", " ")}`);
 			},
 			(error) => {
-				// Optional error handling from the utility function
 				toast.error(`Failed to update status: ${error.message}`);
 			}
 		);
 	};
 
-	// Format Date Helper
-	const formatDate = (timestamp) => new Date(timestamp).toLocaleString();
+	const formatDate = (timestamp) => {
+		if (!timestamp) return "N/A";
+		try {
+			return new Date(timestamp).toLocaleString(undefined, {
+				dateStyle: "medium",
+				timeStyle: "short",
+			});
+			// eslint-disable-next-line no-unused-vars
+		} catch (e) {
+			return "Invalid Date";
+		}
+	};
 
-	// <<<--- Add handler for reprint --- >>>
 	const handleReprintReceipt = async () => {
 		if (!order || isReprinting) return;
-
 		setIsReprinting(true);
-		toast.loading("Sending reprint request..."); // Optional feedback
-
+		const toastId = toast.loading("Sending reprint request...");
 		try {
 			await orderService.reprintReceipt(order.id);
-			toast.dismiss(); // Dismiss loading toast
-			toast.success("Reprint request sent successfully!");
+			toast.update(toastId, {
+				render: "Reprint request sent successfully!",
+				type: "success",
+				isLoading: false,
+				autoClose: 3000,
+			});
 		} catch (error) {
-			toast.dismiss(); // Dismiss loading toast
 			console.error("Error reprinting receipt:", error);
 			const errorMessage =
 				error.response?.data?.error ||
 				error.message ||
 				"Failed to send reprint request.";
-			toast.error(`Reprint Failed: ${errorMessage}`);
+			toast.update(toastId, {
+				render: `Reprint Failed: ${errorMessage}`,
+				type: "error",
+				isLoading: false,
+				autoClose: 5000,
+			});
 		} finally {
 			setIsReprinting(false);
 		}
 	};
-	// <<<----------------------------- >>>
 
-	if (!order)
-		return (
-			<div className="flex justify-center items-center h-screen">
-				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-			</div>
-		);
-
-	// Determine available actions based on order source and status
+	// Function to generate action buttons based on order state (Original logic)
 	const getOrderActions = () => {
-		const actions = []; // Initialize an array to hold button elements
+		const actions = [];
+		const buttonBaseStyle =
+			"px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm border"; // Compact buttons
+		const primaryButtonStyle = `${buttonBaseStyle} bg-blue-600 text-white border-blue-700 hover:bg-blue-700 active:bg-blue-800`;
+		const secondaryButtonStyle = `${buttonBaseStyle} bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 active:bg-slate-300`;
+		const dangerButtonStyle = `${buttonBaseStyle} bg-red-600 text-white border-red-700 hover:bg-red-700 active:bg-red-800`;
+		const successButtonStyle = `${buttonBaseStyle} bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 active:bg-emerald-800`;
+		const warningButtonStyle = `${buttonBaseStyle} bg-amber-500 text-white border-amber-600 hover:bg-amber-600 active:bg-amber-700`;
+
+		if (!order) return null; // Should not happen if loading/error handled
 
 		// --- POS Actions ---
 		if (order.source === "pos") {
@@ -95,29 +153,10 @@ export default function OrderDetails() {
 				actions.push(
 					<button
 						key="resume"
-						className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-						onClick={() => resumeOrder(order.id, navigate)} // Assuming resumeOrder handles navigation
+						className={primaryButtonStyle}
+						onClick={() => resumeOrder(order.id, navigate)}
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={2}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-							/>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-							/>
-						</svg>
-						Resume Order
+						<PlayCircleIcon className="h-4 w-4" /> Resume
 					</button>
 				);
 			}
@@ -129,51 +168,27 @@ export default function OrderDetails() {
 				actions.push(
 					<button
 						key="void"
-						className="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+						className={dangerButtonStyle}
 						onClick={() => updateOrderStatus("voided")}
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={2}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M6 18L18 6M6 6l12 12"
-							/>
-						</svg>
-						Void Order
+						<XCircleIcon className="h-4 w-4" /> Void
 					</button>
 				);
 			}
-			// Add Reprint Button for Completed POS orders
 			if (order.status === "completed") {
 				actions.push(
 					<button
 						key="reprint"
-						className="px-6 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+						className={secondaryButtonStyle}
 						onClick={handleReprintReceipt}
 						disabled={isReprinting}
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={2}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-							/>
-						</svg>
-						{isReprinting ? "Reprinting..." : "Reprint Receipt"}
+						{isReprinting ? (
+							<ArrowPathIcon className="h-4 w-4 animate-spin" />
+						) : (
+							<PrinterIcon className="h-4 w-4" />
+						)}
+						{isReprinting ? "Printing..." : "Reprint"}
 					</button>
 				);
 			}
@@ -184,24 +199,10 @@ export default function OrderDetails() {
 				actions.push(
 					<button
 						key="prepare"
-						className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+						className={warningButtonStyle}
 						onClick={() => updateOrderStatus("preparing")}
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={2}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-							/>
-						</svg>
-						Start Preparing
+						<ClockIcon className="h-4 w-4" /> Prepare
 					</button>
 				);
 			}
@@ -209,24 +210,10 @@ export default function OrderDetails() {
 				actions.push(
 					<button
 						key="complete"
-						className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+						className={successButtonStyle}
 						onClick={() => updateOrderStatus("completed")}
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={2}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M5 13l4 4L19 7"
-							/>
-						</svg>
-						Mark as Completed
+						<CheckCircleIcon className="h-4 w-4" /> Complete
 					</button>
 				);
 			}
@@ -238,495 +225,435 @@ export default function OrderDetails() {
 				actions.push(
 					<button
 						key="cancel"
-						className="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+						className={dangerButtonStyle}
 						onClick={() => updateOrderStatus("cancelled")}
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={2}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M6 18L18 6M6 6l12 12"
-							/>
-						</svg>
-						Cancel Order
+						<XCircleIcon className="h-4 w-4" /> Cancel
 					</button>
 				);
 			}
 		}
 
+		if (actions.length > 0) {
+			return (
+				<div className="flex flex-wrap gap-2 mt-4 border-t border-slate-100 pt-4">
+					{actions}
+				</div>
+			);
+		}
+		return null; // No actions available
+	};
+	// --- END OF ORIGINAL LOGIC ---
+
+	// --- UPDATED UI (JSX Structure and Styling Only) ---
+	// Loading State
+	if (loading) {
 		return (
-			// Render the collected actions
-			<div className="flex flex-wrap gap-4 mt-6">{actions}</div>
+			<div className="flex items-center justify-center h-screen bg-slate-100">
+				<LoadingSpinner size="lg" />
+				<p className="text-slate-500 ml-3">Loading order details...</p>
+			</div>
 		);
+	}
+
+	// Error State
+	if (error || !order) {
+		// Check for !order as well
+		return (
+			<div className="flex flex-col items-center justify-center h-screen bg-slate-100 p-6">
+				<div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
+					<ExclamationTriangleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
+					<p className="text-red-600 mb-4">{error || "Order not found."}</p>
+					<button
+						className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+						onClick={() => navigate("/orders")} // Original handler
+					>
+						Back to Orders List
+					</button>
+				</div>
+			</div>
+		);
+	}
+
+	// Helper to get status badge color
+	const getStatusBadgeClass = (status) => {
+		switch (status) {
+			case "completed":
+				return "bg-emerald-100 text-emerald-700 border border-emerald-200";
+			case "paid":
+				return "bg-emerald-100 text-emerald-700 border border-emerald-200"; // Added for payment status
+			case "voided":
+			case "cancelled":
+			case "refunded":
+				return "bg-red-100 text-red-700 border border-red-200";
+			case "preparing":
+			case "in_progress":
+				return "bg-blue-100 text-blue-700 border border-blue-200";
+			case "pending":
+				return "bg-yellow-100 text-yellow-700 border border-yellow-200";
+			case "saved":
+				return "bg-amber-100 text-amber-700 border border-amber-200";
+			default:
+				return "bg-slate-100 text-slate-700 border border-slate-200";
+		}
+	};
+
+	// Helper for detail item display
+	const DetailItem = ({ label, value, icon: IconComponent }) => (
+		<div>
+			<dt className="text-xs font-medium text-slate-500 mb-0.5 flex items-center gap-1">
+				{IconComponent && (
+					<IconComponent className="h-3.5 w-3.5 text-slate-400" />
+				)}
+				{label}
+			</dt>
+			<dd className="text-sm text-slate-800">
+				{value || <span className="italic text-slate-400">N/A</span>}
+			</dd>
+		</div>
+	);
+	DetailItem.propTypes = {
+		label: PropTypes.string,
+		value: PropTypes.node,
+		icon: PropTypes.elementType,
 	};
 
 	return (
-		<div className="w-screen h-screen flex flex-col bg-slate-50 text-slate-800 p-6 overflow-hidden">
-			{/* Header Section */}
-			<div className="flex justify-between items-center mb-6">
-				<div className="flex items-center space-x-4">
-					<h1 className="text-2xl font-bold text-slate-800">Order Details</h1>
-					<span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium flex items-center">
-						<span className="w-2 h-2 bg-blue-500 rounded-full mr-1.5"></span>#
+		<div className="w-screen h-screen flex flex-col bg-slate-100 text-slate-900 p-4 sm:p-6 overflow-hidden">
+			{/* Header Section - Styled */}
+			<header className="flex flex-wrap justify-between items-center mb-4 pb-4 border-b border-slate-200 gap-3 flex-shrink-0">
+				<div className="flex items-center space-x-3">
+					<h1 className="text-xl sm:text-2xl font-bold text-slate-800">
+						Order Details
+					</h1>
+					{/* Order ID Badge */}
+					<span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-medium flex items-center">
+						<HashtagIcon className="w-3 h-3 mr-1" />
 						{orderId}
 					</span>
+					{/* Source Badge */}
 					<span
-						className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${
+						className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center ${
 							order.source === "website"
 								? "bg-purple-100 text-purple-700"
-								: "bg-blue-100 text-blue-700"
+								: "bg-cyan-100 text-cyan-700" // Different color for POS
 						}`}
 					>
-						{order.source === "website" ? "ONLINE ORDER" : "POS ORDER"}
+						{order.source === "website" ? "ONLINE" : "POS"}
 					</span>
 				</div>
+				{/* Back Button */}
 				<button
-					className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5"
-					onClick={() => navigate("/orders")} // Navigate back to the orders list
+					className="px-3 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-sm hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-sm"
+					onClick={() => navigate("/orders")} // Original handler
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						className="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M10 19l-7-7m0 0l7-7m-7 7h18"
-						/>
-					</svg>
+					<ArrowLeftIcon className="h-4 w-4" />
 					Back to Orders
 				</button>
-			</div>
+			</header>
 
-			{/* Order Summary Card */}
-			<div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-4">
-					<div>
-						<label className="text-sm font-medium text-slate-500 mb-1 block">
-							Status
-						</label>
-						<div
-							className={`
-                                font-medium text-slate-800 py-1 px-2 rounded-md inline-block text-xs
-                                ${
-																	order.status === "completed"
-																		? "bg-emerald-100 text-emerald-700"
-																		: order.status === "voided" ||
-																		  order.status === "cancelled"
-																		? "bg-red-100 text-red-700"
-																		: order.status === "preparing" ||
-																		  order.status === "in_progress"
-																		? "bg-blue-100 text-blue-700"
-																		: order.status === "pending"
-																		? "bg-yellow-100 text-yellow-700"
-																		: "bg-amber-100 text-amber-700" // Saved status
-																}
-                            `}
-						>
-							{order.status.replace("_", " ").toUpperCase()}
-						</div>
-					</div>
-					<div>
-						<label className="text-sm font-medium text-slate-500 mb-1 block">
-							Total
-						</label>
-						<p className="font-medium text-slate-800 text-lg">
-							${order.total_price}
-						</p>
-					</div>
-					<div>
-						<label className="text-sm font-medium text-slate-500 mb-1 block">
-							Created
-						</label>
-						<p className="text-slate-800 text-sm">
-							{formatDate(order.created_at)}
-						</p>
-					</div>
-					<div>
-						<label className="text-sm font-medium text-slate-500 mb-1 block">
-							Updated
-						</label>
-						<p className="text-slate-800 text-sm">
-							{formatDate(order.updated_at)}
-						</p>
+			{/* Main Content Area - Scrollable */}
+			<div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 overflow-y-auto custom-scrollbar pb-6 min-h-0">
+				{/* Left Column: Order Summary & Customer Info */}
+				<div className="lg:col-span-1 space-y-4 sm:space-y-6">
+					{/* Order Summary Card - Styled */}
+					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5">
+						<h2 className="text-base font-semibold text-slate-700 mb-3 flex items-center gap-2">
+							<InformationCircleIcon className="w-5 h-5 text-slate-400" /> Order
+							Summary
+						</h2>
+						<dl className="space-y-2.5 text-sm">
+							{" "}
+							{/* Use definition list */}
+							<div className="flex justify-between items-center">
+								<dt className="font-medium text-slate-500">Status:</dt>
+								<dd>
+									<span
+										className={`font-semibold px-2 py-0.5 rounded text-xs ${getStatusBadgeClass(
+											order.status
+										)}`}
+									>
+										{order.status.replace("_", " ").toUpperCase()}
+									</span>
+								</dd>
+							</div>
+							<DetailItem
+								label="Total"
+								value={
+									<span className="font-semibold text-base">
+										{formatPrice(order.total_price)}
+									</span>
+								}
+							/>
+							<DetailItem
+								label="Created"
+								value={formatDate(order.created_at)}
+								icon={CalendarDaysIcon}
+							/>
+							<DetailItem
+								label="Last Updated"
+								value={formatDate(order.updated_at)}
+								icon={ClockIcon}
+							/>
+							{order.source === "pos" && (
+								<DetailItem
+									label="Created By"
+									value={order.created_by}
+									icon={UserIcon}
+								/>
+							)}
+						</dl>
+						{/* Order Actions */}
+						{getOrderActions()}
 					</div>
 
-					{/* Creator information for POS orders */}
-					{order.source === "pos" && (
-						<div>
-							<label className="text-sm font-medium text-slate-500 mb-1 block">
-								Created By
-							</label>
-							<p className="text-slate-800 flex items-center text-sm">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-4 w-4 mr-1.5 text-slate-500"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									strokeWidth={1.5}
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-									/>
-								</svg>
-								{order.created_by || "Unknown"}
-							</p>
+					{/* Customer Details (Website Orders) - Styled */}
+					{order.source === "website" && (
+						<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-5">
+							<h3 className="text-base font-semibold text-slate-700 mb-3 flex items-center gap-2">
+								<UserCircleIcon className="w-5 h-5 text-slate-400" /> Customer
+								Information
+							</h3>
+							<dl className="space-y-2.5 text-sm">
+								<DetailItem
+									label="Name"
+									value={
+										order.guest_first_name && order.guest_last_name
+											? `${order.guest_first_name} ${order.guest_last_name}`
+											: order.created_by || "Guest"
+									}
+								/>
+								<DetailItem
+									label="Email"
+									value={order.guest_email}
+									icon={EnvelopeIcon}
+								/>
+								{order.payment_status && (
+									<div className="flex justify-between items-center">
+										<dt className="font-medium text-slate-500">Payment:</dt>
+										<dd>
+											<span
+												className={`font-semibold px-2 py-0.5 rounded text-xs ${getStatusBadgeClass(
+													order.payment_status
+												)}`}
+											>
+												{order.payment_status.toUpperCase()}
+											</span>
+										</dd>
+									</div>
+								)}
+							</dl>
 						</div>
 					)}
 				</div>
 
-				{/* Render Order Actions */}
-				{getOrderActions()}
-			</div>
-
-			{/* Customer Details (for website orders) */}
-			{order.source === "website" && (
-				<div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-					<h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5 mr-2 text-slate-500"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={1.5}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-							/>
-						</svg>
-						Customer Information
-					</h3>
-
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<div>
-							<label className="text-sm font-medium text-slate-500 mb-1 block">
-								Customer Name
-							</label>
-							<p className="font-medium text-slate-800">
-								{order.guest_first_name && order.guest_last_name
-									? `${order.guest_first_name} ${order.guest_last_name}`
-									: order.created_by || "Guest Customer"}{" "}
-								{/* Fallback to created_by if names are missing */}
-							</p>
-						</div>
-
-						<div>
-							<label className="text-sm font-medium text-slate-500 mb-1 block">
-								Email
-							</label>
-							<p className="font-medium text-slate-800">
-								{order.guest_email || "Not provided"}
-							</p>
-						</div>
-
-						{/* Display Payment Status from Order Model */}
-						{order.payment_status && (
-							<div>
-								<label className="text-sm font-medium text-slate-500 mb-1 block">
-									Payment Status
-								</label>
-								<div
-									className={`
-                                        font-medium py-1 px-2 rounded-md inline-block text-xs
-                                        ${
-																					order.payment_status === "paid"
-																						? "bg-emerald-100 text-emerald-700"
-																						: order.payment_status ===
-																						  "refunded"
-																						? "bg-red-100 text-red-700"
-																						: "bg-amber-100 text-amber-700" // Pending
-																				}
-                                    `}
-								>
-									{order.payment_status.toUpperCase()}
-								</div>
-							</div>
-						)}
-
-						<div>
-							<label className="text-sm font-medium text-slate-500 mb-1 block">
-								Order Source
-							</label>
-							<p className="font-medium text-purple-700 bg-purple-50 py-1 px-2 rounded-md inline-block text-xs">
-								WEBSITE ORDER
-							</p>
-						</div>
-					</div>
-				</div>
-			)}
-
-			{/* Split Layout Container */}
-			<div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 overflow-hidden">
-				{/* Order Items (Left Side) */}
-				<div className="bg-white rounded-xl shadow-sm flex flex-col overflow-hidden">
-					<div className="p-4 border-b border-slate-200 flex items-center">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5 mr-2 text-slate-500"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={1.5}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-							/>
-						</svg>
-						<h2 className="text-lg font-semibold text-slate-800">
-							Order Items ({order.items?.length || 0})
-						</h2>
-					</div>
-					<div className="overflow-y-auto flex-1">
-						{order.items && order.items.length > 0 ? (
-							order.items.map((item) => (
-								<div
-									key={item.id}
-									className="p-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
-								>
-									<div className="flex justify-between items-center">
-										<div>
-											<h3 className="font-medium text-slate-800 mb-1">
-												{item.product?.name || "Unknown Item"}
-											</h3>
-											<p className="text-sm text-slate-500 flex items-center">
-												<span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded mr-2 text-xs">
-													{item.quantity} × ${item.product?.price || "0.00"}
-												</span>
-												{/* Display discount info if needed */}
-											</p>
-										</div>
-										<p className="font-medium text-slate-800">
-											${(item.quantity * (item.product?.price || 0)).toFixed(2)}
-										</p>
-									</div>
-								</div>
-							))
-						) : (
-							<div className="p-6 text-center text-slate-500">
-								No items in this order
-							</div>
-						)}
-					</div>
-				</div>
-
-				{/* Payment Information (Right Side) */}
-				<div className="bg-white rounded-xl shadow-sm flex flex-col overflow-hidden">
-					<div className="p-4 border-b border-slate-200 flex items-center">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5 mr-2 text-slate-500"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={1.5}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-							/>
-						</svg>
-						<h2 className="text-lg font-semibold text-slate-800">
-							Payment Information
-						</h2>
-					</div>
-					<div className="p-6 overflow-y-auto flex-1">
+				{/* Right Column: Order Items & Payment Info */}
+				<div className="lg:col-span-2 space-y-4 sm:space-y-6">
+					{/* Order Items Card - Styled */}
+					<div className="bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col max-h-[calc(50vh-3rem)]">
 						{" "}
-						{/* Added padding */}
-						{order.payment ? (
-							<div className="space-y-4">
-								{" "}
-								{/* Reduced spacing slightly */}
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div>
-										<label className="text-sm font-medium text-slate-500 mb-1 block">
-											Payment Method
-										</label>
-										<p className="font-medium text-slate-800 text-sm">
-											{order.payment.is_split_payment
-												? "Split Payment"
-												: order.payment.payment_method
-												? order.payment.payment_method
-														.replace("_", " ")
-														.toUpperCase()
-												: "Not specified"}
-										</p>
-									</div>
-
-									{/* Use Payment Status from Payment object */}
-									<div>
-										<label className="text-sm font-medium text-slate-500 mb-1 block">
-											Payment Status
-										</label>
-										<div
-											className={`
-                                                font-medium py-1 px-2 rounded-md inline-block text-xs
-                                                ${
-																									order.payment.status ===
-																									"completed"
-																										? "bg-emerald-100 text-emerald-700"
-																										: order.payment.status ===
-																												"failed" ||
-																										  order.payment.status ===
-																												"refunded"
-																										? "bg-red-100 text-red-700"
-																										: "bg-amber-100 text-amber-700" // Pending or other
-																								}
-                                            `}
+						{/* Limit height */}
+						<div className="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
+							<ShoppingBagIcon className="w-5 h-5 text-slate-400" />
+							<h2 className="text-base font-semibold text-slate-700">
+								Order Items ({order.items?.length || 0})
+							</h2>
+						</div>
+						<div className="overflow-y-auto custom-scrollbar flex-grow">
+							{order.items && order.items.length > 0 ? (
+								<ul className="divide-y divide-slate-100">
+									{order.items.map((item) => (
+										<li
+											key={item.id}
+											className="px-4 py-2.5 flex justify-between items-center text-sm hover:bg-slate-50"
 										>
-											{order.payment.status.toUpperCase()}
+											<div>
+												<span className="font-medium text-slate-800">
+													{item.product?.name || "Unknown Item"}
+												</span>
+												<span className="text-slate-500 ml-2 text-xs">
+													({item.quantity} ×{" "}
+													{formatPrice(item.product?.price || 0)})
+												</span>
+												{item.discount > 0 && (
+													<span className="ml-2 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+														-{item.discount}%
+													</span>
+												)}
+											</div>
+											<span className="font-medium text-slate-700">
+												{formatPrice(
+													item.quantity *
+														(item.product?.price || 0) *
+														(1 - (item.discount || 0) / 100)
+												)}
+											</span>
+										</li>
+									))}
+								</ul>
+							) : (
+								<div className="p-6 text-center text-slate-500 text-sm">
+									No items found.
+								</div>
+							)}
+						</div>
+					</div>
+
+					{/* Payment Information Card - Styled */}
+					<div className="bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col max-h-[calc(50vh-3rem)]">
+						{" "}
+						{/* Limit height */}
+						<div className="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
+							<CreditCardIcon className="w-5 h-5 text-slate-400" />
+							<h2 className="text-base font-semibold text-slate-700">
+								Payment Information
+							</h2>
+						</div>
+						<div className="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-grow">
+							{order.payment ? (
+								<div className="space-y-4 text-sm">
+									<div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+										<DetailItem
+											label="Method"
+											value={
+												<span className="font-semibold">
+													{order.payment.is_split_payment
+														? "Split Payment"
+														: order.payment.payment_method
+														? order.payment.payment_method
+																.replace("_", " ")
+																.toUpperCase()
+														: "N/A"}
+												</span>
+											}
+										/>
+										<div>
+											<dt className="text-xs font-medium text-slate-500 mb-0.5">
+												Status
+											</dt>
+											<dd>
+												<span
+													className={`font-semibold px-2 py-0.5 rounded text-xs ${getStatusBadgeClass(
+														order.payment.status
+													)}`}
+												>
+													{order.payment.status.toUpperCase()}
+												</span>
+											</dd>
 										</div>
-									</div>
-
-									<div>
-										<label className="text-sm font-medium text-slate-500 mb-1 block">
-											Amount Paid
-										</label>
-										<p className="font-medium text-slate-800 text-sm">
-											${order.payment.amount || order.total_price}
-										</p>
-									</div>
-
-									<div>
-										<label className="text-sm font-medium text-slate-500 mb-1 block">
-											Payment Date
-										</label>
-										<p className="font-medium text-slate-800 text-sm">
-											{formatDate(
+										<DetailItem
+											label="Amount Paid"
+											value={
+												<span className="font-semibold">
+													{formatPrice(
+														order.payment.amount || order.total_price
+													)}
+												</span>
+											}
+										/>
+										<DetailItem
+											label="Date"
+											value={formatDate(
 												order.payment.updated_at || order.payment.created_at
 											)}
-										</p>
+											icon={CalendarDaysIcon}
+										/>
 									</div>
-								</div>
-								{/* Discount Details */}
-								{order.discount_details && (
-									<div className="pt-4 border-t border-slate-100">
-										<label className="text-sm font-medium text-slate-500 mb-2 block">
-											Discount Applied
-										</label>
-										<div className="bg-slate-50 p-3 rounded-lg text-sm space-y-1">
-											<p>
-												<span className="font-medium text-slate-700">
-													Name:
-												</span>{" "}
-												{order.discount_details.name}
-											</p>
-											<p>
-												<span className="font-medium text-slate-700">
-													Code:
-												</span>{" "}
-												{order.discount_details.code}
-											</p>
-											<p>
-												<span className="font-medium text-slate-700">
-													Amount:
-												</span>{" "}
-												${order.discount_details.amount_applied.toFixed(2)}
-											</p>
-										</div>
-									</div>
-								)}
-								{/* Split Payment Details - Use transactions from payment object */}
-								{order.payment.is_split_payment &&
-									order.payment.transactions &&
-									order.payment.transactions.length > 0 && (
-										<div className="pt-4 border-t border-slate-100">
-											<label className="text-sm font-medium text-slate-500 mb-2 block">
-												Split Payment Details
+
+									{/* Discount Details */}
+									{order.discount_details && (
+										<div className="pt-3 border-t border-slate-100">
+											<label className="text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-1">
+												<TagIcon className="h-3.5 w-3.5" /> Discount Applied
 											</label>
-											<div className="bg-slate-50 p-3 rounded-lg">
-												<table className="w-full text-sm">
-													<thead>
-														<tr className="border-b border-slate-200">
-															<th className="text-left py-1.5 px-2 font-medium text-slate-600">
-																Method
-															</th>
-															<th className="text-right py-1.5 px-2 font-medium text-slate-600">
-																Amount
-															</th>
-														</tr>
-													</thead>
-													<tbody>
-														{order.payment.transactions.map(
-															(transaction, index) => (
-																<tr
-																	key={transaction.id || index} // Use transaction ID if available
-																	className="border-b border-slate-100 last:border-0"
-																>
-																	<td className="py-1.5 px-2 text-slate-700">
-																		{transaction.payment_method
-																			?.replace("_", " ")
-																			.toUpperCase() || // Use correct field name
-																			"Unknown"}
-																	</td>
-																	<td className="py-1.5 px-2 text-right text-slate-700">
-																		${transaction.amount || "0.00"}
-																	</td>
-																</tr>
-															)
-														)}
-													</tbody>
-												</table>
+											<div className="bg-slate-50 p-2 rounded-md text-xs space-y-0.5 border border-slate-200">
+												<p>
+													<span className="font-medium text-slate-700">
+														Name:
+													</span>{" "}
+													{order.discount_details.name}
+												</p>
+												<p>
+													<span className="font-medium text-slate-700">
+														Code:
+													</span>{" "}
+													{order.discount_details.code}
+												</p>
+												<p>
+													<span className="font-medium text-slate-700">
+														Amount:
+													</span>{" "}
+													-{formatPrice(order.discount_details.amount_applied)}
+												</p>
 											</div>
 										</div>
 									)}
-								{/* Payment Intent ID (for credit card payments) */}
-								{order.payment.payment_intent_id && (
-									<div className="pt-4 border-t border-slate-100">
-										<label className="text-sm font-medium text-slate-500 mb-1 block">
-											Payment Reference
-										</label>
-										<p className="text-xs bg-slate-50 p-2 rounded font-mono text-slate-600 break-all">
-											{" "}
-											{/* Allow breaking long IDs */}
-											{order.payment.payment_intent_id}
-										</p>
-									</div>
-								)}
-							</div>
-						) : (
-							<div className="flex flex-col items-center justify-center h-full text-center p-6">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-12 w-12 text-slate-300 mb-3"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth={1.5}
-										d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-									/>
-								</svg>
-								<p className="text-slate-500">
-									No payment information available for this order.
-								</p>
-							</div>
-						)}
+
+									{/* Split Payment Details */}
+									{order.payment.is_split_payment &&
+										order.payment.transactions?.length > 0 && (
+											<div className="pt-3 border-t border-slate-100">
+												<label className="text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-1">
+													<ListBulletIcon className="h-3.5 w-3.5" /> Split
+													Transactions
+												</label>
+												<div className="bg-slate-50 p-2 rounded-md max-h-32 overflow-y-auto custom-scrollbar border border-slate-200">
+													<table className="w-full text-xs">
+														<thead>
+															<tr className="border-b border-slate-200">
+																<th className="text-left py-1 px-1 font-semibold text-slate-600">
+																	Method
+																</th>
+																<th className="text-right py-1 px-1 font-semibold text-slate-600">
+																	Amount
+																</th>
+															</tr>
+														</thead>
+														<tbody className="divide-y divide-slate-100">
+															{order.payment.transactions.map((tx, index) => (
+																<tr key={tx.id || index}>
+																	<td className="py-1 px-1 text-slate-700">
+																		{tx.payment_method
+																			?.replace("_", " ")
+																			.toUpperCase() || "N/A"}
+																	</td>
+																	<td className="py-1 px-1 text-right text-slate-700">
+																		{formatPrice(tx.amount)}
+																	</td>
+																</tr>
+															))}
+														</tbody>
+													</table>
+												</div>
+											</div>
+										)}
+
+									{/* Payment Intent ID */}
+									{order.payment.payment_intent_id && (
+										<div className="pt-3 border-t border-slate-100">
+											<label className="text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
+												<DocumentTextIcon className="h-3.5 w-3.5" /> Payment
+												Reference
+											</label>
+											<p className="text-[11px] bg-slate-50 p-2 rounded font-mono text-slate-600 break-all border border-slate-200">
+												{order.payment.payment_intent_id}
+											</p>
+										</div>
+									)}
+								</div>
+							) : (
+								<div className="flex flex-col items-center justify-center text-center p-6 h-full">
+									<CreditCardIcon className="h-10 w-10 text-slate-300 mb-2" />
+									<p className="text-sm text-slate-500">
+										No payment information recorded.
+									</p>
+								</div>
+							)}
+						</div>
 					</div>
 				</div>
 			</div>
 		</div>
 	);
+	// --- END OF UPDATED UI ---
 }

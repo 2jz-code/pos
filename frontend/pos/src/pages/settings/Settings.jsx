@@ -1,172 +1,202 @@
-// pages/settings/Settings.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import PropTypes from "prop-types"; // Import PropTypes
 import { authService } from "../../api/services/authService";
 import LocationManagement from "./LocationManagement";
 import PaymentTerminalSettings from "./PaymentTerminalSettings";
 import SecuritySettings from "./SecuritySettings";
+import LoadingSpinner from "../reports/components/LoadingSpinner"; // Assuming LoadingSpinner exists
 import {
 	MapPinIcon,
 	CreditCardIcon,
 	ShieldCheckIcon,
+	Cog6ToothIcon, // For main settings title
+	ArrowLeftStartOnRectangleIcon, // For dashboard button
+	UserCircleIcon, // For user info
+	SignalIcon, // For online status
 } from "@heroicons/react/24/outline";
+import { toast } from "react-toastify";
+
+// Helper component for sidebar navigation items
+const NavItem = ({ icon: Icon, label, isActive, onClick }) => (
+	<button
+		className={`group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+			isActive
+				? "bg-blue-50 text-blue-700" // Active state
+				: "text-slate-700 hover:bg-slate-100 hover:text-slate-900" // Inactive state
+		}`}
+		onClick={onClick}
+		aria-current={isActive ? "page" : undefined}
+	>
+		<Icon
+			className={`h-5 w-5 flex-shrink-0 ${
+				isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-500"
+			}`}
+		/>
+		<span>{label}</span>
+	</button>
+);
+
+NavItem.propTypes = {
+	icon: PropTypes.elementType.isRequired,
+	label: PropTypes.string.isRequired,
+	isActive: PropTypes.bool.isRequired,
+	onClick: PropTypes.func.isRequired,
+};
 
 export default function Settings() {
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [userName, setUserName] = useState("");
-	const [activeTab, setActiveTab] = useState("locations");
+	const [activeTab, setActiveTab] = useState("locations"); // Default tab
+	const [isLoadingAuth, setIsLoadingAuth] = useState(true); // Loading state for auth check
 	const navigate = useNavigate();
 
+	// Check admin status on mount
 	useEffect(() => {
 		const checkAdminStatus = async () => {
+			setIsLoadingAuth(true);
 			try {
 				const authResponse = await authService.checkStatus();
-				setIsAdmin(authResponse.is_admin);
-				setUserName(authResponse.username);
-
-				// Redirect non-admin users
 				if (!authResponse.is_admin) {
-					navigate("/dashboard");
+					console.warn("Non-admin user redirected from settings.");
+					navigate("/dashboard"); // Redirect if not admin
+				} else {
+					setIsAdmin(true);
+					setUserName(authResponse.username || "Admin User");
 				}
 			} catch (error) {
 				console.error("Error checking admin status:", error);
-				navigate("/dashboard");
+				toast.error("Authentication error. Redirecting..."); // Use toast if available
+				navigate("/dashboard"); // Redirect on error
+			} finally {
+				setIsLoadingAuth(false);
 			}
 		};
-
 		checkAdminStatus();
 	}, [navigate]);
 
-	// Tab content mapping
+	// Mapping of tab keys to components
 	const tabContent = {
 		locations: <LocationManagement />,
 		payment: <PaymentTerminalSettings />,
-		users: (
-			<div className="p-6 text-center text-slate-500">
-				User management coming soon
-			</div>
-		),
+		// Add other settings components here if needed
+		// users: <UserManagement />,
 		security: <SecuritySettings />,
 	};
 
+	// Define navigation items
+	const navItems = [
+		{ key: "locations", label: "Locations", icon: MapPinIcon },
+		{ key: "payment", label: "Payment Terminals", icon: CreditCardIcon },
+		{ key: "security", label: "Security", icon: ShieldCheckIcon },
+		// Add more items as needed
+		// { key: "users", label: "User Management", icon: UsersIcon },
+	];
+
+	// Show loading spinner while checking auth
+	if (isLoadingAuth) {
+		return (
+			<div className="flex h-screen w-screen items-center justify-center bg-slate-100">
+				<LoadingSpinner size="lg" />
+			</div>
+		);
+	}
+
+	// If somehow a non-admin reaches this point (though redirect should happen)
+	if (!isAdmin) {
+		return (
+			<div className="flex h-screen w-screen items-center justify-center bg-slate-100 p-6 text-center">
+				<p className="text-red-600">
+					Access Denied. You must be an administrator to view settings.
+				</p>
+				{/* Optional: Add a button to go back */}
+			</div>
+		);
+	}
+
 	return (
-		<div className="min-h-screen bg-slate-50">
-			{/* Top Navigation Bar */}
-			<div className="bg-white border-b border-slate-200">
-				<div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="flex justify-between items-center h-16">
-						<div className="flex items-center space-x-4">
-							<h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-							<span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium flex items-center">
-								<span className="w-2 h-2 bg-emerald-500 rounded-full mr-1.5"></span>
-								Online
-							</span>
+		<div className="flex h-screen w-screen flex-col bg-slate-100">
+			{/* Top Header Bar */}
+			<header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
+				<div className="flex items-center gap-3">
+					<Cog6ToothIcon className="h-6 w-6 text-slate-600" />
+					<h1 className="text-lg font-semibold text-slate-800">Settings</h1>
+				</div>
+				<div className="flex items-center gap-3">
+					<span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+						<SignalIcon className="h-3 w-3" /> Online
+					</span>
+					<button
+						className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+						onClick={() => navigate("/dashboard")}
+						title="Back to Dashboard"
+					>
+						<ArrowLeftStartOnRectangleIcon className="h-4 w-4" />
+						<span className="hidden sm:inline">Dashboard</span>
+					</button>
+				</div>
+			</header>
+
+			{/* Main Content Area with Sidebar */}
+			<div className="flex flex-1 overflow-hidden">
+				{/* Sidebar */}
+				<aside className="hidden w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white p-4 md:flex">
+					<nav className="flex-1 space-y-1">
+						{navItems.map((item) => (
+							<NavItem
+								key={item.key}
+								icon={item.icon}
+								label={item.label}
+								isActive={activeTab === item.key}
+								onClick={() => setActiveTab(item.key)}
+							/>
+						))}
+					</nav>
+					{/* User Info Footer */}
+					<div className="mt-auto flex-shrink-0 border-t border-slate-200 pt-4">
+						<div className="flex items-center gap-2">
+							<UserCircleIcon className="h-6 w-6 text-slate-400" />
+							<div>
+								<p className="text-xs font-medium text-slate-700">{userName}</p>
+								<p className="text-xs text-slate-500">Administrator</p>
+							</div>
 						</div>
-						<button
-							className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5"
-							onClick={() => navigate("/dashboard")}
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								className="h-5 w-5"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
+					</div>
+				</aside>
+
+				{/* Mobile Navigation (Dropdown or Tabs - Example using simple buttons for now) */}
+				<div className="mb-4 border-b border-slate-200 bg-white p-2 md:hidden">
+					<label
+						htmlFor="settings-tab-mobile"
+						className="sr-only"
+					>
+						Select a setting category
+					</label>
+					<select
+						id="settings-tab-mobile"
+						name="settings-tab-mobile"
+						className="block w-full rounded-md border-slate-300 py-2 pl-3 pr-10 text-base focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+						value={activeTab}
+						onChange={(e) => setActiveTab(e.target.value)}
+					>
+						{navItems.map((item) => (
+							<option
+								key={item.key}
+								value={item.key}
 							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M4 6h16M4 12h16M4 18h7"
-								/>
-							</svg>
-							Dashboard
-						</button>
-					</div>
+								{item.label}
+							</option>
+						))}
+					</select>
 				</div>
-			</div>
 
-			{/* Main Content Area */}
-			<div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-				<div className="flex space-x-6">
-					{/* Sidebar */}
-					<div className="w-64 shrink-0">
-						<div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-							<div className="bg-slate-800 text-white p-4">
-								<h2 className="font-medium text-lg mb-1">Settings Menu</h2>
-								<p className="text-xs text-slate-400">Manage system settings</p>
-							</div>
-							<nav className="p-2">
-								<div className="space-y-1">
-									<button
-										className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
-											activeTab === "locations"
-												? "bg-blue-50 text-blue-700"
-												: "text-slate-700 hover:bg-slate-100"
-										}`}
-										onClick={() => setActiveTab("locations")}
-									>
-										<MapPinIcon className="h-5 w-5" />
-										<span>Locations</span>
-									</button>
-
-									<button
-										className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
-											activeTab === "payment"
-												? "bg-blue-50 text-blue-700"
-												: "text-slate-700 hover:bg-slate-100"
-										}`}
-										onClick={() => setActiveTab("payment")}
-									>
-										<CreditCardIcon className="h-5 w-5" />
-										<span>Payment Terminal</span>
-									</button>
-
-									<button
-										className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
-											activeTab === "security"
-												? "bg-blue-50 text-blue-700"
-												: "text-slate-700 hover:bg-slate-100"
-										}`}
-										onClick={() => setActiveTab("security")}
-									>
-										<ShieldCheckIcon className="h-5 w-5" />
-										<span>Security</span>
-									</button>
-								</div>
-							</nav>
-							<div className="px-4 py-3 border-t border-slate-200 mt-2">
-								<div className="text-xs text-slate-500">
-									<p>Logged in as:</p>
-									<p className="font-medium text-slate-700">
-										{userName} (Admin)
-									</p>
-								</div>
-							</div>
-						</div>
+				{/* Main Content Pane */}
+				<main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+					{/* Render the active tab's content */}
+					<div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+						{tabContent[activeTab]}
 					</div>
-
-					{/* Content Area */}
-					<div className="flex-1">
-						<div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-							{tabContent[activeTab]}
-						</div>
-					</div>
-				</div>
-			</div>
-
-			{/* Status Bar */}
-			<div className="bg-slate-800 text-white py-2 fixed bottom-0 w-full">
-				<div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center text-xs">
-					<span className="flex items-center">
-						<span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span>
-						System Operational
-					</span>
-					<span>Settings Version: 1.0.0</span>
-					<span>
-						User: {userName} ({isAdmin ? "admin" : "staff"})
-					</span>
-				</div>
+				</main>
 			</div>
 		</div>
 	);

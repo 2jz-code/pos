@@ -109,7 +109,7 @@ HARDWARE_CONFIG = {
             'ip': '192.168.2.197',  # <--- SET IP FOR MANA'EESH PRINTER
             'port': 9100,
             'type': 'network',
-            'enabled': True,
+            'enabled': False,
             'categories': ['Mana\'eesh'], # <--- IMPORTANT: Match exact Category name(s)
             'role': 'station',
         },
@@ -117,7 +117,7 @@ HARDWARE_CONFIG = {
             'ip': '192.168.2.198',  # <--- SET IP FOR DRINKS/SOUP PRINTER
             'port': 9100,
             'type': 'network',
-            'enabled': True,
+            'enabled': False,
             'categories': ['Drinks', 'Soups'], # <--- IMPORTANT: Match exact Category names
             'role': 'station',
         },
@@ -125,7 +125,7 @@ HARDWARE_CONFIG = {
             'ip': '192.168.2.199',  # <--- SET IP FOR QC PRINTER
             'port': 9100,
             'type': 'network',
-            'enabled': True,
+            'enabled': False,
             'role': 'quality_control',
         }
         # Add more printers as needed

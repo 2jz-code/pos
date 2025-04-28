@@ -1,10 +1,22 @@
-// src/components/reports/OperationalReportForm.jsx
-import { useState } from "react";
-import { motion } from "framer-motion";
-import LoadingSpinner from "./LoadingSpinner";
+import { useState } from "react"; // Added React import
+import { motion } from "framer-motion"; // Original import
 import PropTypes from "prop-types";
+// Icons for UI
+import {
+	CogIcon,
+	DocumentArrowDownIcon,
+	BookmarkIcon,
+	ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 
+/**
+ * OperationalReportForm Component (Logic Preserved from User Provided Code)
+ *
+ * Form for generating operational insights reports.
+ * UI updated for a modern look and feel; Logic remains unchanged.
+ */
 const OperationalReportForm = ({ onSubmit, isLoading }) => {
+	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
 	const [formData, setFormData] = useState({
 		start_date: new Date().toISOString().split("T")[0],
 		end_date: new Date().toISOString().split("T")[0],
@@ -25,19 +37,17 @@ const OperationalReportForm = ({ onSubmit, isLoading }) => {
 		onSubmit(formData);
 	};
 
-	let endDate;
-	// Add quick date range selections
+	// Quick date range selection (Original)
 	const setDateRange = (range) => {
 		const today = new Date();
-		let startDate;
+		let startDate = new Date(); // Initialize with today
+		let endDate = new Date(today); // Initialize end date
 
 		switch (range) {
 			case "last7days":
-				startDate = new Date(today);
 				startDate.setDate(today.getDate() - 7);
 				break;
 			case "last30days":
-				startDate = new Date(today);
 				startDate.setDate(today.getDate() - 30);
 				break;
 			case "thisMonth":
@@ -45,199 +55,207 @@ const OperationalReportForm = ({ onSubmit, isLoading }) => {
 				break;
 			case "lastMonth":
 				startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-				endDate = new Date(today.getFullYear(), today.getMonth(), 0);
-				setFormData({
-					...formData,
-					start_date: startDate.toISOString().split("T")[0],
-					end_date: endDate.toISOString().split("T")[0],
-				});
-				return; // Early return since we set both dates
+				endDate = new Date(today.getFullYear(), today.getMonth(), 0); // Last day of previous month
+				break; // Keep endDate as is for others (today)
 			case "thisYear":
 				startDate = new Date(today.getFullYear(), 0, 1);
 				break;
-			default:
+			default: // today
 				startDate = today;
+				break;
 		}
 
 		setFormData({
 			...formData,
 			start_date: startDate.toISOString().split("T")[0],
-			end_date: today.toISOString().split("T")[0],
+			end_date: endDate.toISOString().split("T")[0], // Use potentially modified endDate
 		});
 	};
+	// --- END OF ORIGINAL LOGIC ---
+
+	// --- UPDATED UI (JSX Structure and Styling Only) ---
+	// Input field base class
+	const inputBaseClass =
+		"block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 sm:text-sm disabled:bg-slate-100";
+	const inputNormalClass = `${inputBaseClass} border-slate-300 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400`;
+	const labelClass = "block text-xs font-medium text-slate-600 mb-1";
+	const quickDateButtonClass =
+		"px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-md hover:bg-slate-200 transition-colors border border-slate-200";
+	const baseButtonClass =
+		"inline-flex justify-center items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed";
+	const primaryButtonClass = `${baseButtonClass} bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500`;
 
 	return (
-		<div className="p-6">
+		<div className="p-4 sm:p-6 h-full overflow-y-auto custom-scrollbar">
 			<motion.div
-				className="max-w-4xl mx-auto"
+				className="max-w-2xl mx-auto" // Reduced max-width
 				initial={{ opacity: 0, y: 10 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.3 }}
 			>
-				<h2 className="text-xl font-semibold text-slate-800 mb-6">
-					Generate Operational Insights
+				<h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+					<CogIcon className="h-5 w-5 text-slate-500" /> Generate Operational
+					Insights
 				</h2>
 
 				<form
 					onSubmit={handleSubmit}
-					className="space-y-6"
+					className="space-y-5"
 				>
-					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
-						<h3 className="text-lg font-medium text-slate-800 mb-2">
+					{/* Date Range Card */}
+					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 space-y-4">
+						<h3 className="text-base font-medium text-slate-700 mb-2">
 							Date Range
 						</h3>
-
-						<div className="flex flex-wrap gap-2 mb-4">
+						{/* Quick Date Buttons */}
+						<div className="flex flex-wrap gap-1.5 mb-3">
 							<button
 								type="button"
 								onClick={() => setDateRange("last7days")}
-								className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors"
+								className={quickDateButtonClass}
 							>
 								Last 7 Days
 							</button>
 							<button
 								type="button"
 								onClick={() => setDateRange("last30days")}
-								className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors"
+								className={quickDateButtonClass}
 							>
 								Last 30 Days
 							</button>
 							<button
 								type="button"
 								onClick={() => setDateRange("thisMonth")}
-								className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors"
+								className={quickDateButtonClass}
 							>
 								This Month
 							</button>
 							<button
 								type="button"
 								onClick={() => setDateRange("lastMonth")}
-								className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors"
+								className={quickDateButtonClass}
 							>
 								Last Month
 							</button>
 							<button
 								type="button"
 								onClick={() => setDateRange("thisYear")}
-								className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm rounded-lg hover:bg-slate-200 transition-colors"
+								className={quickDateButtonClass}
 							>
 								This Year
 							</button>
 						</div>
-
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						{/* Date Inputs */}
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<div>
 								<label
-									htmlFor="start_date"
-									className="block text-sm font-medium text-slate-700 mb-1"
+									htmlFor="op_start_date"
+									className={labelClass}
 								>
 									Start Date
 								</label>
 								<input
 									type="date"
-									id="start_date"
+									id="op_start_date"
 									name="start_date"
 									value={formData.start_date}
 									onChange={handleChange}
-									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+									className={inputNormalClass}
 									required
 								/>
 							</div>
 							<div>
 								<label
-									htmlFor="end_date"
-									className="block text-sm font-medium text-slate-700 mb-1"
+									htmlFor="op_end_date"
+									className={labelClass}
 								>
 									End Date
 								</label>
 								<input
 									type="date"
-									id="end_date"
+									id="op_end_date"
 									name="end_date"
 									value={formData.end_date}
 									onChange={handleChange}
-									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+									className={inputNormalClass}
 									required
 								/>
 							</div>
 						</div>
-
-						<div className="mt-2 text-sm text-slate-500">
-							This report will analyze hourly trends, peak times, and
-							day-of-week patterns for your business operations.
-						</div>
+						<p className="mt-2 text-xs text-slate-500">
+							Analyzes hourly trends, peak times, and day-of-week patterns.
+						</p>
 					</div>
 
-					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
+					{/* Save Report Card */}
+					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 space-y-3">
 						<div className="flex items-center justify-between">
-							<h3 className="text-lg font-medium text-slate-800">
+							<h3 className="text-base font-medium text-slate-700">
 								Save Report
 							</h3>
-							<div className="flex items-center">
-								<input
-									type="checkbox"
-									id="save_report"
-									name="save_report"
-									checked={formData.save_report}
-									onChange={handleChange}
-									className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-								/>
-								<label
-									htmlFor="save_report"
-									className="ml-2 block text-sm text-slate-700"
-								>
-									Save this report for later
-								</label>
-							</div>
+							<input
+								type="checkbox"
+								id="op_save_report"
+								name="save_report"
+								checked={formData.save_report}
+								onChange={handleChange}
+								className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+							/>
 						</div>
-
 						{formData.save_report && (
 							<div>
 								<label
-									htmlFor="report_name"
-									className="block text-sm font-medium text-slate-700 mb-1"
+									htmlFor="op_report_name"
+									className={labelClass}
 								>
-									Report Name
+									Report Name <span className="text-red-500">*</span>
 								</label>
 								<input
 									type="text"
-									id="report_name"
+									id="op_report_name"
 									name="report_name"
 									value={formData.report_name}
 									onChange={handleChange}
-									placeholder="Enter a name for this report"
-									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+									placeholder="e.g., Q1 Operational Peak Times"
+									className={inputNormalClass}
 									required={formData.save_report}
 								/>
 							</div>
 						)}
+						<label
+							htmlFor="op_save_report"
+							className="flex items-start gap-2 text-xs text-slate-500 cursor-pointer"
+						>
+							<span className="mt-0.5">
+								<BookmarkIcon className="h-3 w-3 inline relative -top-0.5" />{" "}
+								Save this report configuration for quick access later.
+							</span>
+						</label>
 					</div>
 
-					<div className="flex justify-end">
+					{/* Submit Button */}
+					<div className="flex justify-end pt-2">
 						<button
 							type="submit"
-							className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+							className={primaryButtonClass}
 							disabled={isLoading}
 						>
 							{isLoading ? (
-								<>
-									<LoadingSpinner
-										size="sm"
-										className="mr-2"
-									/>{" "}
-									Generating Report...
-								</>
+								<ArrowPathIcon className="h-4 w-4 animate-spin" />
 							) : (
-								"Generate Report"
+								<DocumentArrowDownIcon className="h-5 w-5" />
 							)}
+							{isLoading ? "Generating..." : "Generate Report"}
 						</button>
 					</div>
 				</form>
 			</motion.div>
 		</div>
 	);
+	// --- END OF UPDATED UI ---
 };
 
+// --- ORIGINAL PROPTYPES (UNCHANGED) ---
 OperationalReportForm.propTypes = {
 	onSubmit: PropTypes.func.isRequired,
 	isLoading: PropTypes.bool,

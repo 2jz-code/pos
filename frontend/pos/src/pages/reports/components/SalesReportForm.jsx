@@ -1,10 +1,22 @@
-// src/components/reports/SalesReportForm.jsx
-import { useState } from "react";
-import { motion } from "framer-motion";
-import LoadingSpinner from "./LoadingSpinner";
+import { useState } from "react"; // Added React import
+import { motion } from "framer-motion"; // Original import
 import PropTypes from "prop-types";
+// Icons for UI
+import {
+	DocumentChartBarIcon,
+	DocumentArrowDownIcon,
+	BookmarkIcon,
+	ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 
+/**
+ * SalesReportForm Component (Logic Preserved from User Provided Code)
+ *
+ * Form for generating sales reports.
+ * UI updated for a modern look and feel; Logic remains unchanged.
+ */
 const SalesReportForm = ({ onSubmit, isLoading }) => {
+	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
 	const [formData, setFormData] = useState({
 		start_date: new Date().toISOString().split("T")[0],
 		end_date: new Date().toISOString().split("T")[0],
@@ -27,86 +39,103 @@ const SalesReportForm = ({ onSubmit, isLoading }) => {
 		e.preventDefault();
 		onSubmit(formData);
 	};
+	// --- END OF ORIGINAL LOGIC ---
+
+	// --- UPDATED UI (JSX Structure and Styling Only) ---
+	// Input field base class
+	const inputBaseClass =
+		"block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 sm:text-sm disabled:bg-slate-100";
+	const inputNormalClass = `${inputBaseClass} border-slate-300 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400`;
+	const selectClass = `${inputNormalClass} appearance-none bg-white bg-no-repeat bg-right-3`;
+	const labelClass = "block text-xs font-medium text-slate-600 mb-1";
+	const checkboxLabelClass = "ml-2 text-sm text-slate-700";
+	const checkboxClass =
+		"h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded";
+	const baseButtonClass =
+		"inline-flex justify-center items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed";
+	const primaryButtonClass = `${baseButtonClass} bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500`;
 
 	return (
-		<div className="p-6">
+		<div className="p-4 sm:p-6 h-full overflow-y-auto custom-scrollbar">
 			<motion.div
-				className="max-w-4xl mx-auto"
+				className="max-w-2xl mx-auto" // Reduced max-width
 				initial={{ opacity: 0, y: 10 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.3 }}
 			>
-				<h2 className="text-xl font-semibold text-slate-800 mb-6">
-					Generate Sales Report
+				<h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+					<DocumentChartBarIcon className="h-5 w-5 text-slate-500" /> Generate
+					Sales Report
 				</h2>
 
 				<form
 					onSubmit={handleSubmit}
-					className="space-y-6"
+					className="space-y-5"
 				>
-					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
-						<h3 className="text-lg font-medium text-slate-800 mb-2">
-							Date Range
+					{/* Report Parameters Card */}
+					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 space-y-4">
+						<h3 className="text-base font-medium text-slate-700 mb-2">
+							Report Parameters
 						</h3>
-
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						{/* Date Inputs */}
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<div>
 								<label
-									htmlFor="start_date"
-									className="block text-sm font-medium text-slate-700 mb-1"
+									htmlFor="sales_start_date"
+									className={labelClass}
 								>
 									Start Date
 								</label>
 								<input
 									type="date"
-									id="start_date"
+									id="sales_start_date"
 									name="start_date"
 									value={formData.start_date}
 									onChange={handleChange}
-									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+									className={inputNormalClass}
 									required
 								/>
 							</div>
 							<div>
 								<label
-									htmlFor="end_date"
-									className="block text-sm font-medium text-slate-700 mb-1"
+									htmlFor="sales_end_date"
+									className={labelClass}
 								>
 									End Date
 								</label>
 								<input
 									type="date"
-									id="end_date"
+									id="sales_end_date"
 									name="end_date"
 									value={formData.end_date}
 									onChange={handleChange}
-									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+									className={inputNormalClass}
 									required
 								/>
 							</div>
 						</div>
-
+						{/* Group By Select */}
 						<div>
 							<label
-								htmlFor="group_by"
-								className="block text-sm font-medium text-slate-700 mb-1"
+								htmlFor="sales_group_by"
+								className={labelClass}
 							>
 								Group By
 							</label>
 							<select
-								id="group_by"
+								id="sales_group_by"
 								name="group_by"
 								value={formData.group_by}
 								onChange={handleChange}
-								className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								className={selectClass}
 							>
 								<option value="day">Daily</option>
 								<option value="week">Weekly</option>
 								<option value="month">Monthly</option>
 							</select>
 						</div>
-
-						<div className="flex items-center space-x-6">
+						{/* Checkboxes */}
+						<div className="flex items-center space-x-6 pt-2">
 							<div className="flex items-center">
 								<input
 									type="checkbox"
@@ -114,11 +143,11 @@ const SalesReportForm = ({ onSubmit, isLoading }) => {
 									name="include_tax"
 									checked={formData.include_tax}
 									onChange={handleChange}
-									className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+									className={checkboxClass}
 								/>
 								<label
 									htmlFor="include_tax"
-									className="ml-2 block text-sm text-slate-700"
+									className={checkboxLabelClass}
 								>
 									Include Tax
 								</label>
@@ -130,11 +159,11 @@ const SalesReportForm = ({ onSubmit, isLoading }) => {
 									name="include_refunds"
 									checked={formData.include_refunds}
 									onChange={handleChange}
-									className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+									className={checkboxClass}
 								/>
 								<label
 									htmlFor="include_refunds"
-									className="ml-2 block text-sm text-slate-700"
+									className={checkboxLabelClass}
 								>
 									Include Refunds
 								</label>
@@ -142,76 +171,75 @@ const SalesReportForm = ({ onSubmit, isLoading }) => {
 						</div>
 					</div>
 
-					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
+					{/* Save Report Card */}
+					<div className="bg-white rounded-lg shadow-sm border border-slate-200 p-5 space-y-3">
 						<div className="flex items-center justify-between">
-							<h3 className="text-lg font-medium text-slate-800">
+							<h3 className="text-base font-medium text-slate-700">
 								Save Report
 							</h3>
-							<div className="flex items-center">
-								<input
-									type="checkbox"
-									id="save_report"
-									name="save_report"
-									checked={formData.save_report}
-									onChange={handleChange}
-									className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-								/>
-								<label
-									htmlFor="save_report"
-									className="ml-2 block text-sm text-slate-700"
-								>
-									Save this report for later
-								</label>
-							</div>
+							<input
+								type="checkbox"
+								id="sales_save_report"
+								name="save_report"
+								checked={formData.save_report}
+								onChange={handleChange}
+								className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+							/>
 						</div>
-
 						{formData.save_report && (
 							<div>
 								<label
-									htmlFor="report_name"
-									className="block text-sm font-medium text-slate-700 mb-1"
+									htmlFor="sales_report_name"
+									className={labelClass}
 								>
-									Report Name
+									Report Name <span className="text-red-500">*</span>
 								</label>
 								<input
 									type="text"
-									id="report_name"
+									id="sales_report_name"
 									name="report_name"
 									value={formData.report_name}
 									onChange={handleChange}
-									placeholder="Enter a name for this report"
-									className="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+									placeholder="e.g., Q1 Sales Summary"
+									className={inputNormalClass}
 									required={formData.save_report}
 								/>
 							</div>
 						)}
+						<label
+							htmlFor="sales_save_report"
+							className="flex items-start gap-2 text-xs text-slate-500 cursor-pointer"
+						>
+							<span className="mt-0.5">
+								<BookmarkIcon className="h-3 w-3 inline relative -top-0.5" />{" "}
+								Save this report configuration for quick access later.
+							</span>
+						</label>
 					</div>
 
-					<div className="flex justify-end">
+					{/* Submit Button */}
+					<div className="flex justify-end pt-2">
 						<button
 							type="submit"
-							className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+							className={primaryButtonClass}
 							disabled={isLoading}
 						>
 							{isLoading ? (
-								<>
-									<LoadingSpinner
-										size="sm"
-										className="mr-2"
-									/>{" "}
-									Generating Report...
-								</>
+								<ArrowPathIcon className="h-4 w-4 animate-spin" />
 							) : (
-								"Generate Report"
+								<DocumentArrowDownIcon className="h-5 w-5" />
 							)}
+							{isLoading ? "Generating..." : "Generate Report"}
 						</button>
 					</div>
 				</form>
 			</motion.div>
 		</div>
 	);
+	// --- END OF UPDATED UI ---
 };
 
+// --- ORIGINAL PROPTYPES (UNCHANGED) ---
 SalesReportForm.propTypes = {
 	onSubmit: PropTypes.func.isRequired,
 	isLoading: PropTypes.bool,

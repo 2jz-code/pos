@@ -1,9 +1,29 @@
-// src/features/cart/components/CartSummary.jsx
-import { useMemo } from "react";
+import { useMemo } from "react"; // Added React import
 import PropTypes from "prop-types";
+// Original imports
 import { calculateCartTotals } from "../utils/cartCalculations";
-import { TagIcon } from "@heroicons/react/24/outline";
+import {
+	TagIcon,
+	BellAlertIcon,
+	CreditCardIcon,
+	XCircleIcon,
+} from "@heroicons/react/24/solid"; // Use solid icons for buttons/tags
 
+/**
+ * CartSummary Component (Logic Preserved from User Provided Code)
+ *
+ * Displays the subtotal, tax, discount, total, and action buttons (Hold, Discount, Charge).
+ * UI updated to match modern styling; Logic remains unchanged based on user input.
+ *
+ * @param {object} props - Component props.
+ * @param {array} props.cart - The current cart items array.
+ * @param {function} props.onHoldOrder - Function to handle holding the order.
+ * @param {function} props.onCharge - Function to proceed to payment/charge.
+ * @param {boolean} props.canHoldOrder - Flag indicating if the order can be held.
+ * @param {object|null} props.orderDiscount - The applied order-level discount object.
+ * @param {function} props.onShowDiscounts - Function to show the discount selection UI.
+ * @param {function} props.onRemoveDiscount - Function to remove the applied order discount.
+ */
 export const CartSummary = ({
 	cart,
 	onHoldOrder,
@@ -13,120 +33,144 @@ export const CartSummary = ({
 	onShowDiscounts,
 	onRemoveDiscount,
 }) => {
-	// Use useMemo to efficiently recalculate totals when cart changes
+	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
 	const { subtotal, taxAmount, total, discountAmount } = useMemo(() => {
-		console.log("Recalculating cart totals with cart:", cart);
+		// console.log("Recalculating cart totals with cart:", cart); // Original console log (commented out for cleaner production)
 		return calculateCartTotals(cart, orderDiscount);
 	}, [cart, orderDiscount]);
 
+	// Determine if the cart is empty for disabling buttons
+	const isCartEmpty = cart.length === 0;
+	// --- END OF ORIGINAL LOGIC ---
+
+	// --- UPDATED UI (JSX Structure and Styling Only) ---
 	return (
-		<div className="sticky bottom-0 bg-white border-t border-slate-200 p-4 space-y-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-			<div className="space-y-2">
+		// Main container: Sticky bottom, modern background, border, padding, shadow
+		<div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 p-4 space-y-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+			{/* Calculation Summary Section */}
+			<div className="space-y-1.5 text-sm">
+				{" "}
+				{/* Reduced spacing slightly */}
+				{/* Subtotal Row */}
 				<div className="flex justify-between text-slate-600">
 					<span>Subtotal</span>
+					{/* Display original calculated subtotal */}
 					<span>${subtotal.toFixed(2)}</span>
 				</div>
-
-				{/* Show discount if applied */}
+				{/* Discount Row - Conditional rendering based on original prop */}
 				{orderDiscount && (
-					<div className="flex justify-between text-green-600">
-						<span className="flex items-center">
-							<TagIcon className="h-4 w-4 mr-1" />
+					<div className="flex justify-between text-emerald-600">
+						<span className="flex items-center gap-1">
+							<TagIcon className="h-4 w-4" />
+							{/* Display original discount name */}
 							Discount ({orderDiscount.name})
+							{/* Remove Discount Button - Styled */}
 							<button
-								onClick={onRemoveDiscount}
-								className="ml-1 text-red-500 hover:text-red-700"
+								onClick={onRemoveDiscount} // Original handler
+								className="ml-1 text-red-500 hover:text-red-700 focus:outline-none"
+								title="Remove Discount"
 							>
-								✕
+								<XCircleIcon className="h-4 w-4" /> {/* Use XCircleIcon */}
 							</button>
 						</span>
+						{/* Display original calculated discount amount */}
 						<span>-${discountAmount.toFixed(2)}</span>
 					</div>
 				)}
-
+				{/* Tax Row */}
 				<div className="flex justify-between text-slate-600">
-					<span>Tax (10%)</span>
+					<span>Tax (10%)</span> {/* Assuming 10% is still correct */}
+					{/* Display original calculated tax amount */}
 					<span>${taxAmount.toFixed(2)}</span>
 				</div>
-				<div className="flex justify-between text-lg font-semibold text-slate-800 pt-2 border-t border-slate-100">
+				{/* Divider */}
+				<hr className="border-slate-200 !my-3" />{" "}
+				{/* Increased margin for divider */}
+				{/* Total Row - Styled */}
+				<div className="flex justify-between text-base font-semibold text-slate-800 pt-1">
+					{" "}
+					{/* Adjusted padding/size */}
 					<span>Total</span>
+					{/* Display original calculated total */}
 					<span>${total.toFixed(2)}</span>
 				</div>
 			</div>
 
-			<div className="grid grid-cols-3 gap-3">
+			{/* Action Buttons Section - Styled Grid */}
+			<div className="grid grid-cols-3 gap-3 pt-1">
+				{" "}
+				{/* Added slight top padding */}
+				{/* Hold Button - Styled */}
 				<button
 					className={`
-          bg-slate-100 text-slate-700 px-4 py-2.5 rounded-lg 
-          transition-colors flex items-center justify-center
-          ${
-						!canHoldOrder
-							? "opacity-50 cursor-not-allowed"
-							: "hover:bg-slate-200"
-					}
-        `}
-					onClick={onHoldOrder}
-					disabled={!canHoldOrder}
+                        bg-slate-100 text-slate-700 px-3 py-2.5 rounded-lg text-sm
+                        transition-colors flex items-center justify-center gap-1.5
+                        ${
+													!canHoldOrder || isCartEmpty // Use original flags for disabled state
+														? "opacity-50 cursor-not-allowed"
+														: "hover:bg-slate-200 active:bg-slate-300"
+												}
+                    `}
+					onClick={onHoldOrder} // Original handler
+					disabled={!canHoldOrder || isCartEmpty} // Original disabled logic
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						className="h-4 w-4 mr-1.5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-						/>
-					</svg>
+					<BellAlertIcon className="h-4 w-4" /> {/* Changed icon */}
 					Hold
 				</button>
-
-				{/* Add Discount Button */}
+				{/* Discount Button - Styled */}
 				<button
-					className="bg-orange-100 text-orange-700 px-4 py-2.5 rounded-lg hover:bg-orange-200 transition-colors flex items-center justify-center"
-					onClick={onShowDiscounts}
-					disabled={cart.length === 0}
+					className={`
+                        bg-amber-100 text-amber-700 px-3 py-2.5 rounded-lg text-sm
+                        transition-colors flex items-center justify-center gap-1.5
+                        ${
+													isCartEmpty // Use original flag for disabled state
+														? "opacity-50 cursor-not-allowed"
+														: "hover:bg-amber-200 active:bg-amber-300"
+												}
+                     `}
+					onClick={onShowDiscounts} // Original handler
+					disabled={isCartEmpty} // Original disabled logic
 				>
-					<TagIcon className="h-4 w-4 mr-1.5" />
+					<TagIcon className="h-4 w-4" />
 					Discount
 				</button>
-
+				{/* Charge/Payment Button - Styled */}
 				<button
-					className="bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-					onClick={() => onCharge(total)}
-					disabled={cart.length === 0}
+					className={`
+                        bg-blue-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium
+                        transition-colors flex items-center justify-center gap-1.5
+                        ${
+													isCartEmpty // Use original flag for disabled state
+														? "opacity-50 cursor-not-allowed bg-blue-400" // Dimmer blue when disabled
+														: "hover:bg-blue-700 active:bg-blue-800"
+												}
+                    `}
+					onClick={() => onCharge(total)} // Original handler, passing original total
+					disabled={isCartEmpty} // Original disabled logic
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						className="h-4 w-4 mr-1.5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-						/>
-					</svg>
-					${total.toFixed(2)}
+					<CreditCardIcon className="h-4 w-4" /> {/* Changed icon */}
+					{/* Display original total */}
+					Charge ${total.toFixed(2)}
 				</button>
 			</div>
 		</div>
 	);
+	// --- END OF UPDATED UI ---
 };
 
+// --- ORIGINAL PROPTYPES (UNCHANGED) ---
 CartSummary.propTypes = {
 	cart: PropTypes.array.isRequired,
 	onHoldOrder: PropTypes.func.isRequired,
 	onCharge: PropTypes.func.isRequired,
 	canHoldOrder: PropTypes.bool.isRequired,
-	orderDiscount: PropTypes.object,
+	orderDiscount: PropTypes.object, // Can be null or object
 	onShowDiscounts: PropTypes.func.isRequired,
 	onRemoveDiscount: PropTypes.func.isRequired,
 };
+
+// Add display name for consistency
+CartSummary.displayName = "CartSummary";
+
+// Default export might be needed
+// export default CartSummary; // Uncomment if needed

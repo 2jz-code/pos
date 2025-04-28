@@ -1,36 +1,33 @@
-// features/customerDisplay/components/payment/PaymentView.jsx
-
 import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { motion } from "framer-motion";
 import { useTerminalSimulation } from "../../hooks/useTerminalSimulation"; // Ensure path is correct
-import { useCartStore } from "../../../../store/cartStore"; // Ensure path is correct
 import { formatPrice } from "../../../../utils/numberUtils"; // Ensure path is correct
 import {
 	CheckCircleIcon,
 	ExclamationCircleIcon,
 	CreditCardIcon,
-	ArrowPathIcon,
-} from "@heroicons/react/24/solid";
+	ArrowPathIcon as ArrowPathSolidIcon, // Use Solid for consistency
+	WifiIcon, // Added for waiting state
+	CpuChipIcon, // Added for processing state
+} from "@heroicons/react/24/solid"; // Using solid icons for status
 
-// // Mock animation objects if paymentAnimations is not used/imported
-// const pageVariants = { enter: {}, center: {}, exit: {} };
-// const pageTransition = {};
-
+/**
+ * PaymentView Component (UI Revamped)
+ * Displays payment status and amount during card transactions on the customer display.
+ */
 const PaymentView = ({ orderData, onComplete }) => {
-	const [isInitiating, setIsInitiating] = useState(true);
-	// Use the simulation hook
+	const [isInitiating, setIsInitiating] = useState(true); // Track initial setup phase
 	const { processPayment, paymentStatus, paymentResult, error, readerInfo } =
 		useTerminalSimulation();
-	const hasStartedPaymentRef = useRef(false);
-	const isMountedRef = useRef(false); // Track mount status
+	const hasStartedPaymentRef = useRef(false); // Prevent multiple payment starts
+	const isMountedRef = useRef(true); // Track mount status for async operations
 
-	// Safely get order details from props
+	// Safely get order details
 	const tipAmount = orderData?.tipAmount || 0;
-	// *** Ensure baseTotal uses the 'total' field from the prop, which should be the base ***
-	const baseTotal = typeof orderData?.total === "number" ? orderData.total : 0;
-	const finalTotal = baseTotal + tipAmount; // Total with tip *for display* only
-	const orderId = orderData?.orderId || useCartStore.getState().orderId; // Get orderId
+	const baseTotal = typeof orderData?.total === "number" ? orderData.total : 0; // Base amount for this payment step
+	const finalTotal = baseTotal + tipAmount; // Total including tip for display
+	const orderId = orderData?.orderId;
 
 	// Mount/Unmount effect
 	useEffect(() => {
@@ -40,9 +37,9 @@ const PaymentView = ({ orderData, onComplete }) => {
 		};
 	}, []);
 
-	// Start payment process
+	// Effect to start the payment process via the simulation hook
 	useEffect(() => {
-		// Guard clauses
+		// Guards to prevent running multiple times or with invalid data
 		if (
 			hasStartedPaymentRef.current ||
 			!orderData ||
@@ -53,213 +50,208 @@ const PaymentView = ({ orderData, onComplete }) => {
 			return;
 		}
 
+		// Short delay before initiating payment processing
 		const timer = setTimeout(() => {
-			if (!isMountedRef.current) return; // Check mount status again before proceeding
+			if (!isMountedRef.current) return;
 
-			setIsInitiating(false); // Mark initiating phase as done
+			setIsInitiating(false); // Mark initiation complete
 			console.log(
-				"PaymentView.jsx: Start Payment Timer Fired. Processing payment for Order:",
-				orderId,
-				"Base Amount:",
-				baseTotal,
-				"Tip Amount:",
-				tipAmount,
-				"Final Display Amount:",
-				finalTotal
+				`PaymentView: Initiating payment for Order ${orderId}, Base: ${baseTotal}, Tip: ${tipAmount}, Final: ${finalTotal}`
 			);
 
-			// *** FIX: Construct the data object passed to processPayment correctly ***
-			// This object MUST contain the BASE total in its 'total' field
+			// Prepare data object for the simulation hook
 			const dataForSimulation = {
-				total: baseTotal, // <<< Explicitly pass the BASE total
-				tipAmount: tipAmount, // <<< Explicitly pass the tip amount
+				total: baseTotal, // Pass the BASE total for the payment intent
+				tipAmount: tipAmount,
 				orderId: orderId,
-				// Pass other relevant details if needed by the simulation hook or backend metadata
 				isSplitPayment: orderData?.isSplitPayment,
-				originalTotal: orderData?.originalTotal, // Use originalTotal if available
-				items: orderData?.items, // Pass items if needed for metadata
-				// Pass discount info if needed
+				originalTotal: orderData?.originalTotal,
+				items: orderData?.items,
 				discountAmount: orderData?.discountAmount,
 				orderDiscount: orderData?.orderDiscount,
 			};
-			// *** END FIX ***
 
-			// *** Add log right before calling processPayment ***
 			console.log(
-				"PaymentView.jsx: Calling processPayment with dataForSimulation:",
+				"PaymentView: Calling processPayment with data:",
 				JSON.stringify(dataForSimulation, null, 2)
 			);
-			// *************************************************
+			hasStartedPaymentRef.current = true; // Mark payment as started
+			processPayment(dataForSimulation); // Trigger the simulation hook
+		}, 1500); // Delay before starting
 
-			hasStartedPaymentRef.current = true; // Mark as payment process started
-			processPayment(dataForSimulation); // Call the hook's processPayment
-		}, 1500); // Initial delay
+		return () => clearTimeout(timer); // Cleanup timer
+	}, [orderData, orderId, baseTotal, tipAmount, processPayment, isInitiating]);
 
-		return () => clearTimeout(timer);
-	}, [orderData, orderId, baseTotal, tipAmount, processPayment, isInitiating]); // Dependencies
-
-	// Handle completion - This effect listens to the result from useTerminalSimulation
+	// Effect to handle completion when payment succeeds
 	useEffect(() => {
 		if (paymentStatus === "success" && paymentResult && onComplete) {
-			if (!isMountedRef.current) return; // Check mount status
+			if (!isMountedRef.current) return;
 
+			// Delay before calling onComplete to allow user to see success message
 			const timer = setTimeout(() => {
 				if (!isMountedRef.current) return;
 
 				const completionData = {
 					status: "success",
-					...paymentResult, // Result from hook should have correct amounts now
-					orderId, // Ensure orderId is included
+					...paymentResult, // Include result details (amount, cardInfo, etc.)
+					orderId,
 				};
 				console.log(
-					"PaymentView.jsx: Payment successful, calling onComplete with:",
+					"PaymentView: Payment successful, calling onComplete:",
 					completionData
 				);
-				onComplete(completionData); // Signal completion to parent (CustomerFlowView)
-			}, 2000); // Delay for showing success message
+				onComplete(completionData); // Signal completion to parent
+			}, 2000); // 2-second delay
+
 			return () => clearTimeout(timer);
 		}
 	}, [paymentStatus, paymentResult, onComplete, orderId]);
 
-	// Allow retry on error
+	// Effect to allow retry on error
 	useEffect(() => {
-		if (paymentStatus === "error") {
-			if (!isMountedRef.current) return; // Check mount status
-			hasStartedPaymentRef.current = false; // Allow retry
+		if (paymentStatus === "error" && isMountedRef.current) {
+			hasStartedPaymentRef.current = false; // Reset flag to allow retry
 		}
 	}, [paymentStatus]);
 
+	// Retry handler
 	const handleRetry = () => {
-		if (!orderData || !orderId || !isMountedRef.current) return;
-		console.log("PaymentView.jsx: Retrying payment...");
-		// Reset state to allow the main useEffect to trigger payment again
-		setIsInitiating(true);
+		if (!orderData || !orderId || !isMountedRef.current || isInitiating) return;
+		console.log("PaymentView: Retrying payment...");
+		setIsInitiating(true); // Re-trigger the payment initiation effect
 		hasStartedPaymentRef.current = false;
-		// Note: processPayment itself should reset its internal state when called again by the useEffect
+		// The processPayment hook should handle resetting its internal state
 	};
 
-	// Brand colors
-	const primaryColor = "blue-600";
-	const primaryHoverColor = "blue-700";
-	const primaryRingColor = "blue-300";
-	const successColor = "green-600";
-	const errorColor = "red-600";
+	// Determine status message and icon based on paymentStatus
+	const getStatusDisplay = () => {
+		switch (paymentStatus) {
+			case "success":
+				return {
+					Icon: CheckCircleIcon,
+					text: "Payment Successful",
+					color: "text-green-500",
+					message: paymentResult?.cardInfo
+						? `${paymentResult.cardInfo.brand} •••• ${paymentResult.cardInfo.last4}`
+						: "Approved",
+				};
+			case "error":
+				return {
+					Icon: ExclamationCircleIcon,
+					text: "Payment Failed",
+					color: "text-red-500",
+					message: error || "An unknown error occurred.",
+				};
+			case "processing":
+			case "processing_intent":
+				return {
+					Icon: CpuChipIcon,
+					text: "Processing Payment...",
+					color: "text-blue-500",
+					message: "Please wait...",
+					animate: true,
+				};
+			case "waiting_for_card":
+				return {
+					Icon: WifiIcon,
+					text: "Complete Payment on Terminal",
+					color: "text-blue-500",
+					message: `Follow instructions on ${readerInfo?.label || "terminal"}.`,
+					animate: true,
+				};
+			case "connecting":
+			case "reader_check":
+			case "creating_intent":
+			case "idle":
+			default:
+				return {
+					Icon: CreditCardIcon,
+					text: "Preparing Payment",
+					color: "text-slate-400",
+					message: "Please wait, connecting...",
+				};
+		}
+	};
+	const { Icon, text, color, message, animate } = getStatusDisplay();
+
+	// Animation variants
+	const containerVariants = {
+		hidden: { opacity: 0 },
+		visible: { opacity: 1 },
+		exit: { opacity: 0 },
+	};
+	const itemVariants = {
+		hidden: { opacity: 0, scale: 0.8 },
+		visible: {
+			opacity: 1,
+			scale: 1,
+			transition: { type: "spring", stiffness: 300, damping: 20 },
+		},
+	};
 
 	return (
 		<motion.div
-			key="payment" // Key for animation triggering
-			className="flex flex-col h-full bg-slate-50"
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-			exit={{ opacity: 0 }}
+			key="payment" // Key for AnimatePresence
+			className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-8 text-center md:p-12 lg:p-16"
+			variants={containerVariants}
+			initial="hidden"
+			animate="visible"
+			exit="exit"
 			transition={{ duration: 0.3 }}
 		>
-			{/* Main Content Area */}
-			<div className="flex-1 flex flex-col items-center justify-center p-8 md:p-12 lg:p-16 text-center">
-				<div className="w-full max-w-md">
-					{/* Status Icon and Header */}
+			<div className="w-full max-w-md">
+				{/* Status Icon */}
+				<motion.div
+					key={paymentStatus}
+					variants={itemVariants}
+					className="mb-6"
+				>
+					<Icon
+						className={`mx-auto h-20 w-20 ${color} ${
+							animate ? "animate-pulse" : ""
+						}`}
+					/>
+				</motion.div>
+
+				{/* Status Header */}
+				<motion.h1
+					variants={itemVariants}
+					className="mb-2 text-3xl font-bold text-slate-900"
+				>
+					{text}
+				</motion.h1>
+
+				{/* Amount Display */}
+				<motion.p
+					variants={itemVariants}
+					className="mb-4 text-4xl font-bold text-blue-600"
+				>
+					{formatPrice(finalTotal)}
+				</motion.p>
+
+				{/* Status Message */}
+				<motion.div
+					variants={itemVariants}
+					className="min-h-[3rem] text-lg text-slate-600" // Ensure minimum height
+				>
+					{message}
+				</motion.div>
+
+				{/* Retry Button */}
+				{paymentStatus === "error" && (
 					<motion.div
-						key={paymentStatus} // Animate change based on status
-						initial={{ opacity: 0, scale: 0.8 }}
-						animate={{ opacity: 1, scale: 1 }}
-						transition={{ type: "spring", stiffness: 300, damping: 20 }}
-						className="mb-6"
+						variants={itemVariants}
+						className="mt-8"
 					>
-						{/* Icon logic remains the same */}
-						{paymentStatus === "success" && (
-							<CheckCircleIcon
-								className={`w-20 h-20 text-${successColor} mx-auto`}
-							/>
-						)}
-						{paymentStatus === "error" && (
-							<ExclamationCircleIcon
-								className={`w-20 h-20 text-${errorColor} mx-auto`}
-							/>
-						)}
-						{(paymentStatus === "idle" ||
-							isInitiating ||
-							paymentStatus === "connecting" ||
-							paymentStatus === "reader_check") && (
-							<CreditCardIcon className="w-20 h-20 text-slate-300 mx-auto" />
-						)}
-						{(paymentStatus === "processing" ||
-							paymentStatus === "processing_intent" ||
-							paymentStatus === "waiting_for_card") && (
-							<div className="relative w-20 h-20 mx-auto">
-								<CreditCardIcon className="w-20 h-20 text-slate-300 opacity-40" />
-								<motion.div
-									className={`absolute inset-0 border-4 border-${primaryColor} border-t-transparent rounded-full`}
-									animate={{ rotate: 360 }}
-									transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-								/>
-							</div>
-						)}
-						{/* Header text logic remains the same */}
-						<h1 className="text-3xl font-bold text-gray-900 mt-5 mb-2">
-							{paymentStatus === "success"
-								? "Payment Successful"
-								: paymentStatus === "error"
-								? "Payment Failed"
-								: paymentStatus === "processing"
-								? "Processing Payment..."
-								: paymentStatus === "waiting_for_card"
-								? "Complete Payment on Terminal"
-								: paymentStatus === "processing_intent"
-								? "Preparing Terminal..."
-								: "Preparing Payment"}
-						</h1>
-					</motion.div>
-
-					{/* Message / Details Area */}
-					<div className="min-h-[6rem] mb-8">
-						{/* Total Amount Display */}
-						<p className="text-4xl font-bold text-gray-900 mb-1">
-							{formatPrice(finalTotal)}{" "}
-							{/* Display final total including tip */}
-						</p>
-						<p className="text-lg text-slate-500 mb-4">Total Amount Due</p>
-						{/* Status specific messages logic remains the same */}
-						{(paymentStatus === "processing" ||
-							paymentStatus === "waiting_for_card" ||
-							paymentStatus === "processing_intent") && (
-							<p className="text-lg text-slate-600">
-								Follow the instructions on the{" "}
-								{readerInfo?.label || "payment terminal"}.
-							</p>
-						)}
-						{paymentStatus === "success" && paymentResult?.cardInfo && (
-							<p className="text-lg text-slate-600">
-								{paymentResult.cardInfo.brand} ••••{" "}
-								{paymentResult.cardInfo.last4}
-							</p>
-						)}
-						{paymentStatus === "error" && (
-							<p className="text-lg text-red-600 font-medium">
-								{error || "An unknown error occurred."}
-							</p>
-						)}
-						{(paymentStatus === "idle" ||
-							isInitiating ||
-							paymentStatus === "connecting" ||
-							paymentStatus === "reader_check") && (
-							<p className="text-lg text-slate-600">
-								Please wait, connecting to terminal...
-							</p>
-						)}
-					</div>
-
-					{/* Action Button */}
-					{paymentStatus === "error" && (
-						<motion.button
+						<button
 							onClick={handleRetry}
-							className={`inline-flex items-center gap-2 px-8 py-3 bg-${primaryColor} text-white rounded-lg shadow-sm hover:bg-${primaryHoverColor} transition-colors font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${primaryRingColor}`}
-							whileTap={{ scale: 0.97 }}
+							className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 						>
-							<ArrowPathIcon className="w-5 h-5" />
+							<ArrowPathSolidIcon className="h-5 w-5" />
 							Try Again
-						</motion.button>
-					)}
-				</div>
+						</button>
+					</motion.div>
+				)}
 			</div>
 		</motion.div>
 	);
@@ -267,17 +259,15 @@ const PaymentView = ({ orderData, onComplete }) => {
 
 PaymentView.propTypes = {
 	orderData: PropTypes.shape({
-		subtotal: PropTypes.number,
-		tax: PropTypes.number,
-		total: PropTypes.number, // Expecting base total here
+		total: PropTypes.number, // Base total for this step
 		tipAmount: PropTypes.number,
 		orderId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-		discountAmount: PropTypes.number,
-		orderDiscount: PropTypes.object,
 		isSplitPayment: PropTypes.bool,
 		originalTotal: PropTypes.number,
-		items: PropTypes.array, // Added items back as it's used
-	}).isRequired, // Make orderData required
+		items: PropTypes.array,
+		discountAmount: PropTypes.number,
+		orderDiscount: PropTypes.object,
+	}).isRequired,
 	onComplete: PropTypes.func,
 };
 

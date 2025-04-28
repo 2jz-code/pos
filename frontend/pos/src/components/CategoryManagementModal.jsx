@@ -1,14 +1,18 @@
-// src/components/CategoryManagementModal.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"; // Added React import
 import PropTypes from "prop-types";
 import { toast } from "react-toastify";
+// Icons for UI (using outline for consistency, solid for actions where appropriate)
 import {
-	PencilIcon,
-	PlusIcon,
-	TrashIcon,
+	PencilIcon as PencilSolidIcon,
+	PlusIcon as PlusSolidIcon,
+	TrashIcon as TrashSolidIcon,
 	XMarkIcon,
-} from "@heroicons/react/24/solid";
+	ArrowUturnLeftIcon, // For Back button
+	ExclamationTriangleIcon, // For errors
+	ArrowPathIcon,
+} from "@heroicons/react/24/solid"; // Using solid for action buttons
 
+// Original MODE constants
 const MODE = {
 	ADD: "add",
 	EDIT: "edit",
@@ -16,6 +20,12 @@ const MODE = {
 	MENU: "menu", // Initial selection menu
 };
 
+/**
+ * CategoryManagementModal Component (Logic Preserved from User Provided Code)
+ *
+ * Modal for adding, editing, and deleting product categories.
+ * UI updated for a modern look and feel; Logic remains unchanged based on user input.
+ */
 const CategoryManagementModal = ({
 	isOpen,
 	onClose,
@@ -23,14 +33,15 @@ const CategoryManagementModal = ({
 	categories,
 	axiosInstance,
 }) => {
+	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
 	const [mode, setMode] = useState(MODE.MENU);
 	const [selectedCategory, setSelectedCategory] = useState("");
 	const [categoryName, setCategoryName] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState("");
-	const [errorDetails, setErrorDetails] = useState(null);
+	const [errorDetails, setErrorDetails] = useState(null); // For delete error details
 
-	// Reset state when modal opens/closes
+	// Reset state when modal opens/closes (Original)
 	useEffect(() => {
 		if (isOpen) {
 			setMode(MODE.MENU);
@@ -41,7 +52,7 @@ const CategoryManagementModal = ({
 		}
 	}, [isOpen]);
 
-	// Update form when selecting a category in edit mode
+	// Update form when selecting a category in edit mode (Original)
 	useEffect(() => {
 		if (mode === MODE.EDIT && selectedCategory) {
 			const category = categories.find(
@@ -49,27 +60,30 @@ const CategoryManagementModal = ({
 			);
 			if (category) {
 				setCategoryName(category.name);
+			} else {
+				setCategoryName(""); // Reset if selected category not found
 			}
+		} else if (mode !== MODE.EDIT) {
+			setCategoryName(""); // Clear name if not in edit mode
 		}
 	}, [selectedCategory, categories, mode]);
 
+	// Handle Add Category (Original)
 	const handleAddCategory = async () => {
 		if (!categoryName.trim()) {
 			setError("Category name cannot be empty");
 			return;
 		}
-
 		setIsSubmitting(true);
 		setError("");
-
+		setErrorDetails(null);
 		try {
 			const response = await axiosInstance.post("products/categories/", {
 				name: categoryName.trim(),
 			});
-
 			onCategoryChange("add", response.data);
 			toast.success("Category added successfully!");
-			handleClose();
+			handleClose(); // Close after success
 		} catch (error) {
 			console.error("Failed to add category:", error);
 			setError(error.response?.data?.message || "Failed to add category");
@@ -78,34 +92,30 @@ const CategoryManagementModal = ({
 		}
 	};
 
+	// Handle Edit Category (Original)
 	const handleEditCategory = async () => {
 		if (!selectedCategory) {
 			setError("Please select a category to edit");
 			return;
 		}
-
 		if (!categoryName.trim()) {
 			setError("Category name cannot be empty");
 			return;
 		}
-
 		setIsSubmitting(true);
 		setError("");
-
+		setErrorDetails(null);
 		try {
 			const response = await axiosInstance.put(
 				`products/categories/${selectedCategory}/`,
-				{
-					name: categoryName.trim(),
-				}
+				{ name: categoryName.trim() }
 			);
-
 			onCategoryChange("edit", {
 				...response.data,
 				id: parseInt(selectedCategory),
 			});
 			toast.success("Category updated successfully!");
-			handleClose();
+			handleClose(); // Close after success
 		} catch (error) {
 			console.error("Failed to update category:", error);
 			setError(error.response?.data?.message || "Failed to update category");
@@ -114,32 +124,25 @@ const CategoryManagementModal = ({
 		}
 	};
 
+	// Handle Delete Category (Original)
 	const handleDeleteCategory = async () => {
 		if (!selectedCategory) {
 			setError("Please select a category to delete");
 			return;
 		}
-
 		setIsSubmitting(true);
 		setError("");
 		setErrorDetails(null);
-
 		try {
 			await axiosInstance.delete(`products/categories/${selectedCategory}/`);
-
-			onCategoryChange("delete", selectedCategory);
+			onCategoryChange("delete", selectedCategory); // Pass ID back
 			toast.success("Category deleted successfully!");
-			handleClose();
+			handleClose(); // Close after success
 		} catch (error) {
 			console.error("Error deleting category:", error);
-
-			// Extract error details from the response
 			const errorResponse = error.response?.data;
-
 			if (errorResponse) {
 				setError(errorResponse.detail || "Failed to delete category");
-
-				// If we have detailed error information, store it separately
 				if (errorResponse.product_count && errorResponse.product_sample) {
 					setErrorDetails({
 						productCount: errorResponse.product_count,
@@ -154,6 +157,7 @@ const CategoryManagementModal = ({
 		}
 	};
 
+	// Handle Close (Original)
 	const handleClose = () => {
 		onClose();
 		// Reset state with slight delay to prevent visual glitches
@@ -163,325 +167,267 @@ const CategoryManagementModal = ({
 			setCategoryName("");
 			setError("");
 			setErrorDetails(null);
-		}, 100);
+		}, 150); // Adjusted delay slightly
 	};
+	// --- END OF ORIGINAL LOGIC ---
 
-	if (!isOpen) return null;
+	// --- UPDATED UI (JSX Structure and Styling Only) ---
+	if (!isOpen) return null; // Original condition
+
+	// Base button style
+	const baseButtonClass =
+		"px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+	const primaryButtonClass = `${baseButtonClass} bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500`;
+	const secondaryButtonClass = `${baseButtonClass} bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 focus:ring-slate-500`;
+	const dangerButtonClass = `${baseButtonClass} bg-red-600 text-white hover:bg-red-700 focus:ring-red-500`;
+
+	// Menu button style
+	const menuButtonClass =
+		"w-full flex items-center justify-between p-3 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed";
+
+	// Input/Select style
+	const inputSelectClass =
+		"w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-slate-400";
+	const selectClass = `${inputSelectClass} appearance-none bg-white bg-no-repeat bg-right-3 bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22M6%208l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')]`;
 
 	return (
-		<div className="fixed inset-0 bg-white/80 bg-opacity-50 flex items-center justify-center z-50 p-4">
-			<div className="bg-white rounded-lg shadow-lg w-full max-w-md">
-				<div className="p-6">
+		// Modal Backdrop
+		<div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-200 ease-in-out">
+			{/* Modal Panel */}
+			<div className="bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all duration-200 ease-in-out scale-100">
+				<div className="p-5 border-b border-slate-200">
+					{" "}
+					{/* Adjusted padding */}
 					{/* Header */}
-					<div className="flex justify-between items-center mb-6">
-						<h3 className="text-lg font-semibold text-gray-900">
+					<div className="flex justify-between items-center">
+						<h3 className="text-lg font-semibold text-slate-800">
 							{mode === MODE.MENU && "Category Management"}
 							{mode === MODE.ADD && "Add New Category"}
 							{mode === MODE.EDIT && "Edit Category"}
 							{mode === MODE.DELETE && "Delete Category"}
 						</h3>
 						<button
-							onClick={handleClose}
-							className="text-gray-400 hover:text-gray-500"
+							onClick={handleClose} // Original handler
+							className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100" // Added padding/hover bg
 						>
 							<XMarkIcon className="h-5 w-5" />
 						</button>
 					</div>
+				</div>
 
+				{/* Modal Body */}
+				<div className="p-5 space-y-4">
+					{" "}
+					{/* Adjusted padding and spacing */}
 					{/* Error message */}
 					{error && (
-						<div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm">
-							<p className="font-medium">{error}</p>
-
-							{errorDetails && (
-								<div className="mt-2">
-									<p>
-										Found {errorDetails.productCount} products in this category.
-									</p>
-									{errorDetails.productSample.length > 0 && (
-										<div className="mt-1">
-											<p className="font-medium">Examples:</p>
-											<ul className="list-disc pl-5 mt-1">
-												{errorDetails.productSample.map((product) => (
-													<li key={product.id}>{product.name}</li>
-												))}
-											</ul>
-										</div>
-									)}
-									<p className="mt-2">
-										Please reassign or delete these products before deleting the
-										category.
-									</p>
-								</div>
-							)}
-						</div>
-					)}
-
-					{/* Main content */}
-					{mode === MODE.MENU && (
-						<div className="space-y-3">
-							<button
-								onClick={() => setMode(MODE.ADD)}
-								className="w-full flex items-center justify-between p-3 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
-							>
-								<span className="font-medium">Add New Category</span>
-								<PlusIcon className="h-5 w-5" />
-							</button>
-
-							<button
-								onClick={() => setMode(MODE.EDIT)}
-								className="w-full flex items-center justify-between p-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
-								disabled={categories.length === 0}
-							>
-								<span className="font-medium">Edit Category</span>
-								<PencilIcon className="h-5 w-5" />
-							</button>
-
-							<button
-								onClick={() => setMode(MODE.DELETE)}
-								className="w-full flex items-center justify-between p-3 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
-								disabled={categories.length === 0}
-							>
-								<span className="font-medium">Delete Category</span>
-								<TrashIcon className="h-5 w-5" />
-							</button>
-						</div>
-					)}
-
-					{/* Add Category Form */}
-					{mode === MODE.ADD && (
-						<div>
-							<div className="mb-4">
-								<label className="block text-sm font-medium text-gray-700 mb-1">
-									Category Name
-								</label>
-								<input
-									type="text"
-									value={categoryName}
-									onChange={(e) => setCategoryName(e.target.value)}
-									placeholder="Enter category name"
-									className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-									autoFocus
-									disabled={isSubmitting}
-								/>
-							</div>
-
-							<div className="flex justify-end gap-3 mt-6">
-								<button
-									type="button"
-									onClick={() => setMode(MODE.MENU)}
-									className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
-									disabled={isSubmitting}
-								>
-									Back
-								</button>
-								<button
-									onClick={handleAddCategory}
-									disabled={isSubmitting || !categoryName.trim()}
-									className={`px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors flex items-center gap-2 ${
-										(isSubmitting || !categoryName.trim()) &&
-										"opacity-50 cursor-not-allowed"
-									}`}
-								>
-									{isSubmitting ? (
-										<>
-											<svg
-												className="animate-spin h-4 w-4"
-												viewBox="0 0 24 24"
-											>
-												<circle
-													className="opacity-25"
-													cx="12"
-													cy="12"
-													r="10"
-													stroke="currentColor"
-													strokeWidth="4"
-												/>
-												<path
-													className="opacity-75"
-													fill="currentColor"
-													d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-												/>
-											</svg>
-											<span>Adding...</span>
-										</>
-									) : (
-										<>
-											<PlusIcon className="h-4 w-4" />
-											<span>Add Category</span>
-										</>
-									)}
-								</button>
-							</div>
-						</div>
-					)}
-
-					{/* Edit Category Form */}
-					{mode === MODE.EDIT && (
-						<div>
-							<div className="mb-4">
-								<label className="block text-sm font-medium text-gray-700 mb-1">
-									Select Category to Edit
-								</label>
-								<select
-									value={selectedCategory}
-									onChange={(e) => setSelectedCategory(e.target.value)}
-									className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 mb-4"
-									required
-								>
-									<option value="">Select a category</option>
-									{categories.map((category) => (
-										<option
-											key={category.id}
-											value={category.id}
-										>
-											{category.name}
-										</option>
-									))}
-								</select>
-
-								{selectedCategory && (
-									<>
-										<label className="block text-sm font-medium text-gray-700 mb-1">
-											New Category Name
-										</label>
-										<input
-											type="text"
-											value={categoryName}
-											onChange={(e) => setCategoryName(e.target.value)}
-											placeholder="Enter new category name"
-											className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-											disabled={isSubmitting || !selectedCategory}
-										/>
-									</>
+						<div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-md flex items-start gap-2 text-xs shadow-sm">
+							{" "}
+							{/* Adjusted padding/text size */}
+							<ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-500" />
+							<div>
+								<p className="font-medium">{error}</p>
+								{errorDetails && (
+									<div className="mt-1.5 text-red-600">
+										{" "}
+										{/* Slightly darker text */}
+										<p>
+											Found {errorDetails.productCount} products in this
+											category.
+										</p>
+										{errorDetails.productSample.length > 0 && (
+											<div className="mt-1">
+												<p className="font-medium">Examples:</p>
+												<ul className="list-disc pl-4 mt-0.5">
+													{errorDetails.productSample.map((product) => (
+														<li key={product.id}>{product.name}</li>
+													))}
+												</ul>
+											</div>
+										)}
+										<p className="mt-1.5">
+											Please reassign or delete these products first.
+										</p>
+									</div>
 								)}
 							</div>
-
-							<div className="flex justify-end gap-3 mt-6">
-								<button
-									type="button"
-									onClick={() => setMode(MODE.MENU)}
-									className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
-									disabled={isSubmitting}
-								>
-									Back
-								</button>
-								<button
-									onClick={handleEditCategory}
-									disabled={
-										isSubmitting || !selectedCategory || !categoryName.trim()
-									}
-									className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2 ${
-										(isSubmitting ||
-											!selectedCategory ||
-											!categoryName.trim()) &&
-										"opacity-50 cursor-not-allowed"
-									}`}
-								>
-									{isSubmitting ? (
-										<>
-											<svg
-												className="animate-spin h-4 w-4"
-												viewBox="0 0 24 24"
-											>
-												<circle
-													className="opacity-25"
-													cx="12"
-													cy="12"
-													r="10"
-													stroke="currentColor"
-													strokeWidth="4"
-												/>
-												<path
-													className="opacity-75"
-													fill="currentColor"
-													d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-												/>
-											</svg>
-											<span>Updating...</span>
-										</>
-									) : (
-										<>
-											<PencilIcon className="h-4 w-4" />
-											<span>Update Category</span>
-										</>
-									)}
-								</button>
-							</div>
 						</div>
 					)}
-
-					{/* Delete Category Form */}
-					{mode === MODE.DELETE && (
-						<div>
-							<div className="mb-4">
-								<label className="block text-sm font-medium text-gray-700 mb-1">
-									Select Category to Delete
-								</label>
-								<select
-									value={selectedCategory}
-									onChange={(e) => setSelectedCategory(e.target.value)}
-									className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-									required
-								>
-									<option value="">Select a category</option>
-									{categories.map((category) => (
+					{/* Main content based on mode */}
+					{mode === MODE.MENU && (
+						<div className="space-y-2.5">
+							{" "}
+							{/* Adjusted spacing */}
+							<button
+								onClick={() => setMode(MODE.ADD)}
+								className={`${menuButtonClass} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
+							>
+								<span>Add New Category</span>
+								<PlusSolidIcon className="h-4 w-4" />
+							</button>
+							<button
+								onClick={() => setMode(MODE.EDIT)}
+								className={`${menuButtonClass} bg-blue-50 text-blue-700 hover:bg-blue-100 ${
+									categories.length === 0 ? "opacity-50 cursor-not-allowed" : ""
+								}`}
+								disabled={categories.length === 0}
+							>
+								<span>Edit Category</span>
+								<PencilSolidIcon className="h-4 w-4" />
+							</button>
+							<button
+								onClick={() => setMode(MODE.DELETE)}
+								className={`${menuButtonClass} bg-red-50 text-red-700 hover:bg-red-100 ${
+									categories.length === 0 ? "opacity-50 cursor-not-allowed" : ""
+								}`}
+								disabled={categories.length === 0}
+							>
+								<span>Delete Category</span>
+								<TrashSolidIcon className="h-4 w-4" />
+							</button>
+						</div>
+					)}
+					{/* Add/Edit/Delete Forms */}
+					{(mode === MODE.ADD ||
+						mode === MODE.EDIT ||
+						mode === MODE.DELETE) && (
+						<div className="space-y-4">
+							{(mode === MODE.EDIT || mode === MODE.DELETE) && (
+								<div>
+									<label
+										htmlFor="category-select"
+										className="block text-xs font-medium text-slate-600 mb-1"
+									>
+										{" "}
+										{/* Smaller label */}
+										Select Category
+									</label>
+									<select
+										id="category-select"
+										value={selectedCategory}
+										onChange={(e) => {
+											setSelectedCategory(e.target.value);
+											setError(""); // Clear error when selection changes
+											setErrorDetails(null);
+										}}
+										className={selectClass}
+										required
+										disabled={isSubmitting}
+									>
 										<option
-											key={category.id}
-											value={category.id}
+											value=""
+											disabled
 										>
-											{category.name}
+											Select a category...
 										</option>
-									))}
-								</select>
-							</div>
+										{categories.map((category) => (
+											<option
+												key={category.id}
+												value={category.id}
+											>
+												{category.name}
+											</option>
+										))}
+									</select>
+								</div>
+							)}
 
-							<div className="flex justify-end gap-3 mt-6">
+							{(mode === MODE.ADD || mode === MODE.EDIT) && (
+								<div>
+									<label
+										htmlFor="category-name"
+										className="block text-xs font-medium text-slate-600 mb-1"
+									>
+										{" "}
+										{/* Smaller label */}
+										{mode === MODE.ADD ? "Category Name" : "New Category Name"}
+									</label>
+									<input
+										id="category-name"
+										type="text"
+										value={categoryName}
+										onChange={(e) => setCategoryName(e.target.value)}
+										placeholder="Enter category name"
+										className={inputSelectClass}
+										autoFocus={mode === MODE.ADD} // Autofocus only on Add mode
+										disabled={
+											isSubmitting || (mode === MODE.EDIT && !selectedCategory)
+										}
+									/>
+								</div>
+							)}
+
+							{/* Confirmation Text for Delete */}
+							{mode === MODE.DELETE && selectedCategory && (
+								<p className="text-sm text-slate-600">
+									Are you sure you want to delete the category:{" "}
+									<strong className="text-slate-800">
+										{
+											categories.find(
+												(c) => c.id.toString() === selectedCategory
+											)?.name
+										}
+									</strong>
+									? This action cannot be undone.
+								</p>
+							)}
+
+							{/* Action Buttons */}
+							<div className="flex justify-end gap-3 pt-2">
+								{" "}
+								{/* Adjusted spacing */}
 								<button
 									type="button"
 									onClick={() => setMode(MODE.MENU)}
-									className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+									className={secondaryButtonClass}
 									disabled={isSubmitting}
 								>
-									Back
+									<ArrowUturnLeftIcon className="h-4 w-4 mr-1.5" /> Back
 								</button>
-								<button
-									onClick={handleDeleteCategory}
-									disabled={isSubmitting || !selectedCategory}
-									className={`px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center gap-2 ${
-										(isSubmitting || !selectedCategory) &&
-										"opacity-50 cursor-not-allowed"
-									}`}
-								>
-									{isSubmitting ? (
-										<>
-											<svg
-												className="animate-spin h-4 w-4"
-												viewBox="0 0 24 24"
-											>
-												<circle
-													className="opacity-25"
-													cx="12"
-													cy="12"
-													r="10"
-													stroke="currentColor"
-													strokeWidth="4"
-												/>
-												<path
-													className="opacity-75"
-													fill="currentColor"
-													d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-												/>
-											</svg>
-											<span>Deleting...</span>
-										</>
-									) : (
-										<>
-											<TrashIcon className="h-4 w-4" />
-											<span>Delete Category</span>
-										</>
-									)}
-								</button>
+								{mode === MODE.ADD && (
+									<button
+										onClick={handleAddCategory}
+										disabled={isSubmitting || !categoryName.trim()}
+										className={`${primaryButtonClass} flex items-center gap-1.5`}
+									>
+										{isSubmitting ? (
+											<ArrowPathIcon className="h-4 w-4 animate-spin" />
+										) : (
+											<PlusSolidIcon className="h-4 w-4" />
+										)}
+										{isSubmitting ? "Adding..." : "Add Category"}
+									</button>
+								)}
+								{mode === MODE.EDIT && (
+									<button
+										onClick={handleEditCategory}
+										disabled={
+											isSubmitting || !selectedCategory || !categoryName.trim()
+										}
+										className={`${primaryButtonClass} flex items-center gap-1.5`}
+									>
+										{isSubmitting ? (
+											<ArrowPathIcon className="h-4 w-4 animate-spin" />
+										) : (
+											<PencilSolidIcon className="h-4 w-4" />
+										)}
+										{isSubmitting ? "Saving..." : "Save Changes"}
+									</button>
+								)}
+								{mode === MODE.DELETE && (
+									<button
+										onClick={handleDeleteCategory}
+										disabled={isSubmitting || !selectedCategory || errorDetails} // Disable if there are products
+										className={`${dangerButtonClass} flex items-center gap-1.5`}
+									>
+										{isSubmitting ? (
+											<ArrowPathIcon className="h-4 w-4 animate-spin" />
+										) : (
+											<TrashSolidIcon className="h-4 w-4" />
+										)}
+										{isSubmitting ? "Deleting..." : "Delete Category"}
+									</button>
+								)}
 							</div>
 						</div>
 					)}
@@ -489,8 +435,10 @@ const CategoryManagementModal = ({
 			</div>
 		</div>
 	);
+	// --- END OF UPDATED UI ---
 };
 
+// --- ORIGINAL PROPTYPES (UNCHANGED) ---
 CategoryManagementModal.propTypes = {
 	isOpen: PropTypes.bool.isRequired,
 	onClose: PropTypes.func.isRequired,

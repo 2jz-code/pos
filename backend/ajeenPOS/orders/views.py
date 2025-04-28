@@ -4,6 +4,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+
 # Updated imports: Import PaymentTransaction
 from payments.models import Payment, PaymentTransaction
 from .models import Order, OrderItem
@@ -11,24 +12,25 @@ from .serializers import OrderSerializer, OrderListSerializer
 from products.models import Product
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db import transaction # Import transaction
+from django.db import transaction  # Import transaction
 import json
-import decimal # Import decimal
+import decimal  # Import decimal
 from django.http import JsonResponse
 from rest_framework.pagination import PageNumberPagination
 from discounts.models import Discount
 from decimal import Decimal
 from django.db.models import F
-from hardware.controllers.receipt_printer import ReceiptPrinterController 
-import logging 
+from hardware.controllers.receipt_printer import ReceiptPrinterController
+import logging
 
 logger = logging.getLogger(__name__)
 
 
 class OrderPagination(PageNumberPagination):
     page_size = 25
-    page_size_query_param = 'page_size'
+    page_size_query_param = "page_size"
     max_page_size = 100
+
 
 # ✅ List Orders (Now Updates Instead of Duplicating)
 class OrderList(generics.ListCreateAPIView):
@@ -37,7 +39,7 @@ class OrderList(generics.ListCreateAPIView):
 
     def get_serializer_class(self):
         """Use different serializers for list and detail views"""
-        if self.request.method == 'GET':
+        if self.request.method == "GET":
             return OrderListSerializer
         return OrderSerializer
 
@@ -47,19 +49,20 @@ class OrderList(generics.ListCreateAPIView):
         """
         # Start with base queryset
         # Added payment__transactions to prefetch related transactions
-        queryset = Order.objects.select_related('user', 'payment', 'discount').prefetch_related(
-            'items__product',
-            'payment__transactions'
-        ).order_by('-created_at')
+        queryset = (
+            Order.objects.select_related("user", "payment", "discount")
+            .prefetch_related("items__product", "payment__transactions")
+            .order_by("-created_at")
+        )
 
         # Apply filters
-        source = self.request.query_params.get('source')
-        status_param = self.request.query_params.get('status')
+        source = self.request.query_params.get("source")
+        status_param = self.request.query_params.get("status")
 
         if source:
             queryset = queryset.filter(source=source)
 
-        if status_param and status_param != 'all':
+        if status_param and status_param != "all":
             queryset = queryset.filter(status=status_param)
 
         return queryset
@@ -88,7 +91,9 @@ class OrderList(generics.ListCreateAPIView):
         if existing_order:
             existing_order.status = "saved"
             existing_order.save()
-            return Response(OrderSerializer(existing_order).data, status=status.HTTP_200_OK)
+            return Response(
+                OrderSerializer(existing_order).data, status=status.HTTP_200_OK
+            )
 
         # If no in-progress order exists, create a new saved order
         data = request.data
@@ -97,13 +102,21 @@ class OrderList(generics.ListCreateAPIView):
         for item in data.get("items", []):
             product = get_object_or_404(Product, id=item["product_id"])
             # Ensure unit_price is stored
-            OrderItem.objects.create(order=order, product=product, quantity=item["quantity"], unit_price=product.price)
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                quantity=item["quantity"],
+                unit_price=product.price,
+            )
 
         order.calculate_total_price()
-        order.save() # Save order to get ID before creating payment
+        order.save()  # Save order to get ID before creating payment
         # Ensure payment is created for saved orders too
-        Payment.objects.get_or_create(order=order, defaults={'status': 'pending', 'amount': order.total_price})
+        Payment.objects.get_or_create(
+            order=order, defaults={"status": "pending", "amount": order.total_price}
+        )
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
 
 # ✅ Get, Update, or Delete an Order (Now Supports "in_progress")
 class OrderDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -122,7 +135,7 @@ class OrderDetail(generics.RetrieveUpdateDestroyAPIView):
 
         # ✅ Only clear & update items if new items are provided
         if "items" in data:
-            with transaction.atomic(): # Wrap item update in transaction
+            with transaction.atomic():  # Wrap item update in transaction
                 order.items.all().delete()  # Clear existing items
 
                 for item_data in data["items"]:
@@ -132,7 +145,7 @@ class OrderDetail(generics.RetrieveUpdateDestroyAPIView):
                         order=order,
                         product=product,
                         quantity=item_data["quantity"],
-                        unit_price=product.price # Store current price
+                        unit_price=product.price,  # Store current price
                     )
 
         # ✅ Update status if provided (e.g., 'saved', 'completed')
@@ -149,8 +162,10 @@ class OrderDetail(generics.RetrieveUpdateDestroyAPIView):
             payment.save()
         except Payment.DoesNotExist:
             # If payment doesn't exist yet, create it (e.g., if order moved from saved to in_progress)
-            if order.status == 'in_progress':
-                 Payment.objects.create(order=order, status='pending', amount=order.total_price)
+            if order.status == "in_progress":
+                Payment.objects.create(
+                    order=order, status="pending", amount=order.total_price
+                )
 
         return Response(OrderSerializer(order).data, status=status.HTTP_200_OK)
 
@@ -167,7 +182,9 @@ class StartOrder(APIView):
         user = request.user
         new_order = Order.objects.create(user=user, status="in_progress")
         # Create payment record immediately
-        Payment.objects.create(order=new_order, status = "pending", amount=decimal.Decimal('0.00')) # Initialize payment with 0 amount
+        Payment.objects.create(
+            order=new_order, status="pending", amount=decimal.Decimal("0.00")
+        )  # Initialize payment with 0 amount
         return Response(OrderSerializer(new_order).data, status=status.HTTP_201_CREATED)
 
 
@@ -183,16 +200,25 @@ class UpdateInProgressOrder(APIView):
         order_id = request.data.get("order_id")
 
         if not order_id:
-            return Response({"error": "Order ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Order ID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             # Use select_related to fetch payment along with order
-            order = get_object_or_404(Order.objects.select_related('payment'), id=order_id, user=user, status="in_progress")
+            order = get_object_or_404(
+                Order.objects.select_related("payment"),
+                id=order_id,
+                user=user,
+                status="in_progress",
+            )
         except Order.DoesNotExist:
-            return Response({"error": "In-progress order not found or does not belong to user"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "In-progress order not found or does not belong to user"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-
-        with transaction.atomic(): # Wrap updates in a transaction
+        with transaction.atomic():  # Wrap updates in a transaction
             # ✅ Remove old items linked to this order
             order.items.all().delete()
 
@@ -202,40 +228,47 @@ class UpdateInProgressOrder(APIView):
                     # Frontend might send product ID as 'id' or 'product_id'
                     product_id = item_data.get("id") or item_data.get("product_id")
                     if not product_id:
-                        continue # Skip if no product ID
+                        continue  # Skip if no product ID
                     product = get_object_or_404(Product, id=product_id)
                     # Ensure unit_price is stored
                     OrderItem.objects.create(
                         order=order,
                         product=product,
                         quantity=item_data["quantity"],
-                        unit_price=product.price
+                        unit_price=product.price,
                     )
                 except Product.DoesNotExist:
-                    print(f"Warning: Product ID {product_id} not found during cart update for order {order_id}")
+                    print(
+                        f"Warning: Product ID {product_id} not found during cart update for order {order_id}"
+                    )
                     # Optionally return an error:
                     # return Response({"error": f"Product ID {product_id} not found"}, status=status.HTTP_400_BAD_REQUEST)
                 except KeyError:
-                    print(f"Warning: Missing 'quantity' for item during cart update for order {order_id}")
+                    print(
+                        f"Warning: Missing 'quantity' for item during cart update for order {order_id}"
+                    )
                     # Optionally return an error:
                     # return Response({"error": "Missing 'quantity' for an item"}, status=status.HTTP_400_BAD_REQUEST)
 
             # ✅ Recalculate total price and save order
-            order.calculate_total_price() # This should handle discounts if applied
+            order.calculate_total_price()  # This should handle discounts if applied
             order.save()
 
             # ✅ Update associated Payment amount
             # Use the prefetched payment object if available
-            payment = getattr(order, 'payment', None)
+            payment = getattr(order, "payment", None)
             if payment:
                 payment.amount = order.total_price
                 payment.save()
             else:
                 # If somehow payment doesn't exist, create it
-                Payment.objects.create(order=order, status='pending', amount=order.total_price)
+                Payment.objects.create(
+                    order=order, status="pending", amount=order.total_price
+                )
 
-
-        return Response({"message": "Order auto-saved", "order": OrderSerializer(order).data})
+        return Response(
+            {"message": "Order auto-saved", "order": OrderSerializer(order).data}
+        )
 
 
 # ✅ Resume a Saved Order
@@ -245,19 +278,23 @@ class ResumeOrder(APIView):
     def post(self, request, pk, *args, **kwargs):
         allowed_statuses = ["saved", "in_progress"]
         order = get_object_or_404(
-            Order.objects.select_related('payment').prefetch_related("items__product"),
+            Order.objects.select_related("payment").prefetch_related("items__product"),
             id=pk,
             user=request.user,
-            status__in=allowed_statuses # Use the list here
+            status__in=allowed_statuses,  # Use the list here
         )
         # If resuming a saved order, change status to in_progress
         order.status = "in_progress"
         order.save()
 
         # Get or create payment record if it somehow doesn't exist
-        payment, created = Payment.objects.get_or_create(order=order, defaults={'status': 'pending', 'amount': order.total_price})
-        if payment.status != 'pending': # Ensure payment status is pending when resuming
-            payment.status = 'pending'
+        payment, created = Payment.objects.get_or_create(
+            order=order, defaults={"status": "pending", "amount": order.total_price}
+        )
+        if (
+            payment.status != "pending"
+        ):  # Ensure payment status is pending when resuming
+            payment.status = "pending"
             payment.save()
 
         serialized_order = OrderSerializer(order).data
@@ -273,129 +310,183 @@ class GetInProgressOrder(APIView):
         Fetch the last in-progress order for auto-resume.
         """
         user = request.user
-        order = Order.objects.filter(user=user, status="in_progress").order_by("-created_at").first()
+        order = (
+            Order.objects.filter(user=user, status="in_progress")
+            .order_by("-created_at")
+            .first()
+        )
 
         if order:
             # Ensure payment exists
-            Payment.objects.get_or_create(order=order, defaults={'status': 'pending', 'amount': order.total_price})
+            Payment.objects.get_or_create(
+                order=order, defaults={"status": "pending", "amount": order.total_price}
+            )
             return Response(OrderSerializer(order).data, status=status.HTTP_200_OK)
 
-        return Response({"message": "No active order found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"message": "No active order found"}, status=status.HTTP_404_NOT_FOUND
+        )
 
 
 class CompleteOrder(APIView):
     permission_classes = [IsAuthenticated]
 
-    @transaction.atomic # Wrap the entire completion process in a transaction
+    @transaction.atomic  # Wrap the entire completion process in a transaction
     def post(self, request, pk, *args, **kwargs):
         try:
             print(f"--- Completing Order {pk} ---")
             # Log the raw request body for debugging
             try:
-                print("Request Body RAW:", request.body.decode('utf-8')) # Decode bytes to string
+                print(
+                    "Request Body RAW:", request.body.decode("utf-8")
+                )  # Decode bytes to string
             except Exception as decode_err:
                 print("Request Body Decode Error:", decode_err)
                 print("Request Body (bytes):", request.body)
 
-            request_data = request.data # Use a shorter variable name
+            request_data = request.data  # Use a shorter variable name
 
             # Fetch order ensuring it's in progress and belongs to the user
-            order = get_object_or_404(Order.objects.select_related('discount', 'payment'), id=pk, user=request.user, status="in_progress")
+            order = get_object_or_404(
+                Order.objects.select_related("discount", "payment"),
+                id=pk,
+                user=request.user,
+                status="in_progress",
+            )
 
             # Extract payment details from the request body
             payment_details_data = request_data.get("payment_details", {})
             transactions_data = payment_details_data.get("transactions", [])
 
-            print(f"Order Status Before: {order.status}, Payment Status Before: {order.payment_status}")
-            print(f"Transactions data received: {len(transactions_data)} transaction(s)")
+            print(
+                f"Order Status Before: {order.status}, Payment Status Before: {order.payment_status}"
+            )
+            print(
+                f"Transactions data received: {len(transactions_data)} transaction(s)"
+            )
 
             # Validate if transaction data is present (Important for recording payment)
             # Allow completion even without frontend transactions if payment handled externally/fully
             # if not transactions_data:
             #     print("Warning: No detailed transaction data provided by frontend.")
-                # Depending on flow, this might be an error or acceptable
-                # return Response({"status": "error", "message": "No transaction data provided"}, status=status.HTTP_400_BAD_REQUEST)
+            # Depending on flow, this might be an error or acceptable
+            # return Response({"status": "error", "message": "No transaction data provided"}, status=status.HTTP_400_BAD_REQUEST)
 
             # --- FIX: Extract Tip Amount from top level ---
             # Use Decimal for financial calculations, default to 0 if not provided or invalid
             try:
-                frontend_tip_amount = Decimal(request_data.get("tip_amount", '0.00'))
+                frontend_tip_amount = Decimal(request_data.get("tip_amount", "0.00"))
                 if frontend_tip_amount < 0:
-                     frontend_tip_amount = Decimal('0.00') # Ensure tip is not negative
+                    frontend_tip_amount = Decimal("0.00")  # Ensure tip is not negative
             except (TypeError, decimal.InvalidOperation):
-                 print(f"Warning: Invalid tip_amount received ('{request_data.get('tip_amount')}'), defaulting to 0.00")
-                 frontend_tip_amount = Decimal('0.00')
-            order.tip_amount = frontend_tip_amount # Save the tip amount to the order
+                print(
+                    f"Warning: Invalid tip_amount received ('{request_data.get('tip_amount')}'), defaulting to 0.00"
+                )
+                frontend_tip_amount = Decimal("0.00")
+            order.tip_amount = frontend_tip_amount  # Save the tip amount to the order
             print(f"Extracted Tip Amount: {order.tip_amount}")
             # --- END FIX ---
 
             # --- Update Order Status and Details ---
             order.status = "completed"
-            order.payment_status = "paid" # Assume paid if this endpoint is hit successfully
+            order.payment_status = (
+                "paid"  # Assume paid if this endpoint is hit successfully
+            )
 
             # Apply discount if provided in the main request body
             discount_id = request_data.get("discount_id")
             if discount_id:
                 try:
-                    discount = Discount.objects.get(id=discount_id, is_active=True) # Ensure discount is active
+                    discount = Discount.objects.get(
+                        id=discount_id, is_active=True
+                    )  # Ensure discount is active
                     order.discount = discount
                     # Use the discount amount provided by the frontend payload
                     try:
-                        order.discount_amount = Decimal(request_data.get("discount_amount", '0.00'))
-                        if order.discount_amount < 0: order.discount_amount = Decimal('0.00')
+                        order.discount_amount = Decimal(
+                            request_data.get("discount_amount", "0.00")
+                        )
+                        if order.discount_amount < 0:
+                            order.discount_amount = Decimal("0.00")
                     except (TypeError, decimal.InvalidOperation):
-                        order.discount_amount = Decimal('0.00')
+                        order.discount_amount = Decimal("0.00")
 
                     # Increment usage count only if the order is successfully completed here
                     # (Moved discount saving inside this block)
-                    discount.used_count = F('used_count') + 1 # Use F expression for atomic increment
-                    discount.save(update_fields=['used_count']) # Only update used_count
-                    print(f"Applied discount {discount_id}. Amount: {order.discount_amount}")
+                    discount.used_count = (
+                        F("used_count") + 1
+                    )  # Use F expression for atomic increment
+                    discount.save(
+                        update_fields=["used_count"]
+                    )  # Only update used_count
+                    print(
+                        f"Applied discount {discount_id}. Amount: {order.discount_amount}"
+                    )
                 except Discount.DoesNotExist:
-                    print(f"Warning: Discount ID {discount_id} not found or inactive, not applying discount.")
+                    print(
+                        f"Warning: Discount ID {discount_id} not found or inactive, not applying discount."
+                    )
                     order.discount = None
-                    order.discount_amount = Decimal('0.00')
+                    order.discount_amount = Decimal("0.00")
             else:
                 # Ensure no discount is applied if not provided
                 order.discount = None
-                order.discount_amount = Decimal('0.00')
+                order.discount_amount = Decimal("0.00")
                 print("No discount applied.")
 
             # --- FIX: Use the total_amount from the payload ---
             # This total *should* include the tip calculated by the frontend
             try:
-                final_total_from_payload = Decimal(request_data.get("total_amount", '0.00'))
-                 # Basic validation: Ensure it's not drastically different from a server-side calculation
-                 # (Recalculate server-side for verification)
-                server_calculated_total = order.calculate_total_price(tip_to_add=order.tip_amount)
-                if abs(final_total_from_payload - server_calculated_total) > Decimal('0.01'):
-                     print(f"Warning: Discrepancy between frontend total ({final_total_from_payload}) and server total ({server_calculated_total}). Using server calculated total.")
-                     order.total_price = server_calculated_total
+                final_total_from_payload = Decimal(
+                    request_data.get("total_amount", "0.00")
+                )
+                # Basic validation: Ensure it's not drastically different from a server-side calculation
+                # (Recalculate server-side for verification)
+                server_calculated_total = order.calculate_total_price(
+                    tip_to_add=order.tip_amount
+                )
+                if abs(final_total_from_payload - server_calculated_total) > Decimal(
+                    "0.01"
+                ):
+                    print(
+                        f"Warning: Discrepancy between frontend total ({final_total_from_payload}) and server total ({server_calculated_total}). Using server calculated total."
+                    )
+                    order.total_price = server_calculated_total
                 else:
-                     order.total_price = final_total_from_payload # Trust frontend total if close enough
+                    order.total_price = (
+                        final_total_from_payload  # Trust frontend total if close enough
+                    )
             except (TypeError, decimal.InvalidOperation):
-                 print(f"Warning: Invalid total_amount received ('{request_data.get('total_amount')}'), recalculating server-side.")
-                 order.total_price = order.calculate_total_price(tip_to_add=order.tip_amount) # Fallback to server calculation
+                print(
+                    f"Warning: Invalid total_amount received ('{request_data.get('total_amount')}'), recalculating server-side."
+                )
+                order.total_price = order.calculate_total_price(
+                    tip_to_add=order.tip_amount
+                )  # Fallback to server calculation
 
-            order.save() # Save order changes (including tip, status, discount, total)
+            order.save()  # Save order changes (including tip, status, discount, total)
             print(f"Order {pk} marked as completed. Final total: {order.total_price}")
             # --- END FIX ---
 
             # --- Get or Create/Update Payment Record ---
             # Use update_or_create for atomicity and correctness
-            payment_method_str = payment_details_data.get("paymentMethod", "other")[:50] # Truncate if needed
+            payment_method_str = payment_details_data.get("paymentMethod", "other")[
+                :50
+            ]  # Truncate if needed
             payment, created = Payment.objects.update_or_create(
                 order=order,
                 defaults={
-                    'status': 'completed',
-                    'amount': order.total_price, # Use the final saved order total
-                    'payment_method': payment_method_str,
-                    'is_split_payment': payment_details_data.get("splitPayment", False) or (len(transactions_data) > 1)
-                }
+                    "status": "completed",
+                    "amount": order.total_price,  # Use the final saved order total
+                    "payment_method": payment_method_str,
+                    "is_split_payment": payment_details_data.get("splitPayment", False)
+                    or (len(transactions_data) > 1),
+                },
             )
             action_word = "Created" if created else "Updated"
-            print(f"{action_word} Payment {payment.id} for Order {pk}. Status: {payment.status}, Amount: {payment.amount}, Method: {payment.payment_method}, Split: {payment.is_split_payment}")
-
+            print(
+                f"{action_word} Payment {payment.id} for Order {pk}. Status: {payment.status}, Amount: {payment.amount}, Method: {payment.payment_method}, Split: {payment.is_split_payment}"
+            )
 
             # --- Create PaymentTransaction records ---
             # Only process if transactions_data is actually present and is a list
@@ -404,100 +495,149 @@ class CompleteOrder(APIView):
                 # Clear existing transactions first? Only if necessary. Usually append.
                 # Let's clear to represent the *final* state accurately based on frontend payload
                 payment.transactions.all().delete()
-                print(f"Cleared existing transactions for Payment {payment.id} before adding new ones.")
+                print(
+                    f"Cleared existing transactions for Payment {payment.id} before adding new ones."
+                )
 
                 for txn_data in transactions_data:
-                    method = txn_data.get('method', 'other').lower()[:50] # Truncate if needed
-                    amount_str = str(txn_data.get('amount', '0'))
+                    method = txn_data.get("method", "other").lower()[
+                        :50
+                    ]  # Truncate if needed
+                    amount_str = str(txn_data.get("amount", "0"))
                     try:
                         amount = Decimal(amount_str)
                         if amount <= 0:
-                            print(f"Warning: Skipping transaction with zero/negative amount: {amount_str}")
+                            print(
+                                f"Warning: Skipping transaction with zero/negative amount: {amount_str}"
+                            )
                             continue
                     except decimal.InvalidOperation:
-                        print(f"Warning: Invalid amount '{amount_str}' in transaction data. Skipping.")
+                        print(
+                            f"Warning: Invalid amount '{amount_str}' in transaction data. Skipping."
+                        )
                         continue
 
                     total_paid_in_transactions += amount
 
                     metadata = {}
-                    card_info = txn_data.get('cardInfo', {})
-                    flow_data = txn_data.get('flowData', {})
-                    payment_in_flow = flow_data.get('payment', {}) if isinstance(flow_data.get('payment'), dict) else {}
+                    card_info = txn_data.get("cardInfo", {})
+                    flow_data = txn_data.get("flowData", {})
+                    payment_in_flow = (
+                        flow_data.get("payment", {})
+                        if isinstance(flow_data.get("payment"), dict)
+                        else {}
+                    )
 
-                    if method == 'credit':
-                        metadata['card_brand'] = card_info.get('brand') or payment_in_flow.get('cardInfo', {}).get('brand')
-                        metadata['card_last4'] = card_info.get('last4') or payment_in_flow.get('cardInfo', {}).get('last4')
-                        metadata['stripe_payment_status'] = payment_in_flow.get('status')
-                        metadata['stripe_payment_timestamp'] = payment_in_flow.get('timestamp')
-                    elif method == 'cash':
-                        metadata['cashTendered'] = txn_data.get('cashTendered')
-                        metadata['change'] = txn_data.get('change')
+                    if method == "credit":
+                        metadata["card_brand"] = card_info.get(
+                            "brand"
+                        ) or payment_in_flow.get("cardInfo", {}).get("brand")
+                        metadata["card_last4"] = card_info.get(
+                            "last4"
+                        ) or payment_in_flow.get("cardInfo", {}).get("last4")
+                        metadata["stripe_payment_status"] = payment_in_flow.get(
+                            "status"
+                        )
+                        metadata["stripe_payment_timestamp"] = payment_in_flow.get(
+                            "timestamp"
+                        )
+                    elif method == "cash":
+                        metadata["cashTendered"] = txn_data.get("cashTendered")
+                        metadata["change"] = txn_data.get("change")
 
                     if payment.is_split_payment:
-                         metadata['splitDetails'] = txn_data.get('splitDetails', {})
-
+                        metadata["splitDetails"] = txn_data.get("splitDetails", {})
 
                     # Extract external transaction ID robustly
-                    external_txn_id = txn_data.get('transactionId') or \
-                                      txn_data.get('transaction_id') or \
-                                      payment_in_flow.get('transactionId') or \
-                                      payment_in_flow.get('transaction_id') # Check multiple common keys
+                    external_txn_id = (
+                        txn_data.get("transactionId")
+                        or txn_data.get("transaction_id")
+                        or payment_in_flow.get("transactionId")
+                        or payment_in_flow.get("transaction_id")
+                    )  # Check multiple common keys
 
                     # Create the transaction record
                     payment_txn = PaymentTransaction.objects.create(
                         parent_payment=payment,
                         payment_method=method,
                         amount=amount,
-                        status='completed', # Assume completed if sent in final payload
+                        status="completed",  # Assume completed if sent in final payload
                         transaction_id=external_txn_id,
                         # Safely serialize metadata
-                        metadata_json=json.dumps(metadata, cls=DecimalEncoder) if metadata else None
+                        metadata_json=(
+                            json.dumps(metadata, cls=DecimalEncoder)
+                            if metadata
+                            else None
+                        ),
                     )
-                    print(f"Created PaymentTransaction {payment_txn.id}: Method={method}, Amount={amount}, ExtID={external_txn_id or 'N/A'}")
+                    print(
+                        f"Created PaymentTransaction {payment_txn.id}: Method={method}, Amount={amount}, ExtID={external_txn_id or 'N/A'}"
+                    )
 
                 # --- Final Verification (Optional but Recommended) ---
                 # Compare total paid in transactions vs final order total
-                if abs(total_paid_in_transactions - order.total_price) > Decimal('0.01'):
-                     print(f"Warning: Discrepancy! Final Order total ({order.total_price}) != Sum of transactions ({total_paid_in_transactions}). Payment amount might be inaccurate if transactions are incomplete.")
-                     # Optionally update payment.amount again if needed, but it should be correct from update_or_create
-                     # payment.amount = total_paid_in_transactions
-                     # payment.save(update_fields=['amount'])
+                if abs(total_paid_in_transactions - order.total_price) > Decimal(
+                    "0.01"
+                ):
+                    print(
+                        f"Warning: Discrepancy! Final Order total ({order.total_price}) != Sum of transactions ({total_paid_in_transactions}). Payment amount might be inaccurate if transactions are incomplete."
+                    )
+                    # Optionally update payment.amount again if needed, but it should be correct from update_or_create
+                    # payment.amount = total_paid_in_transactions
+                    # payment.save(update_fields=['amount'])
                 else:
-                     print(f"Final amounts match: Order Total={order.total_price}, Transactions Sum={total_paid_in_transactions}")
+                    print(
+                        f"Final amounts match: Order Total={order.total_price}, Transactions Sum={total_paid_in_transactions}"
+                    )
 
             else:
-                 print("No detailed transaction data provided in payload, skipping transaction record creation.")
-
+                print(
+                    "No detailed transaction data provided in payload, skipping transaction record creation."
+                )
 
             # --- Response ---
-            order.refresh_from_db() # Refresh to get latest state
+            order.refresh_from_db()  # Refresh to get latest state
             print(f"Order {pk} completion process finished successfully.")
 
-            return Response({
-                "status": "success",
-                "message": "Order completed successfully",
-                "order": OrderSerializer(order).data # Use the refreshed order
-            })
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Order completed successfully",
+                    "order": OrderSerializer(order).data,  # Use the refreshed order
+                }
+            )
 
         except Order.DoesNotExist:
-             print(f"Error: Order {pk} not found or not in 'in_progress' state.")
-             return Response({"status": "error", "message": "Order not found or not in 'in_progress' state"}, status=status.HTTP_404_NOT_FOUND)
+            print(f"Error: Order {pk} not found or not in 'in_progress' state.")
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Order not found or not in 'in_progress' state",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except Discount.DoesNotExist:
-             print(f"Error: Invalid Discount ID provided.")
-             return Response({"status": "error", "message": "Invalid Discount ID provided."}, status=status.HTTP_400_BAD_REQUEST)
+            print(f"Error: Invalid Discount ID provided.")
+            return Response(
+                {"status": "error", "message": "Invalid Discount ID provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:
             import traceback
+
             print(f"--- Error Completing Order {pk} ---")
             traceback.print_exc()
             # Try to give a more specific error if possible
             error_message = str(e)
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             if isinstance(e, (TypeError, ValueError, decimal.InvalidOperation)):
-                 error_message = "Invalid data format received in request."
-                 status_code = status.HTTP_400_BAD_REQUEST
+                error_message = "Invalid data format received in request."
+                status_code = status.HTTP_400_BAD_REQUEST
 
-            return Response({"status": "error", "message": error_message}, status=status_code)
+            return Response(
+                {"status": "error", "message": error_message}, status=status_code
+            )
+
 
 # Helper for JSON serialization of Decimal
 class DecimalEncoder(json.JSONEncoder):
@@ -519,22 +659,31 @@ class UpdateOrderStatus(APIView):
         order = get_object_or_404(Order, id=pk)
 
         # Check if the status is valid for the order source
-        new_status = request.data.get('status')
+        new_status = request.data.get("status")
 
         if not new_status:
-            return Response({"error": "Status is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Status is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Validate status transitions
         valid_statuses_for_source = []
-        if order.source == 'website':
-            valid_statuses_for_source = ['pending', 'preparing', 'completed', 'cancelled']
+        if order.source == "website":
+            valid_statuses_for_source = [
+                "pending",
+                "preparing",
+                "completed",
+                "cancelled",
+            ]
         else:  # POS order
-            valid_statuses_for_source = ['saved', 'in_progress', 'completed', 'voided']
+            valid_statuses_for_source = ["saved", "in_progress", "completed", "voided"]
 
         if new_status not in valid_statuses_for_source:
             return Response(
-                {"error": f"Invalid status '{new_status}' for {order.source} order. Must be one of: {', '.join(valid_statuses_for_source)}"},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    "error": f"Invalid status '{new_status}' for {order.source} order. Must be one of: {', '.join(valid_statuses_for_source)}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Update the order status
@@ -542,6 +691,7 @@ class UpdateOrderStatus(APIView):
         order.save()
 
         return Response(OrderSerializer(order).data)
+
 
 class ApplyOrderDiscount(APIView):
     permission_classes = [IsAuthenticated]
@@ -551,151 +701,190 @@ class ApplyOrderDiscount(APIView):
         """Apply a discount to an order"""
         try:
             # Ensure order is in a state where discount can be applied (e.g., in_progress)
-            order = get_object_or_404(Order.objects.select_related('payment'), id=pk, user=request.user, status='in_progress')
-            discount_id = request.data.get('discount_id')
+            order = get_object_or_404(
+                Order.objects.select_related("payment"),
+                id=pk,
+                user=request.user,
+                status="in_progress",
+            )
+            discount_id = request.data.get("discount_id")
 
             if not discount_id:
-                return Response({'error': 'discount_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "discount_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             try:
                 discount = Discount.objects.get(id=discount_id, is_active=True)
             except Discount.DoesNotExist:
-                return Response({'error': 'Discount not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {"error": "Discount not found or inactive"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
             # Check if discount is valid for the order items/amount
-            subtotal = sum(item.unit_price * item.quantity for item in order.items.all())
-            if not discount.is_valid(subtotal): # Pass order amount for validation checks
-                return Response({'error': 'Discount is not applicable to this order'}, status=status.HTTP_400_BAD_REQUEST)
+            subtotal = sum(
+                item.unit_price * item.quantity for item in order.items.all()
+            )
+            if not discount.is_valid(
+                subtotal
+            ):  # Pass order amount for validation checks
+                return Response(
+                    {"error": "Discount is not applicable to this order"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             # Apply the discount and recalculate total
             order.discount = discount
-            order.calculate_total_price() # This calculates and sets discount_amount and total_price
+            order.calculate_total_price()  # This calculates and sets discount_amount and total_price
             order.save()
 
             # Update associated payment amount
-            payment = getattr(order, 'payment', None) # Use getattr for safe access
+            payment = getattr(order, "payment", None)  # Use getattr for safe access
             if payment:
                 payment.amount = order.total_price
                 payment.save()
             else:
                 # Create payment if it doesn't exist
-                 Payment.objects.create(order=order, status='pending', amount=order.total_price)
-
+                Payment.objects.create(
+                    order=order, status="pending", amount=order.total_price
+                )
 
             return Response(OrderSerializer(order).data)
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @transaction.atomic
     def delete(self, request, pk):
         """Remove a discount from an order"""
         try:
-            order = get_object_or_404(Order.objects.select_related('payment'), id=pk, user=request.user, status='in_progress')
+            order = get_object_or_404(
+                Order.objects.select_related("payment"),
+                id=pk,
+                user=request.user,
+                status="in_progress",
+            )
 
             # Check if there's a discount to remove
             if not order.discount:
-                return Response({'message': 'No discount applied to this order'}, status=status.HTTP_200_OK)
+                return Response(
+                    {"message": "No discount applied to this order"},
+                    status=status.HTTP_200_OK,
+                )
 
             # Remove the discount and recalculate
             order.discount = None
             order.discount_amount = 0
-            order.calculate_total_price() # Recalculate without discount
+            order.calculate_total_price()  # Recalculate without discount
             order.save()
 
             # Update associated payment amount
-            payment = getattr(order, 'payment', None)
+            payment = getattr(order, "payment", None)
             if payment:
                 payment.amount = order.total_price
                 payment.save()
             else:
-                 Payment.objects.create(order=order, status='pending', amount=order.total_price)
-
+                Payment.objects.create(
+                    order=order, status="pending", amount=order.total_price
+                )
 
             return Response(OrderSerializer(order).data)
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class ReprintReceiptView(APIView):
-    permission_classes = [IsAuthenticated] # Ensure user is logged in
-
-    def post(self, request, pk, *args, **kwargs):
-        """
-        Handles POST request to reprint a receipt for a completed order.
-        """
-        try:
-            # Fetch the specific order, ensuring it's completed
-            order = get_object_or_404(
-                Order.objects.select_related('payment', 'discount') # Include related fields
-                               .prefetch_related('items__product', 'payment__transactions'), # Prefetch for efficiency
-                id=pk,
-                status="completed" # Only allow reprinting for completed orders
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-            # Check if the user has permission (e.g., belongs to this user or is admin - adjust as needed)
-            # For now, we just check authentication. Add more checks if required.
-            # if order.user != request.user and not request.user.is_staff:
-            #     return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
 
+class ReprintReceiptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        try:
+            order = get_object_or_404(
+                Order.objects.select_related("payment", "discount").prefetch_related(
+                    "items__product", "payment__transactions"
+                ),
+                id=pk,
+                status="completed",
+            )
             logger.info(f"Reprint request received for completed Order ID: {pk}")
-
-            # --- Prepare data for the receipt printer ---
-            # Use the OrderSerializer to get a consistent data structure
-            # Note: You might need to adjust this if the serializer doesn't include
-            # all necessary fields (like detailed payment transaction info if needed for reprint)
             serialized_order = OrderSerializer(order).data
-
-            # Structure data specifically for the _format_transaction_receipt method if needed.
-            # The serializer output might be close enough, but let's adapt it slightly
-            # based on the expected keys in _format_transaction_receipt.
             receipt_data_for_print = {
-                'id': serialized_order.get('id'),
-                'timestamp': serialized_order.get('created_at'), # Or updated_at? Check preference
-                'customer_name': serialized_order.get('created_by'), # Uses the formatted name
-                'items': [ # Map serializer items to the expected format
+                "id": serialized_order.get("id"),
+                "timestamp": serialized_order.get("created_at"),
+                "customer_name": serialized_order.get("created_by"),
+                "items": [
                     {
-                        'product_name': item.get('product', {}).get('name', 'Unknown Item'),
-                        'quantity': item.get('quantity'),
-                        'unit_price': item.get('product', {}).get('price', 0.00), # Use product price from serializer
-                    } for item in serialized_order.get('items', [])
+                        "product_name": item.get("product", {}).get(
+                            "name", "Unknown Item"
+                        ),
+                        "quantity": item.get("quantity"),
+                        "unit_price": item.get("product", {}).get("price", 0.00),
+                    }
+                    for item in serialized_order.get("items", [])
                 ],
-                'subtotal': None, # Let the printer calculate if needed or pass explicitly if available
-                'tax': None, # Let the printer calculate if needed or pass explicitly if available
-                'total_amount': serialized_order.get('total_price'),
-                'payment': { # Map payment details
-                    'method': serialized_order.get('payment', {}).get('payment_method'),
-                    'amount_tendered': None, # Usually not stored/needed for reprint?
-                    'change': None, # Usually not stored/needed for reprint?
-                     # Pass transaction details if needed and available in serializer
-                    'transactions': serialized_order.get('payment', {}).get('transactions', []),
-                    'is_split_payment': serialized_order.get('payment', {}).get('is_split_payment'),
+                "subtotal": None,
+                "tax": None,
+                "total_amount": serialized_order.get("total_price"),
+                "payment": {
+                    "method": serialized_order.get("payment", {}).get("payment_method"),
+                    "amount_tendered": None,
+                    "change": None,
+                    "transactions": serialized_order.get("payment", {}).get(
+                        "transactions", []
+                    ),
+                    "is_split_payment": serialized_order.get("payment", {}).get(
+                        "is_split_payment"
+                    ),
                 },
-                'open_drawer': False # Don't open drawer on reprint by default
+                "open_drawer": False,
             }
-
-
-            # --- Initialize printer controller and print ---
             try:
                 printer_controller = ReceiptPrinterController()
-                # Use the existing method designed for transaction receipts
-                print_result = printer_controller.print_transaction_receipt(receipt_data_for_print)
-
+                print_result = printer_controller.print_transaction_receipt(
+                    receipt_data_for_print
+                )  # Keep original call for now, modify controller
                 if print_result.get("status") == "success":
                     logger.info(f"Successfully sent reprint request for Order ID: {pk}")
-                    return Response({"message": "Receipt reprint initiated successfully."}, status=status.HTTP_200_OK)
+                    return Response(
+                        {"message": "Receipt reprint initiated successfully."},
+                        status=status.HTTP_200_OK,
+                    )
                 else:
-                    logger.error(f"Reprint failed for Order ID: {pk}. Reason: {print_result.get('message')}")
-                    return Response({"error": f"Failed to initiate reprint: {print_result.get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+                    logger.error(
+                        f"Reprint failed for Order ID: {pk}. Reason: {print_result.get('message')}"
+                    )
+                    return Response(
+                        {
+                            "error": f"Failed to initiate reprint: {print_result.get('message')}"
+                        },
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
             except Exception as printer_err:
-                logger.error(f"Error initializing or using printer controller for Order ID {pk}: {printer_err}", exc_info=True)
-                return Response({"error": "Printer service unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
-
+                logger.error(
+                    f"Error initializing or using printer controller for Order ID {pk}: {printer_err}",
+                    exc_info=True,
+                )
+                return Response(
+                    {"error": "Printer service unavailable."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
         except Order.DoesNotExist:
             logger.warning(f"Reprint failed: Completed Order ID {pk} not found.")
-            return Response({"error": "Completed order not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Completed order not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except Exception as e:
-            logger.error(f"Unexpected error during reprint for Order ID {pk}: {e}", exc_info=True)
-            return Response({"error": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(
+                f"Unexpected error during reprint for Order ID {pk}: {e}", exc_info=True
+            )
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
