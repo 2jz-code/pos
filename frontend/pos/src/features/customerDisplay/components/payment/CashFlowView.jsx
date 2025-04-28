@@ -23,7 +23,7 @@ const CashFlowView = ({ orderData, cashData, onComplete, isComplete }) => {
 		tax = 0,
 		total = 0, // Amount due for this specific cash transaction/step
 		discountAmount = 0,
-		orderDiscount = null,
+		// orderDiscount = null,
 		isSplitPayment = false,
 		originalTotal, // Total of the original order before splitting
 	} = orderData || {};

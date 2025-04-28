@@ -248,10 +248,39 @@ export const useCartStore = create(
 
 			// Set the order-level discount
 			setOrderDiscount: (discount) => {
-				set({ orderDiscount: discount });
+				// Get the current discount from the state *before* setting
+				const currentDiscountId = get().orderDiscount?.id;
+				const newDiscountId = discount?.id;
+
+				console.log(
+					`[cartStore setOrderDiscount] Attempting to set discount. Current ID: ${currentDiscountId}, New ID: ${newDiscountId}`,
+					JSON.parse(JSON.stringify(discount || {})) // Log clean copy
+				);
+
+				// Only proceed with backend sync if the discount ID is actually changing
+				// or if we are explicitly setting a discount when none was set before.
+				// We also need to handle removing a discount (newDiscountId is null, current wasn't).
+				const needsBackendSync = currentDiscountId !== newDiscountId;
+
+				set({ orderDiscount: discount }); // Set the local state regardless
+
 				const orderId = get().orderId;
-				if (orderId) {
-					get().saveOrderDiscount(orderId, discount); // Sync discount with backend
+				const isHydrated = get().isHydrated;
+
+				// Only call saveOrderDiscount if the discount has actually changed
+				if (needsBackendSync && orderId && isHydrated) {
+					console.log(
+						`[cartStore setOrderDiscount] Discount ID changed (from ${currentDiscountId} to ${newDiscountId}). Calling saveOrderDiscount.`
+					);
+					get().saveOrderDiscount(orderId, discount); // Pass the new discount object (or null)
+				} else if (!needsBackendSync) {
+					console.log(
+						`[cartStore setOrderDiscount] Discount ID (${newDiscountId}) is the same as current. Skipping backend save.`
+					);
+				} else {
+					console.log(
+						`[cartStore setOrderDiscount] Skipping backend save. Needs Sync: ${needsBackendSync}, OrderID: ${orderId}, Hydrated: ${isHydrated}`
+					);
 				}
 			},
 
