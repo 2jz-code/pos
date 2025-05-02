@@ -651,9 +651,11 @@ class UpdateOrderStatus(APIView):
 
     def patch(self, request, pk):
         """
-        Update an order's status
+        Update an order's status and conditionally void the related payment.
         """
-        order = get_object_or_404(Order, id=pk)
+        # --- MODIFICATION: Use select_related to fetch payment efficiently ---
+        order = get_object_or_404(Order.objects.select_related("payment"), id=pk)
+        # --- END MODIFICATION ---
 
         # Check if the status is valid for the order source
         new_status = request.data.get("status")
@@ -666,13 +668,15 @@ class UpdateOrderStatus(APIView):
         # Validate status transitions
         valid_statuses_for_source = []
         if order.source == "website":
+            # Website orders cannot be 'voided' according to this logic
             valid_statuses_for_source = [
                 "pending",
-                "preparing",
+                "preparing",  # Assuming 'preparing' is a valid status
                 "completed",
                 "cancelled",
             ]
         else:  # POS order
+            # POS orders can be 'voided'
             valid_statuses_for_source = ["saved", "in_progress", "completed", "voided"]
 
         if new_status not in valid_statuses_for_source:
@@ -686,6 +690,36 @@ class UpdateOrderStatus(APIView):
         # Update the order status
         order.status = new_status
         order.save()
+
+        # --- ADDED LOGIC: Update payment status if order is voided ---
+        if new_status == "voided":
+            try:
+                # Access the related payment via the OneToOneField relationship
+                payment = order.payment
+                payment.status = "voided"
+                payment.payment_method = "other"
+                # Use update_fields to be specific and potentially avoid triggering other signals
+                payment.save(update_fields=["status", "payment_method"])
+                print(
+                    f"Payment {payment.id} status updated to voided for voided Order {order.id}"
+                )  # Optional: for logging/debugging
+            except Payment.DoesNotExist:
+                # This case *shouldn't* happen if POS orders always have a payment created,
+                # but it's good practice to handle it.
+                print(
+                    f"Warning: Payment record not found for Order {order.id} when voiding."
+                )
+            except AttributeError:
+                # Handle case where the 'payment' relation might not be loaded correctly (less likely with select_related)
+                print(
+                    f"Error: Could not access payment attribute for Order {order.id} when voiding."
+                )
+            except Exception as e:
+                # Log any other unexpected errors during payment update
+                print(
+                    f"Error updating payment status to voided for Order {order.id}: {e}"
+                )
+        # --- END ADDED LOGIC ---
 
         return Response(OrderSerializer(order).data)
 

@@ -1,45 +1,71 @@
-import { Fragment } from "react"; // Added React, Fragment imports
+// combined-project/frontend-pos/pages/payments/RefundSuccessModal.jsx
+
+import React, { Fragment } from "react"; // Import React
 import PropTypes from "prop-types";
-import { Dialog, Transition } from "@headlessui/react"; // Added Headless UI imports
-// Icons
-import { CheckCircleIcon } from "@heroicons/react/24/solid";
+import { Dialog, Transition } from "@headlessui/react";
 import {
+	CheckCircleIcon,
 	BanknotesIcon,
 	CreditCardIcon,
 	TicketIcon,
-} from "@heroicons/react/24/outline";
+	InformationCircleIcon,
+} from "@heroicons/react/24/solid";
 
-/**
- * RefundSuccessModal Component (Logic Preserved from User Provided Code)
- *
- * Displays confirmation after a successful refund.
- * UI updated for a modern look and feel; Logic remains unchanged.
- */
-export default function RefundSuccessModal({
-	isOpen,
-	onClose,
-	refundData, // Now potentially contains more details { success: bool, message: str, refund_details: obj, ... }
-	paymentMethod, // Original payment method for context
-}) {
-	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
-	// Format currency (Original)
-	const formatCurrency = (amount) => {
+// Fallback formatCurrency (import from utils if available)
+const formatCurrency = (amount, defaultValue = "$?.??") => {
+	try {
 		const numAmount = Number(amount);
-		if (isNaN(numAmount)) return "$0.00";
+		if (isNaN(numAmount)) return defaultValue;
 		return new Intl.NumberFormat("en-US", {
 			style: "currency",
 			currency: "USD",
 		}).format(numAmount);
-	};
+	} catch {
+		return defaultValue;
+	}
+};
 
-	// Extract details safely (Original)
-	const refundedAmount = refundData?.amount || 0;
-	const stripeRefundId = refundData?.refund_id || null; // Specific ID from Stripe if available
-	const refundStatus = refundData?.status || "succeeded"; // Stripe status (succeeded, pending) or internal status
+// Helper to get Original Transaction ID from message (if needed as fallback)
+const extractTxnIdFromMessage = (message) => {
+	const match = message?.match(/transaction (\d+)/);
+	return match ? match[1] : null;
+};
+
+export default function RefundSuccessModal({
+	isOpen,
+	onClose,
+	// Expects the full API response object passed as this prop
+	refundDetails,
+	// *** REMOVED unused originalPaymentId prop from here - not needed ***
+}) {
+	// Optional Log: Verify the prop structure upon render
+	// console.log("🔵 RefundSuccessModal Props:", JSON.stringify(refundDetails, null, 2));
+
+	if (!isOpen || !refundDetails) return null;
+
+	// --- Extract details safely from the refundDetails prop ---
+	const details = refundDetails.refund_details || {}; // Access the nested details object
+	const refundedAmount = details.amount || 0;
+	const stripeRefundId = details.refund_id;
+	const originalTxnPk = details.original_transaction_pk;
+	const originalStripeId = details.original_stripe_id;
+	// *** FIX: Get method directly from the nested details object ***
+	const paymentMethod = details.method;
+	const refundStatus = details.status || "succeeded";
+
+	// Top-level fields
+	const overallMessage =
+		refundDetails.message || "Refund processed successfully.";
+	const finalTransactionStatus = refundDetails.transaction_status;
+	const finalPaymentStatus = refundDetails.payment_status;
+	// Use originalTxnPk if available, otherwise fallback to message extraction
+	const displayTxnId =
+		originalTxnPk || extractTxnIdFromMessage(refundDetails.message);
+	// --- End Data Extraction ---
+
+	// --- Helper Functions ---
 	const displayMethod =
-		paymentMethod?.replace("_", " ").toUpperCase() || "Unknown Method";
-
-	// Get Payment Method Icon (Similar to details page)
+		paymentMethod?.replace("_", " ").toUpperCase() || "UNKNOWN";
 	const getPaymentMethodIcon = (method, sizeClass = "h-4 w-4") => {
 		switch (method?.toLowerCase()) {
 			case "cash":
@@ -50,10 +76,9 @@ export default function RefundSuccessModal({
 				return <TicketIcon className={`${sizeClass} text-gray-500`} />;
 		}
 	};
-	// --- END OF ORIGINAL LOGIC ---
+	// --- End Helper Functions ---
 
-	// --- UPDATED UI (JSX Structure and Styling Only) ---
-	// Base button style
+	// --- UI ---
 	const baseButtonClass =
 		"inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition-colors duration-150";
 	const primaryButtonClass = `${baseButtonClass} bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500`;
@@ -69,8 +94,6 @@ export default function RefundSuccessModal({
 				className="relative z-[70]"
 				onClose={onClose}
 			>
-				{" "}
-				{/* High z-index */}
 				{/* Backdrop */}
 				<Transition.Child
 					as={Fragment}
@@ -106,12 +129,13 @@ export default function RefundSuccessModal({
 										Refund Processed
 									</Dialog.Title>
 									<p className="text-sm text-slate-500 mt-1">
-										The transaction has been successfully refunded.
+										{overallMessage}
 									</p>
 								</div>
 
 								{/* Refund Details */}
 								<div className="mt-4 bg-slate-50 p-4 rounded-md border border-slate-200 space-y-2">
+									{/* Amount Refunded */}
 									<div className="flex justify-between text-sm">
 										<span className="font-medium text-slate-600">
 											Amount Refunded:
@@ -120,47 +144,98 @@ export default function RefundSuccessModal({
 											{formatCurrency(refundedAmount)}
 										</span>
 									</div>
-									<div className="flex justify-between text-xs">
-										<span className="font-medium text-slate-500">
-											Original Method:
-										</span>
-										<span className="font-medium text-slate-700 inline-flex items-center gap-1">
-											{getPaymentMethodIcon(paymentMethod, "h-3.5 w-3.5")}
-											{displayMethod}
-										</span>
-									</div>
-									{stripeRefundId && (
-										<div className="flex justify-between text-xs">
-											<span className="font-medium text-slate-500">
-												Refund ID:
-											</span>
-											<span className="font-mono text-slate-600 bg-slate-100 px-1 rounded">
-												{stripeRefundId}
-											</span>
-										</div>
-									)}
+									{/* Refund Status */}
 									<div className="flex justify-between text-xs">
 										<span className="font-medium text-slate-500">
 											Refund Status:
 										</span>
 										<span
-											className={`px-1.5 py-0.5 rounded font-medium ${
-												refundStatus === "succeeded"
+											className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+												refundStatus === "succeeded" ||
+												refundStatus === "completed"
 													? "bg-emerald-100 text-emerald-700"
-													: "bg-yellow-100 text-yellow-800"
+													: refundStatus === "pending"
+													? "bg-yellow-100 text-yellow-800"
+													: "bg-slate-100 text-slate-700"
 											}`}
 										>
-											{refundStatus?.toUpperCase()}
+											{refundStatus?.toUpperCase() || "N/A"}
+										</span>
+									</div>
+									{/* Original Method - Uses paymentMethod from details.method */}
+									<div className="flex justify-between text-xs">
+										<span className="font-medium text-slate-500">
+											Original Method:
+										</span>
+										{paymentMethod ? (
+											<span className="font-medium text-slate-700 inline-flex items-center gap-1">
+												{getPaymentMethodIcon(paymentMethod, "h-3.5 w-3.5")}
+												{displayMethod}
+											</span>
+										) : (
+											<span className="italic text-slate-400">N/A</span>
+										)}
+									</div>
+									{/* Original Transaction PK */}
+									{displayTxnId && (
+										<div className="flex justify-between text-xs">
+											<span className="font-medium text-slate-500">
+												Original Txn #:
+											</span>
+											<span className="font-mono text-slate-600 bg-slate-100 px-1 rounded">
+												{displayTxnId}
+											</span>
+										</div>
+									)}
+									{/* Original Stripe ID (if credit) */}
+									{originalStripeId && paymentMethod === "credit" && (
+										<div className="flex justify-between text-xs">
+											<span className="font-medium text-slate-500">
+												Original Ref ID:
+											</span>
+											<span className="font-mono text-xs text-slate-600 bg-slate-100 px-1 rounded break-all">
+												{originalStripeId}
+											</span>
+										</div>
+									)}
+									{/* Stripe Refund ID (if credit) */}
+									{stripeRefundId && paymentMethod === "credit" && (
+										<div className="flex justify-between text-xs">
+											<span className="font-medium text-slate-500">
+												Refund Ref ID:
+											</span>
+											<span className="font-mono text-xs text-slate-600 bg-slate-100 px-1 rounded break-all">
+												{stripeRefundId}
+											</span>
+										</div>
+									)}
+									{/* Final Statuses */}
+									<div className="flex justify-between text-xs pt-1 mt-1 border-t border-slate-200">
+										<span className="font-medium text-slate-500">
+											Updated Txn Status:
+										</span>
+										<span className="font-medium text-slate-700">
+											{finalTransactionStatus?.toUpperCase() || "N/A"}
+										</span>
+									</div>
+									<div className="flex justify-between text-xs">
+										<span className="font-medium text-slate-500">
+											Updated Payment Status:
+										</span>
+										<span className="font-medium text-slate-700">
+											{finalPaymentStatus?.replace("_", " ").toUpperCase() ||
+												"N/A"}
 										</span>
 									</div>
 								</div>
 
 								{/* Customer Note */}
-								<div className="bg-blue-50 border border-blue-100 p-3 mt-4 rounded-md">
+								<div className="bg-blue-50 border border-blue-100 p-3 mt-4 rounded-md flex items-start gap-2">
+									<InformationCircleIcon className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
 									<p className="text-xs text-blue-700">
 										{paymentMethod === "cash"
 											? "Remember to provide the cash back to the customer."
-											: "The refund has been issued to the customer's card. It may take 5-10 business days to appear on their statement."}
+											: "Refund issued via payment processor. It may take 5-10 business days to appear on statement."}
 									</p>
 								</div>
 
@@ -181,19 +256,31 @@ export default function RefundSuccessModal({
 			</Dialog>
 		</Transition>
 	);
-	// --- END OF UPDATED UI ---
 }
 
-// --- ORIGINAL PROPTYPES (UNCHANGED) ---
+// --- PropType Definitions ---
 RefundSuccessModal.propTypes = {
 	isOpen: PropTypes.bool.isRequired,
 	onClose: PropTypes.func.isRequired,
-	refundData: PropTypes.shape({
-		amount: PropTypes.number,
-		refund_id: PropTypes.string, // Stripe refund ID
-		status: PropTypes.string, // Stripe refund status
+	// Expects the full response object from the backend refund endpoint
+	refundDetails: PropTypes.shape({
 		success: PropTypes.bool,
-		// May include other fields from backend response
+		message: PropTypes.string,
+		// Expecting the structure confirmed in the network tab
+		refund_details: PropTypes.shape({
+			original_transaction_pk: PropTypes.oneOfType([
+				PropTypes.string,
+				PropTypes.number,
+			]),
+			original_stripe_id: PropTypes.string,
+			method: PropTypes.string, // <<< Method is expected here
+			amount: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+			status: PropTypes.string,
+			success: PropTypes.bool,
+			refund_id: PropTypes.string,
+		}),
+		payment_status: PropTypes.string,
+		transaction_status: PropTypes.string,
 	}).isRequired,
-	paymentMethod: PropTypes.string.isRequired,
+	// Removed the separate originalPaymentMethod prop again
 };
