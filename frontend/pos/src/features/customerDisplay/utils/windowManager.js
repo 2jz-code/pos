@@ -151,6 +151,47 @@ class CustomerDisplayWindowManager {
 		this.lastFlowData = null; // Clear state on explicit close
 	}
 
+	sendDirectCashUpdateMessage(content) {
+		console.log("Requesting direct cash update message:", content);
+
+		// Ensure the essential 'type' is correct for the message payload
+		const messagePayload = {
+			type: "DIRECT_CASH_UPDATE", // Use the specific type CustomerDisplay.jsx expects
+			content: content,
+		};
+
+		// OPTIONAL but recommended: Update lastFlowData if this represents the latest state
+		// This helps keep the manager's internal state consistent if other actions follow.
+		if (this.lastFlowData && content.orderId === this.lastFlowData.orderId) {
+			this.lastFlowData = {
+				...this.lastFlowData, // Keep existing context
+				...content, // Overwrite with the new direct update content
+				displayMode: "flow", // Ensure display mode is correct
+				currentStep: "payment", // Ensure step is correct
+			};
+			// Clean up potential undefined properties after merge
+			Object.keys(this.lastFlowData).forEach((key) => {
+				if (this.lastFlowData[key] === undefined) {
+					delete this.lastFlowData[key];
+				}
+			});
+			console.log(
+				"Updated lastFlowData based on direct cash update:",
+				this.lastFlowData
+			);
+		} else {
+			// If no flow data exists or order ID mismatch, just send without updating internal state broadly
+			console.warn(
+				"Sending DIRECT_CASH_UPDATE without updating lastFlowData (no prior flow or different order)."
+			);
+		}
+
+		console.log("Prepared DIRECT_CASH_UPDATE payload:", messagePayload);
+
+		// Use the internal, safe message sending method which handles window checks and targetOrigin
+		this.sendRawMessage(messagePayload);
+	}
+
 	// Internal method for sending messages via postMessage
 	// Ensures the window exists and is open before attempting to send.
 	sendRawMessage(payload) {

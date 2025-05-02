@@ -42,7 +42,7 @@ export const CompletionView = ({ onStartNewOrder }) => {
 					err
 				);
 			}
-		}, 4000); // Delay in milliseconds (4 seconds) - adjust as needed
+		}, 500); // Delay in milliseconds (4 seconds) - adjust as needed
 
 		// Cleanup function: clear the timer if the CompletionView unmounts before the delay finishes
 		return () => {

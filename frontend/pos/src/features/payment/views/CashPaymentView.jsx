@@ -50,20 +50,30 @@ export const CashPaymentView = ({
 		setHasBeenMounted(true);
 		return () => {
 			if (hasBeenMounted) {
-				console.log("CashPaymentView unmounting, resetting to cart display");
-				const cart = useCartStore.getState().cart;
+				console.log(
+					"CashPaymentView unmounting, attempting reset to cart display"
+				);
 				try {
-					if (cart && cart.length > 0) {
-						customerDisplayManager.showCart(cart);
+					// Ensure the manager method exists before calling
+					if (typeof customerDisplayManager.showWelcome === "function") {
+						const cart = useCartStore.getState().cart;
+						if (cart && cart.length > 0) {
+							// Consider if showCart is more appropriate here if needed
+							customerDisplayManager.showCart();
+						} else {
+							customerDisplayManager.showWelcome();
+						}
 					} else {
-						customerDisplayManager.showWelcome();
+						console.warn(
+							"customerDisplayManager.showWelcome or showCart not found on unmount."
+						);
 					}
 				} catch (err) {
-					console.error("Error resetting customer display:", err);
+					console.error("Error resetting customer display on unmount:", err);
 				}
 			}
 		};
-	}, [hasBeenMounted]);
+	}, [hasBeenMounted]); // Keep hasBeenMounted dependency here
 
 	useEffect(() => {
 		console.log("Window manager object:", customerDisplayManager);
@@ -82,6 +92,65 @@ export const CashPaymentView = ({
 			isPrinterConnected,
 		});
 	}, [isPrinterProcessing, paymentInProgress, isPrinterConnected]);
+
+	useEffect(() => {
+		console.log(
+			"CashPaymentView Mounted: Sending initial state to customer display."
+		);
+
+		// Prepare initial cash data based on the state when mounting
+		const initialCashData = {
+			cashTendered: 0, // No cash tendered at mount
+			change: 0, // No change at mount
+			// Amount paid *before* entering this cash view
+			amountPaid: state.amountPaid || 0,
+			// The amount currently due for this cash step
+			remainingAmount: currentPaymentAmount,
+			// Determine if already paid before entering (e.g., rounding adjustment)
+			isFullyPaid: currentPaymentAmount < 0.01,
+			isSplitPayment: state.splitMode,
+		};
+
+		// Prepare order data needed by CashFlowView
+		const initialOrderData = {
+			subtotal: null, // Add if available and needed
+			tax: null, // Add if available and needed
+			total: currentPaymentAmount, // Amount due now
+			discountAmount: null, // Add if available and needed
+			isSplitPayment: state.splitMode,
+			// Calculate originalTotal if in split mode and data is available
+			originalTotal: state.splitMode
+				? remainingAmount + state.amountPaid
+				: currentPaymentAmount,
+		};
+
+		// Construct the CONTENT object for the direct message
+		const initialMessageContent = {
+			currentStep: "payment", // Set the correct step
+			paymentMethod: "cash", // Set the correct method
+			cashData: initialCashData, // Include initial cash state
+			orderData: initialOrderData, // Include initial order context for display
+			displayMode: "flow", // Set the correct display mode
+			isSplitPayment: state.splitMode,
+			splitDetails: state.splitDetails,
+			orderId: state.orderId,
+		};
+
+		try {
+			// Call the window manager method added previously
+			customerDisplayManager.sendDirectCashUpdateMessage(initialMessageContent);
+			console.log(
+				"Initial cash view state sent to customer display via windowManager."
+			);
+		} catch (err) {
+			console.error(
+				"Error sending initial cash view state via windowManager:",
+				err
+			);
+		}
+
+		// Empty dependency array ensures this runs only once after the component mounts
+	}, []);
 
 	const getLatestTransaction = () => {
 		if (state.transactions.length === 0) return null;
@@ -225,31 +294,25 @@ export const CashPaymentView = ({
 				splitDetails: state.splitDetails,
 			});
 			try {
-				if (
-					!customerDisplayManager.displayWindow ||
-					customerDisplayManager.displayWindow.closed
-				) {
-					customerDisplayManager.openWindow();
-				}
-				setTimeout(() => {
-					customerDisplayManager.displayWindow.postMessage(
-						{
-							type: "DIRECT_CASH_UPDATE",
-							content: {
-								currentStep: "payment",
-								paymentMethod: "cash",
-								cashData: cashData,
-								displayMode: "flow",
-								isSplitPayment: state.splitMode,
-								splitDetails: state.splitDetails,
-							},
-						},
-						"*"
-					);
-					console.log("Direct message sent to customer display");
-				}, 300);
+				// Construct the CONTENT object for the message
+				const messageContent = {
+					currentStep: "payment",
+					paymentMethod: "cash",
+					cashData: cashData, // The calculated cashData object
+					displayMode: "flow",
+					isSplitPayment: state.splitMode,
+					splitDetails: state.splitDetails,
+					orderId: state.orderId, // Ensure orderId is included if needed
+				};
+
+				// Call the new window manager method with the content
+				customerDisplayManager.sendDirectCashUpdateMessage(messageContent);
+				console.log("Direct cash update message sent via windowManager");
 			} catch (err) {
-				console.error("Error sending direct message:", err);
+				console.error(
+					"Error sending direct cash update message via windowManager:",
+					err
+				);
 			}
 		} catch (err) {
 			setError(err.message || "Failed to process payment");
@@ -310,31 +373,25 @@ export const CashPaymentView = ({
 				splitDetails: state.splitDetails,
 			});
 			try {
-				if (
-					!customerDisplayManager.displayWindow ||
-					customerDisplayManager.displayWindow.closed
-				) {
-					customerDisplayManager.openWindow();
-				}
-				setTimeout(() => {
-					customerDisplayManager.displayWindow.postMessage(
-						{
-							type: "DIRECT_CASH_UPDATE",
-							content: {
-								currentStep: "payment",
-								paymentMethod: "cash",
-								cashData: cashData,
-								displayMode: "flow",
-								isSplitPayment: state.splitMode,
-								splitDetails: state.splitDetails,
-							},
-						},
-						"*"
-					);
-					console.log("Direct message sent to customer display");
-				}, 300);
+				// Construct the CONTENT object for the message
+				const messageContent = {
+					currentStep: "payment",
+					paymentMethod: "cash",
+					cashData: cashData, // The calculated cashData object
+					displayMode: "flow",
+					isSplitPayment: state.splitMode,
+					splitDetails: state.splitDetails,
+					orderId: state.orderId, // Ensure orderId is included if needed
+				};
+
+				// Call the new window manager method with the content
+				customerDisplayManager.sendDirectCashUpdateMessage(messageContent);
+				console.log("Direct cash update message sent via windowManager");
 			} catch (err) {
-				console.error("Error sending direct message:", err);
+				console.error(
+					"Error sending direct cash update message via windowManager:",
+					err
+				);
 			}
 			setState((prev) => ({ ...prev, customAmount: "" }));
 		} catch (err) {
