@@ -57,7 +57,7 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 
 				// Reset discount only AFTER successful completion
 				if (result) {
-					useCartStore.getState().removeOrderDiscount(); // Use the removal action
+					useCartStore.getState().clearLocalOrderDiscountState();
 				}
 
 				return result; // Return success/failure

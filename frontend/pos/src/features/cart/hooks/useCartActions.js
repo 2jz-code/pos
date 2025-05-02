@@ -94,11 +94,9 @@ export const useCartActions = () => {
 				orderDiscount
 			);
 
-			// --- Extract ACCURATE totals from paymentInfo ---
-			// These totals are calculated correctly in usePaymentFlow
+			// Extract ACCURATE totals from paymentInfo
 			const baseAmountPaid = paymentInfo.baseAmountPaid || 0;
 			const totalTipAmount = paymentInfo.totalTipAmount || 0;
-			// Use totalPaid directly from paymentInfo as it's base + total tip
 			const totalPaid =
 				paymentInfo.totalPaid || baseAmountPaid + totalTipAmount;
 
@@ -106,7 +104,7 @@ export const useCartActions = () => {
 				`COMPLETE ORDER (Action): Base Paid: ${baseAmountPaid}, Total Tip: ${totalTipAmount}, Total Paid: ${totalPaid}`
 			);
 
-			// --- Extract Payment Details (remain same) ---
+			// Extract Payment Details
 			const primaryMethod = paymentInfo.paymentMethod || "unknown";
 			const isSplit =
 				paymentInfo.splitPayment || paymentInfo.transactions?.length > 1;
@@ -132,22 +130,18 @@ export const useCartActions = () => {
 				stripePaymentStatus,
 			});
 
-			// --- Construct the Backend Payload ---
+			// Construct the Backend Payload
 			const payload = {
 				payment_status: "paid",
 				payment_method: primaryMethod,
 				subtotal: parseFloat(subtotal.toFixed(2)),
 				tax_amount: parseFloat(taxAmount.toFixed(2)),
+				// Send current discount ID (or null) - backend will handle application/removal
 				discount_id: orderDiscount?.id || null,
 				discount_amount:
 					parseFloat(discountAmount.toFixed(2)).toFixed(2) || "0.00",
-
-				// *** FIX: Use ACCUMULATED totals for top-level fields ***
-				tip_amount: parseFloat(totalTipAmount.toFixed(2)), // Use total accumulated tip
-				total_amount: parseFloat(totalPaid.toFixed(2)), // Use total accumulated paid (base + tax + tip)
-				// *** END FIX ***
-
-				// Send detailed transaction data inside payment_details
+				tip_amount: parseFloat(totalTipAmount.toFixed(2)),
+				total_amount: parseFloat(totalPaid.toFixed(2)),
 				payment_details: {
 					transactions: paymentInfo?.transactions || [],
 					totalPaid: parseFloat(totalPaid.toFixed(2)),
@@ -158,11 +152,9 @@ export const useCartActions = () => {
 					splitDetails: paymentInfo?.splitDetails || null,
 					completed_at: paymentInfo.completed_at || new Date().toISOString(),
 				},
-
-				transaction_id: stripeTransactionId, // Optional top-level convenience
+				transaction_id: stripeTransactionId,
 				card_brand: stripeCardBrand,
 				card_last4: stripeCardLast4,
-
 				metadata: JSON.stringify({
 					card_brand: stripeCardBrand,
 					card_last4: stripeCardLast4,
@@ -171,7 +163,6 @@ export const useCartActions = () => {
 					split_payment: isSplit,
 					total_tip_amount: parseFloat(totalTipAmount.toFixed(2)),
 				}),
-
 				rewards_profile_id: rewardsProfile?.id || null,
 			};
 
@@ -180,22 +171,24 @@ export const useCartActions = () => {
 				JSON.stringify(payload, null, 2)
 			);
 
-			// --- Send to Backend ---
+			// Send to Backend
 			const response = await axiosInstance.post(
 				`orders/${currentOrderId}/complete/`,
 				payload
 			);
 			console.log("COMPLETE ORDER (Action): Backend response:", response.data);
 
-			// ... (success/error handling remains same) ...
 			if (response.status === 200 && response.data?.status === "success") {
 				console.log(
 					"COMPLETE ORDER (Action): Order completed successfully in backend."
 				);
-				storeState.removeOrderDiscount();
-				storeState.setRewardsProfile(null);
-				return true;
+				// --- FIX: REMOVE 불필요한 DISCOUNT REMOVAL CALL ---
+				// storeState.removeOrderDiscount(); // REMOVED - Backend handles this now
+				// -------------------------------------------------
+				storeState.setRewardsProfile(null); // Still clear local rewards profile
+				return true; // Indicate frontend success
 			} else {
+				// Handle backend reporting success=false or unexpected status
 				console.warn(
 					"COMPLETE ORDER (Action): Backend success=false or status mismatch:",
 					response.data
@@ -205,10 +198,10 @@ export const useCartActions = () => {
 					response.data?.error ||
 					JSON.stringify(response.data);
 				toast.error(`Order completion issue: ${backendError}`);
-				return false;
+				return false; // Indicate failure
 			}
 		} catch (error) {
-			// ... (error handling remains same) ...
+			// Handle network/request errors
 			const errorResponseData = error?.response?.data;
 			const errorStatus = error?.response?.status;
 			const errorMessage =
@@ -227,7 +220,7 @@ export const useCartActions = () => {
 			toast.error(
 				`Failed to complete order: ${errorMessage.substring(0, 100)}`
 			);
-			return false;
+			return false; // Indicate failure
 		}
 	}, []);
 

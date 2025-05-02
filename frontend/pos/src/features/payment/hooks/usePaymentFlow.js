@@ -411,7 +411,7 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 						"COMPLETE FLOW: onComplete successful. POS view should navigate."
 					);
 					useCartStore.getState().setRewardsProfile(null);
-					useCartStore.getState().removeOrderDiscount();
+					useCartStore.getState().clearLocalOrderDiscountState();
 					return true;
 				} else {
 					console.error("COMPLETE FLOW: onComplete callback reported failure.");
@@ -457,7 +457,7 @@ export const usePaymentFlow = ({ totalAmount, onComplete, onNewOrder }) => {
 				currentSplitMethod: null,
 				totalTipAmount: 0,
 			});
-			useCartStore.getState().setOrderDiscount(null); // Also reset these in cart store
+			useCartStore.getState().clearLocalOrderDiscountState();
 			useCartStore.getState().setRewardsProfile(null);
 		} catch (error) {
 			console.error("Error starting new order in payment flow hook:", error);

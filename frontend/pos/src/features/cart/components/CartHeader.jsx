@@ -1,9 +1,9 @@
 import PropTypes from "prop-types";
 // Original component imports
 import OrderCancellation from "../../../components/OrderCancellation";
-import RewardsAccessButton from "../../../components/rewards/RewardsAccessButton";
+// import RewardsAccessButton from "../../../components/rewards/RewardsAccessButton";
 // Original store import
-import { useCartStore } from "../../../store/cartStore";
+// import { useCartStore } from "../../../store/cartStore";
 // Icons for styling
 import { ShoppingCartIcon, PlusIcon } from "@heroicons/react/24/outline"; // Using outline icons for consistency
 
@@ -30,16 +30,16 @@ export const CartHeader = ({
 	axiosInstance,
 }) => {
 	// --- ORIGINAL LOGIC (UNCHANGED from user provided code) ---
-	const rewardsProfile = useCartStore((state) => state.rewardsProfile);
-	const setRewardsProfile = useCartStore((state) => state.setRewardsProfile);
+	// const rewardsProfile = useCartStore((state) => state.rewardsProfile);
+	// const setRewardsProfile = useCartStore((state) => state.setRewardsProfile);
 
-	const handleRewardsMemberAuthenticated = (profile) => {
-		setRewardsProfile(profile);
-	};
+	// const handleRewardsMemberAuthenticated = (profile) => {
+	// 	setRewardsProfile(profile);
+	// };
 
-	const handleRewardsMemberRemoved = () => {
-		setRewardsProfile(null);
-	};
+	// const handleRewardsMemberRemoved = () => {
+	// 	setRewardsProfile(null);
+	// };
 	// --- END OF ORIGINAL LOGIC ---
 
 	// --- UPDATED UI (JSX Structure and Styling Only) ---
@@ -60,7 +60,7 @@ export const CartHeader = ({
 				{/* Action Buttons Container */}
 				<div className="flex gap-2 items-center">
 					{/* Rewards Button - Apply consistent styling */}
-					<RewardsAccessButton
+					{/* <RewardsAccessButton
 						// Pass original props
 						onUserAuthenticated={handleRewardsMemberAuthenticated}
 						onUserRemoved={handleRewardsMemberRemoved}
@@ -70,7 +70,7 @@ export const CartHeader = ({
 						// This example assumes it might accept a className or has similar internal styles.
 						// Using a generic style here for demonstration.
 						buttonClassName="p-2 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200 transition-colors flex items-center gap-1" // Example styling
-					/>
+					/> */}
 
 					{/* Conditional rendering based on original activeOrderId prop */}
 					{activeOrderId && (

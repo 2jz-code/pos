@@ -1,4 +1,3 @@
-// features/customerDisplay/utils/windowManager.js
 import { useCartStore } from "../../../store/cartStore";
 import { calculateCartTotals } from "../../cart/utils/cartCalculations";
 
@@ -6,59 +5,99 @@ class CustomerDisplayWindowManager {
 	constructor() {
 		this.displayWindow = null;
 		this.windowFeatures = "width=800,height=600,resizable=yes";
-		this.displayUrl = `${window.location.origin}?mode=customer-display`; // Use query parameter
+		// Ensure the origin is correctly captured for postMessage security
+		this.targetOrigin = window.location.origin;
+		this.displayUrl = `${this.targetOrigin}?mode=customer-display`; // Use query parameter
 		this.checkInterval = null;
 		this.isOpening = false;
 		this.messageListenerAdded = false;
+		this.lastFlowData = null; // Holds the most recent data sent during a flow
+		// Optional: Queue for messages to send once window is ready
+		// this.messageQueue = [];
+		// this.isWindowReady = false;
 	}
 
 	openWindow() {
 		// Prevent multiple simultaneous open attempts
-		if (this.isOpening) return;
+		if (this.isOpening) {
+			console.log("Window opening already in progress.");
+			return;
+		}
 		this.isOpening = true;
 
 		// Check if window exists and is not closed
 		if (this.displayWindow && !this.displayWindow.closed) {
+			console.log("Window already open.");
 			this.isOpening = false;
 			return this.displayWindow;
 		}
+
+		console.log("Attempting to open customer display window...");
+		// Reset state variables for a new window instance
+		this.displayWindow = null;
+		// this.isWindowReady = false;
 
 		// Create a new window
 		try {
 			this.displayWindow = window.open(
 				this.displayUrl,
-				"customerDisplay",
+				"customerDisplay", // Use a consistent name
 				this.windowFeatures
 			);
 
 			// Start monitoring only if successfully opened
 			if (this.displayWindow) {
+				console.log("Customer display window opened successfully.");
 				this.startMonitoring();
-				this.setupMessageListener();
+				this.setupMessageListener(); // Setup listener immediately
+			} else {
+				console.error(
+					"window.open returned null. Check popup blocker settings."
+				);
+				// Reset flag if opening failed
+				this.isOpening = false;
 			}
 		} catch (error) {
 			console.error("Error opening customer display window:", error);
+			// Reset flag on error
+			this.isOpening = false;
 		}
 
+		// isOpening should ideally be set to false after the window confirms readiness or fails,
+		// but for simplicity, we set it here. Consider using the ready message for more robust handling.
 		this.isOpening = false;
 		return this.displayWindow;
 	}
 
 	setupMessageListener() {
-		if (this.messageListenerAdded) return;
+		// Remove previous listener if exists, to prevent duplicates on reopen
+		if (this.messageHandler) {
+			window.removeEventListener("message", this.messageHandler);
+		}
+		// Ensure flag is reset if setting up again
+		this.messageListenerAdded = false;
 
-		// Listen for messages from the customer display window
-		window.addEventListener("message", (event) => {
-			// Make sure the message is from our customer display window
+		this.messageHandler = (event) => {
+			// SECURITY: Always check the origin of the message
+			if (event.origin !== this.targetOrigin) {
+				console.warn(`Ignored message from unexpected origin: ${event.origin}`);
+				return;
+			}
+			// Check if the message source is the window we opened
 			if (event.source === this.displayWindow) {
 				if (event.data === "CUSTOMER_DISPLAY_READY") {
 					console.log("Customer display window is ready");
-					// You could send initial data here if needed
+					// Handle readiness: Send queued messages or initial state
+					// this.isWindowReady = true;
+					// this.sendQueuedMessages(); // Example if using a queue
 				}
+				// Handle other potential messages from the customer display if needed
 			}
-		});
+		};
 
+		window.addEventListener("message", this.messageHandler);
 		this.messageListenerAdded = true;
+		console.log("Message listener set up for customer display.");
 	}
 
 	startMonitoring() {
@@ -66,25 +105,40 @@ class CustomerDisplayWindowManager {
 		if (this.checkInterval) {
 			clearInterval(this.checkInterval);
 		}
-
+		console.log("Starting window monitoring.");
 		// Check every 2 seconds if the window is still open
 		this.checkInterval = setInterval(() => {
 			if (this.displayWindow && this.displayWindow.closed) {
-				console.log("Customer display window was closed, reopening...");
+				console.log("Customer display window was closed, cleaning up...");
 				this.displayWindow = null;
 				clearInterval(this.checkInterval);
 				this.checkInterval = null;
+				this.messageListenerAdded = false; // Reset listener flag
+				if (this.messageHandler) {
+					window.removeEventListener("message", this.messageHandler);
+					this.messageHandler = null;
+				}
+				// this.isWindowReady = false; // Reset ready state
+				this.lastFlowData = null; // Clear state on close
 
-				// Add a small delay before reopening
-				setTimeout(() => this.openWindow(), 1000);
+				// Optional: Automatically reopen? Or rely on next action to reopen?
+				// Consider if auto-reopening is desired behavior.
+				// console.log("Attempting to reopen closed window...");
+				// setTimeout(() => this.openWindow(), 1000);
 			}
 		}, 2000);
 	}
 
 	closeWindow() {
+		console.log("Closing customer display window...");
 		if (this.checkInterval) {
 			clearInterval(this.checkInterval);
 			this.checkInterval = null;
+		}
+
+		if (this.messageHandler) {
+			window.removeEventListener("message", this.messageHandler);
+			this.messageHandler = null;
 		}
 
 		if (this.displayWindow && !this.displayWindow.closed) {
@@ -92,380 +146,311 @@ class CustomerDisplayWindowManager {
 		}
 
 		this.displayWindow = null;
+		this.messageListenerAdded = false;
+		// this.isWindowReady = false;
+		this.lastFlowData = null; // Clear state on explicit close
 	}
 
+	// Internal method for sending messages via postMessage
+	// Ensures the window exists and is open before attempting to send.
+	sendRawMessage(payload) {
+		if (this.displayWindow && !this.displayWindow.closed) {
+			try {
+				// SECURITY: Use specific origin instead of '*'
+				this.displayWindow.postMessage(payload, this.targetOrigin);
+				console.log("Message sent successfully via postMessage:", payload);
+			} catch (error) {
+				console.error(
+					"Error sending message via postMessage:",
+					error,
+					"Payload:",
+					payload
+				);
+				// Handle potential errors like detached window
+				if (error.name === "DataCloneError") {
+					console.error(
+						"DataCloneError: The message payload might contain non-serializable data."
+					);
+				}
+				// Consider closing/reopening if sending fails persistently
+			}
+		} else {
+			console.warn(
+				"Attempted to send message, but display window is closed or null. Payload:",
+				payload
+			);
+			// Optional: Queue message or try reopening
+			// this.queueMessage(payload);
+			// this.openWindow(); // Or handle based on desired UX
+		}
+	}
+
+	// --- Public Methods for Controlling Display ---
+
 	showCart() {
-		// Get cart data from the store
-		const cart = useCartStore.getState().cart;
+		console.log("Requesting to show cart on customer display.");
+		// Get current cart state DIRECTLY when needed
+		const cartItems = useCartStore.getState().cart;
 		const orderDiscount = useCartStore.getState().orderDiscount;
+		const orderId = useCartStore.getState().orderId;
 		const { subtotal, taxAmount, total, discountAmount } = calculateCartTotals(
-			cart,
+			cartItems,
 			orderDiscount
 		);
 
 		const cartData = {
-			items: cart,
+			items: cartItems,
 			subtotal,
 			taxAmount,
 			total,
-			discountAmount,
+			discountAmount: discountAmount || 0,
 			orderDiscount,
-			orderId: cart.orderId,
+			orderId,
 		};
 
+		const messagePayload = {
+			type: "CUSTOMER_DISPLAY_UPDATE",
+			content: {
+				displayMode: "cart",
+				cart: cartData,
+			},
+		};
+
+		// Ensure window is open before sending
 		if (!this.displayWindow || this.displayWindow.closed) {
 			this.openWindow();
-
-			// Give it a moment to initialize
-			setTimeout(() => {
-				if (this.displayWindow && !this.displayWindow.closed) {
-					this.displayWindow.postMessage(
-						{
-							type: "CUSTOMER_DISPLAY_UPDATE",
-							content: {
-								displayMode: "cart",
-								cart: cartData,
-							},
-						},
-						"*"
-					);
-				}
-			}, 500);
+			// Ideally wait for "CUSTOMER_DISPLAY_READY" before sending.
+			// Using setTimeout as a fallback for simplicity here.
+			setTimeout(() => this.sendRawMessage(messagePayload), 600); // Slightly increased delay
 		} else {
-			this.displayWindow.postMessage(
-				{
-					type: "CUSTOMER_DISPLAY_UPDATE",
-					content: {
-						displayMode: "cart",
-						cart: cartData,
-					},
-				},
-				"*"
-			);
+			this.sendRawMessage(messagePayload);
 		}
 	}
 
-	// New method to show welcome screen in customer display
 	showWelcome() {
+		console.log("Requesting to show welcome screen on customer display.");
+		// ** FIX: Clear last flow data when resetting to Welcome screen **
+		this.lastFlowData = null;
+		// --------------------------------------------------------------
+
+		const messagePayload = { type: "SHOW_WELCOME" };
+
+		// Ensure window is open
 		if (!this.displayWindow || this.displayWindow.closed) {
 			this.openWindow();
-
-			// Give it a moment to initialize before sending the welcome message
-			setTimeout(() => {
-				if (this.displayWindow && !this.displayWindow.closed) {
-					this.displayWindow.postMessage({ type: "SHOW_WELCOME" }, "*");
-				}
-			}, 500);
+			setTimeout(() => this.sendRawMessage(messagePayload), 600);
 		} else {
-			this.displayWindow.postMessage({ type: "SHOW_WELCOME" }, "*");
-		}
-	}
-
-	// Override the updateContent method to include display mode
-	updateContent(content, displayMode = "custom") {
-		const contentWithMode = {
-			...content,
-			displayMode: displayMode,
-		};
-
-		if (!this.displayWindow || this.displayWindow.closed) {
-			this.openWindow();
-
-			// Give it a moment to initialize
-			setTimeout(() => {
-				if (this.displayWindow && !this.displayWindow.closed) {
-					this.sendContentToWindow(contentWithMode);
-				}
-			}, 500);
-		} else {
-			this.sendContentToWindow(contentWithMode);
-		}
-	}
-
-	sendContentToWindow(content) {
-		try {
-			if (this.displayWindow && !this.displayWindow.closed) {
-				// Use postMessage for more secure cross-window communication
-				this.displayWindow.postMessage(
-					{
-						type: "CUSTOMER_DISPLAY_UPDATE",
-						content: content,
-					},
-					"*"
-				);
-			}
-		} catch (error) {
-			console.error("Error sending content to customer display:", error);
+			this.sendRawMessage(messagePayload);
 		}
 	}
 
 	showRewardsRegistration() {
+		console.log("Requesting to show rewards registration on customer display.");
+		const messagePayload = { type: "SHOW_REWARDS" };
 		if (!this.displayWindow || this.displayWindow.closed) {
 			this.openWindow();
-
-			// Give it a moment to initialize
-			setTimeout(() => {
-				if (this.displayWindow && !this.displayWindow.closed) {
-					this.displayWindow.postMessage(
-						{
-							type: "SHOW_REWARDS",
-						},
-						"*"
-					);
-				}
-			}, 500);
+			setTimeout(() => this.sendRawMessage(messagePayload), 600);
 		} else {
-			this.displayWindow.postMessage(
-				{
-					type: "SHOW_REWARDS",
-				},
-				"*"
-			);
+			this.sendRawMessage(messagePayload);
 		}
 	}
 
-	// Also add a method to listen for rewards registration completion
-	listenForRewardsRegistration(callback) {
+	// Method specifically to start the payment/customer interaction flow
+	startCustomerFlow({
+		initialStep = "tip", // Sensible default? Or maybe 'cartReview'
+		paymentMethod = "credit",
+		amountDue, // Explicitly pass the amount for *this* payment flow
+		isSplitPayment = false,
+		splitDetails = null,
+	}) {
+		console.log(
+			`Starting customer flow. Step: ${initialStep}, Method: ${paymentMethod}, Amount Due: ${amountDue}`
+		);
+		// ** FIX: Clear any lingering flow data from previous transactions **
+		this.lastFlowData = null;
+		// -----------------------------------------------------------------
+
+		// Get the complete current cart state at the moment the flow starts
+		const currentCartItems = useCartStore.getState().cart;
+		const currentOrderDiscount = useCartStore.getState().orderDiscount;
+		const currentOrderId = useCartStore.getState().orderId;
+		const { subtotal, taxAmount, total, discountAmount } = calculateCartTotals(
+			currentCartItems,
+			currentOrderDiscount
+		);
+
+		// Construct the full cart snapshot for context
+		const cartDataSnapshot = {
+			items: currentCartItems,
+			subtotal,
+			taxAmount,
+			total, // Full order total
+			orderId: currentOrderId,
+			discountAmount: discountAmount || 0,
+			orderDiscount: currentOrderDiscount,
+		};
+
+		// Prepare the initial content for the customer flow
+		const flowContent = {
+			currentStep: initialStep,
+			cartData: cartDataSnapshot, // Pass the snapshot
+			displayMode: "flow",
+			paymentMethod,
+			orderId: currentOrderId,
+			isSplitPayment,
+			splitDetails,
+			// Payment-specific amounts for this flow instance
+			currentPaymentAmount: amountDue, // The amount being handled *now*
+			totalRemainingAmount: amountDue, // Initially, remaining is the full amount due
+		};
+
+		console.log("Initial customer flow content:", flowContent);
+		this.lastFlowData = flowContent; // Store this initial state
+
+		const messagePayload = {
+			type: "START_CUSTOMER_FLOW",
+			content: flowContent,
+		};
+
+		// Ensure window is open
+		if (!this.displayWindow || this.displayWindow.closed) {
+			this.openWindow();
+			setTimeout(() => this.sendRawMessage(messagePayload), 600);
+		} else {
+			this.sendRawMessage(messagePayload);
+		}
+	}
+
+	// Method to update the current step within an active customer flow
+	updateCustomerFlowStep(step, stepData = {}) {
+		console.log(`Updating customer flow step to: ${step}`, stepData);
+
+		if (!this.lastFlowData) {
+			console.error(
+				"Cannot update flow step: No active flow data (lastFlowData is null). Was startCustomerFlow called?"
+			);
+			return;
+		}
+
+		// ** FIX: Avoid stale data by merging carefully and potentially re-fetching **
+		// Start with the *previous* state of the flow as a base
+		let updatedContent = { ...this.lastFlowData };
+
+		// Update with the new step name and specific data provided for this step
+		updatedContent.currentStep = step;
+		updatedContent = { ...updatedContent, ...stepData }; // Overwrite with new stepData
+
+		// ** Crucially, ensure amounts reflect the LATEST state provided in stepData **
+		// The caller (e.g., useCustomerFlow) is responsible for providing accurate amounts.
+		if (stepData.currentPaymentAmount !== undefined) {
+			updatedContent.currentPaymentAmount = stepData.currentPaymentAmount;
+		}
+		if (stepData.totalRemainingAmount !== undefined) {
+			updatedContent.totalRemainingAmount = stepData.totalRemainingAmount;
+		}
+		// Update cart data if provided, otherwise keep the snapshot from the flow start
+		if (stepData.cartData) {
+			updatedContent.cartData = {
+				...updatedContent.cartData,
+				...stepData.cartData,
+			};
+		}
+		// Ensure top-level discount info matches the cart data snapshot (it shouldn't change mid-flow)
+		updatedContent.orderDiscount = updatedContent.cartData.orderDiscount;
+		updatedContent.discountAmount = updatedContent.cartData.discountAmount;
+
+		// Clean up any potential undefined properties from merging
+		Object.keys(updatedContent).forEach((key) => {
+			if (updatedContent[key] === undefined) {
+				delete updatedContent[key];
+			}
+		});
+
+		console.log(
+			"Prepared content for customer display update:",
+			updatedContent
+		);
+
+		// Store this new state as the last known state for the *current* flow
+		this.lastFlowData = updatedContent;
+
+		const messagePayload = {
+			type: "UPDATE_CUSTOMER_FLOW",
+			content: updatedContent,
+		};
+
+		// Window should already be open if we are updating a flow step
+		this.sendRawMessage(messagePayload);
+	}
+
+	// Listener setup for step completions coming FROM the customer display
+	listenForCustomerFlowStepCompletion(callback) {
+		const listenerId = `customerFlowCompleteListener_${Date.now()}`; // Unique ID for listener
+		console.log(`Setting up listener: ${listenerId}`);
+
 		const handleMessage = (event) => {
+			// Origin and Source checks
 			if (
-				event.source === this.displayWindow &&
-				event.data.type === "REWARDS_REGISTRATION_COMPLETE"
+				event.origin !== this.targetOrigin ||
+				event.source !== this.displayWindow
 			) {
+				return;
+			}
+
+			if (event.data?.type === "CUSTOMER_FLOW_STEP_COMPLETE") {
+				const content = event.data.content;
+				if (content) {
+					console.log(
+						`Listener ${listenerId} received step completion:`,
+						content.step,
+						content.data
+					);
+					callback(content.step, content.data);
+				} else {
+					console.warn(
+						`Listener ${listenerId} received CUSTOMER_FLOW_STEP_COMPLETE without content.`
+					);
+				}
+			}
+		};
+
+		window.addEventListener("message", handleMessage);
+
+		// Return a cleanup function to remove this specific listener
+		return () => {
+			console.log(`Cleaning up listener: ${listenerId}`);
+			window.removeEventListener("message", handleMessage);
+		};
+	}
+
+	// Listener for rewards registration completion
+	listenForRewardsRegistration(callback) {
+		const listenerId = `rewardsCompleteListener_${Date.now()}`;
+		console.log(`Setting up listener: ${listenerId}`);
+
+		const handleMessage = (event) => {
+			// Origin and Source checks
+			if (
+				event.origin !== this.targetOrigin ||
+				event.source !== this.displayWindow
+			) {
+				return;
+			}
+
+			if (event.data?.type === "REWARDS_REGISTRATION_COMPLETE") {
+				console.log(
+					`Listener ${listenerId} received rewards completion:`,
+					event.data.content
+				);
 				callback(event.data.content);
 			}
 		};
 
 		window.addEventListener("message", handleMessage);
-		return () => window.removeEventListener("message", handleMessage);
-	}
-
-	startCustomerFlow(
-		cartItems,
-		initialStep = "cart",
-		paymentMethod = "credit",
-		orderTotal = 0,
-		isSplitPayment = false,
-		splitDetails = null,
-		splitOrderData = null
-	) {
-		// Get discount information from the store
-		const orderDiscount = useCartStore.getState().orderDiscount;
-
-		// Use existing utility to calculate totals with discount
-		const { subtotal, taxAmount, total, discountAmount } = calculateCartTotals(
-			cartItems,
-			orderDiscount
-		);
-		const orderId = useCartStore.getState().orderId;
-
-		// Use split order data if provided, otherwise use calculated cart data
-		const cartData = splitOrderData
-			? {
-					...splitOrderData,
-					items: cartItems,
-					orderId: orderId,
-					// Add discount information
-					discountAmount: discountAmount || 0,
-					orderDiscount: orderDiscount,
-			  }
-			: {
-					items: cartItems,
-					subtotal,
-					taxAmount,
-					total,
-					orderId: orderId,
-					// Add discount information
-					discountAmount: discountAmount || 0,
-					orderDiscount: orderDiscount,
-			  };
-
-		// Add initial cash data if it's a cash payment
-		const cashData =
-			paymentMethod === "cash"
-				? {
-						cashTendered: 0,
-						change: 0,
-						amountPaid: 0,
-						remainingAmount:
-							orderTotal || (splitOrderData ? splitOrderData.total : total),
-						isFullyPaid:
-							(orderTotal || (splitOrderData ? splitOrderData.total : total)) <=
-							0,
-						isSplitPayment,
-				  }
-				: null;
-
-		if (!this.displayWindow || this.displayWindow.closed) {
-			this.openWindow();
-
-			// Give it a moment to initialize
-			setTimeout(() => {
-				if (this.displayWindow && !this.displayWindow.closed) {
-					this.displayWindow.postMessage(
-						{
-							type: "START_CUSTOMER_FLOW",
-							content: {
-								currentStep: initialStep,
-								cartData,
-								displayMode: "flow",
-								paymentMethod,
-								cashData,
-								orderId: orderId,
-								isSplitPayment,
-								splitDetails,
-								splitOrderData,
-							},
-						},
-						"*"
-					);
-				}
-			}, 500);
-		} else {
-			this.displayWindow.postMessage(
-				{
-					type: "START_CUSTOMER_FLOW",
-					content: {
-						currentStep: initialStep,
-						cartData,
-						displayMode: "flow",
-						paymentMethod,
-						cashData,
-						orderId: orderId,
-						isSplitPayment,
-						splitDetails,
-						splitOrderData,
-					},
-				},
-				"*"
-			);
-		}
-	}
-
-	// Helper methods for calculating cart totals
-	calculateSubtotal(cartItems) {
-		if (!Array.isArray(cartItems)) return 0;
-		return cartItems.reduce((total, item) => {
-			const price = parseFloat(item.price) || 0;
-			const quantity = parseInt(item.quantity) || 0;
-			const discount = parseFloat(item.discount) || 0;
-
-			// Apply discount if present
-			const itemTotal = price * quantity;
-			const discountAmount = itemTotal * (discount / 100);
-
-			return total + (itemTotal - discountAmount);
-		}, 0);
-	}
-
-	calculateTax(cartItems) {
-		const subtotal = this.calculateSubtotal(cartItems);
-		return subtotal * 0.1; // Assuming 10% tax rate
-	}
-
-	calculateTotal(cartItems) {
-		const subtotal = this.calculateSubtotal(cartItems);
-		const tax = this.calculateTax(cartItems);
-		return subtotal + tax;
-	}
-
-	updateCustomerFlowStep(step, stepData = {}) {
-		console.log(
-			"WindowManager.updateCustomerFlowStep called with:",
-			step,
-			stepData
-		);
-
-		// Preserve cart data, orderId, and discount information
-		const cartData =
-			stepData.cartData ||
-			(this.lastFlowData ? this.lastFlowData.cartData : null);
-
-		const orderId =
-			stepData.orderId ||
-			(cartData ? cartData.orderId : null) ||
-			(this.lastFlowData ? this.lastFlowData.orderId : null);
-
-		// Preserve discount information
-		const orderDiscount =
-			(cartData && cartData.orderDiscount) ||
-			stepData.orderDiscount ||
-			(this.lastFlowData && this.lastFlowData.cartData
-				? this.lastFlowData.cartData.orderDiscount
-				: null);
-
-		const discountAmount =
-			(cartData && cartData.discountAmount) ||
-			stepData.discountAmount ||
-			(this.lastFlowData && this.lastFlowData.cartData
-				? this.lastFlowData.cartData.discountAmount
-				: 0);
-
-		// Ensure cartData includes discount information
-		const updatedCartData = cartData
-			? {
-					...cartData,
-					orderDiscount,
-					discountAmount,
-			  }
-			: null;
-
-		const content = {
-			currentStep: step,
-			...stepData,
-			cartData: updatedCartData,
-			orderId,
-			displayMode: "flow",
-			// Include discount at the top level too
-			orderDiscount,
-			discountAmount,
+		return () => {
+			console.log(`Cleaning up listener: ${listenerId}`);
+			window.removeEventListener("message", handleMessage);
 		};
-
-		console.log("Prepared content for customer display:", content);
-
-		// Store last flow data for reference
-		this.lastFlowData = content;
-
-		if (!this.displayWindow || this.displayWindow.closed) {
-			console.log("Display window not available, opening new window");
-			this.openWindow();
-			setTimeout(() => {
-				if (this.displayWindow && !this.displayWindow.closed) {
-					this.sendUpdateMessage(content);
-				}
-			}, 500);
-		} else {
-			this.sendUpdateMessage(content);
-		}
-	}
-
-	sendUpdateMessage(content) {
-		try {
-			console.log("Sending message to customer display:", content);
-			this.displayWindow.postMessage(
-				{
-					type: "UPDATE_CUSTOMER_FLOW",
-					content,
-				},
-				"*"
-			);
-			console.log("Message sent successfully");
-		} catch (error) {
-			console.error("Error sending update to customer display:", error);
-		}
-	}
-
-	listenForCustomerFlowStepCompletion(callback) {
-		const handleMessage = (event) => {
-			if (
-				event.source === this.displayWindow &&
-				event.data.type === "CUSTOMER_FLOW_STEP_COMPLETE"
-			) {
-				callback(event.data.content.step, event.data.content.data);
-			}
-		};
-
-		window.addEventListener("message", handleMessage);
-		return () => window.removeEventListener("message", handleMessage);
 	}
 }
 

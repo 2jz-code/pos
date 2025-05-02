@@ -284,12 +284,40 @@ export const useCartStore = create(
 				}
 			},
 
-			// Remove the order-level discount
+			// --- NEW ACTION ---
+			// Clear ONLY the local discount state, e.g., after order completion
+			clearLocalOrderDiscountState: () => {
+				console.log("[cartStore] Clearing local order discount state ONLY.");
+				set({ orderDiscount: null });
+			},
+			// --- END NEW ACTION ---
+
+			// removeOrderDiscount is now ONLY for explicit removal DURING an order
 			removeOrderDiscount: () => {
+				const currentDiscountId = get().orderDiscount?.id;
+				console.log(
+					`[cartStore removeOrderDiscount] Attempting removal. Current ID: ${currentDiscountId}`
+				);
+				if (currentDiscountId === null) {
+					console.log(
+						"[cartStore removeOrderDiscount] No discount to remove locally. Skipping backend call."
+					);
+					return; // No need to do anything if already null
+				}
+
 				const orderId = get().orderId;
-				set({ orderDiscount: null }); // Remove from local state
+				set({ orderDiscount: null }); // Remove from local state first
+
 				if (orderId) {
+					// Only call backend if an order is active
+					console.log(
+						"[cartStore removeOrderDiscount] Calling saveOrderDiscount with null to sync backend."
+					);
 					get().saveOrderDiscount(orderId, null); // Sync removal with backend
+				} else {
+					console.warn(
+						"[cartStore removeOrderDiscount] No active order ID. Local state cleared, backend not called."
+					);
 				}
 			},
 
