@@ -9,7 +9,7 @@ export function useCustomerFlow() {
 	const [currentStep, setCurrentStep] = useState(null);
 	const [flowActive, setFlowActive] = useState(false);
 	const [stepData, setStepData] = useState({});
-	const cart = useCartStore((state) => state.cart);
+	// const cart = useCartStore((state) => state.cart);
 
 	// Use a ref to store the latest stepData without causing re-renders
 	const stepDataRef = useRef(stepData);
@@ -19,72 +19,68 @@ export function useCustomerFlow() {
 		stepDataRef.current = stepData;
 	}, [stepData]);
 
-	const startFlow = useCallback(
-		(
-			orderId,
+	const startFlow = useCallback((startFlowArgs = {}) => {
+		const {
+			orderId: inputOrderId,
+			initialStep: inputInitialStep, // Step display should start on
 			paymentMethod = "credit",
-			orderTotal = 0,
+			amountDue = 0, // Base amount for step
 			isSplitPayment = false,
 			splitDetails = null,
-			splitOrderData = null
-		) => {
-			// Get orderId from the cart store if not provided
-			const effectiveOrderId = orderId || useCartStore.getState().orderId;
+			payload = {}, // Contains orderData, cashData etc.
+			// Add amountCharged if needed for PI creation context (now handled elsewhere)
+		} = startFlowArgs;
 
-			if (!effectiveOrderId) {
-				console.error("No orderId available when starting customer flow!");
-			}
+		const effectiveOrderId = inputOrderId || useCartStore.getState().orderId;
+		if (!effectiveOrderId) {
+			console.error("useCustomerFlow: No orderId!");
+			return;
+		}
 
-			setFlowActive(true);
+		setFlowActive(true);
+		const initialStep =
+			inputInitialStep || (paymentMethod === "cash" ? "payment" : "tip");
+		setCurrentStep(initialStep); // <<< Set local POS step state
 
-			// For cash payments, start at the payment step directly
-			const initialStep =
-				paymentMethod === "cash" ? "payment" : CUSTOMER_FLOW_STEPS[0].id;
+		// Initialize stepData for the flow
+		const initialData = {
+			orderId: effectiveOrderId,
+			paymentMethod,
+			isSplitPayment,
+			splitDetails,
+			currentPaymentAmount: amountDue, // Amount due this step
+			totalAmount: payload?.orderData?.originalTotal || amountDue, // Overall total
+			// Reset previous step results, keep PI ID if exists?
+			activePaymentIntentId: stepDataRef.current?.activePaymentIntentId, // Preserve? Or clear on new flow? Let's clear for now.
+			// activePaymentIntentId: null,
+			clientSecret: null,
+			tip: null,
+			payment: null,
+			receiptComplete: null,
+			paymentError: null, // Clear results
+			...payload, // Spread payload containing initial orderData/cashData
+		};
+		setStepData(initialData);
+		console.log(
+			`useCustomerFlow: Flow started. Initial Step: ${initialStep}. Initial Data:`,
+			initialData
+		);
 
-			setCurrentStep(initialStep);
-			setStepData((prev) => ({
-				...prev,
-				orderId: effectiveOrderId, // Use the effective order ID
-				paymentMethod,
-				isSplitPayment,
-				splitDetails,
-				splitOrderData: splitOrderData
-					? {
-							...splitOrderData,
-							orderId: effectiveOrderId, // Also ensure orderId in splitOrderData
-					  }
-					: null,
-				cashData:
-					paymentMethod === "cash"
-						? {
-								// Initialize with zero values for a fresh cash payment
-								cashTendered: 0,
-								change: 0,
-								amountPaid: 0,
-								remainingAmount: orderTotal,
-								isFullyPaid: orderTotal <= 0,
-								isSplitPayment,
-						  }
-						: undefined,
-			}));
-
-			customerDisplayManager.startCustomerFlow(
-				cart,
-				initialStep,
-				paymentMethod,
-				orderTotal,
-				isSplitPayment,
-				splitDetails,
-				splitOrderData
-					? {
-							...splitOrderData,
-							orderId: effectiveOrderId, // Ensure orderId in data sent to display
-					  }
-					: null
-			);
-		},
-		[cart]
-	);
+		// *** Call the window manager to start the flow on the customer display ***
+		customerDisplayManager.startCustomerFlow({
+			// Pass necessary info to window manager's method
+			orderId: effectiveOrderId,
+			initialStep: initialStep,
+			paymentMethod: paymentMethod,
+			amountDue: amountDue,
+			isSplitPayment: isSplitPayment,
+			splitDetails: splitDetails,
+			payload: payload,
+		});
+		console.log(
+			"useCustomerFlow: Called customerDisplayManager.startCustomerFlow"
+		);
+	}, []);
 
 	// Advance to the next step
 	const nextStep = useCallback(() => {

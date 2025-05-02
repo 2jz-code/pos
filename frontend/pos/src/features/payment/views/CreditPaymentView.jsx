@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { CreditCardIcon, XCircleIcon } from "@heroicons/react/24/solid";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
@@ -15,26 +15,29 @@ import { useReceiptPrinter } from "../../../hooks/useReceiptPrinter";
 import { calculateCartTotals } from "../../cart/utils/cartCalculations";
 import { useTerminal } from "../hooks/useTerminal";
 import { Decimal } from "decimal.js";
+import customerDisplayManager from "../../customerDisplay/utils/windowManager";
 
 const { pageVariants, pageTransition } = paymentAnimations;
 
 const commonPropTypes = {
 	state: PropTypes.shape({
-		orderId: PropTypes.number,
+		orderId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]), // Allow string/number for orderId
 		direction: PropTypes.number.isRequired,
 		paymentMethod: PropTypes.string,
 		splitMode: PropTypes.bool.isRequired,
 		amountPaid: PropTypes.number.isRequired,
 		transactions: PropTypes.array.isRequired,
 		splitDetails: PropTypes.object,
-		nextSplitAmount: PropTypes.number,
+		nextSplitAmount: PropTypes.number, // Still passed, but logic uses currentStepAmount
+		currentStepAmount: PropTypes.number, // *** Expect this prop from state ***
 		currentSplitMethod: PropTypes.string,
+		totalTipAmount: PropTypes.number, // Expect this
 	}).isRequired,
-	remainingAmount: PropTypes.number.isRequired,
-	handlePayment: PropTypes.func.isRequired, // processPayment from usePaymentFlow
+	remainingAmount: PropTypes.number.isRequired, // Overall remaining
+	handlePayment: PropTypes.func.isRequired,
 	completePaymentFlow: PropTypes.func.isRequired,
 	handleNavigation: PropTypes.func.isRequired,
-	totalAmount: PropTypes.number.isRequired,
+	totalAmount: PropTypes.number.isRequired, // Overall total
 };
 
 const commonMotionProps = {
@@ -61,8 +64,8 @@ export const CreditPaymentView = ({
 	const {
 		flowActive,
 		currentStep: customerFlowStep,
-		startFlow,
-		goToStep,
+		startFlow, // Not needed if goToStep handles it
+		// goToStep,
 		completeFlow: completeCustomerDisplayFlow,
 		stepData,
 		resetFlowForSplitContinuation,
@@ -76,10 +79,34 @@ export const CreditPaymentView = ({
 
 	// --- Calculations ---
 	const currentRemainingAmount = remainingAmountProp;
-	const currentPaymentAmount =
-		state.splitMode && state.nextSplitAmount != null
-			? state.nextSplitAmount
-			: currentRemainingAmount;
+	const currentPaymentAmount = useMemo(() => {
+		// 1. Prioritize amount explicitly set for this step in the state
+		if (
+			state.splitMode &&
+			state.currentStepAmount !== null &&
+			state.currentStepAmount !== undefined &&
+			state.currentStepAmount >= 0
+		) {
+			console.log(
+				`CREDIT VIEW: Using currentStepAmount: ${state.currentStepAmount}`
+			);
+			return parseFloat(state.currentStepAmount.toFixed(2));
+		}
+		// 2. Fallback for non-split mode: use the total remaining order amount
+		if (!state.splitMode) {
+			const overallRemaining = Math.max(0, remainingAmountProp);
+			console.log(
+				`CREDIT VIEW: Using overall remaining (non-split): ${overallRemaining}`
+			);
+			return parseFloat(overallRemaining.toFixed(2));
+		}
+		// 3. Fallback IN split mode if currentStepAmount isn't set (should be rare)
+		console.warn(
+			"CreditPaymentView: currentStepAmount not set in split mode, falling back to overall remaining amount."
+		);
+		const fallbackRemaining = Math.max(0, remainingAmountProp);
+		return parseFloat(fallbackRemaining.toFixed(2));
+	}, [state.splitMode, state.currentStepAmount, remainingAmountProp]);
 	const tipForThisPayment = stepData?.tip?.tipAmount || 0;
 
 	const amountChargedThisTxnNum = parseFloat(
@@ -112,95 +139,66 @@ export const CreditPaymentView = ({
 	// --- Start Customer Display Flow ---
 	const startCreditPaymentFlow = useCallback(async () => {
 		if (flowStarted || viewProcessingState || !isMountedRef.current) return;
-		setViewProcessingState(true); // Indicate processing start
+		setViewProcessingState(true);
 		setError(null);
-		paymentProcessedRef.current = false; // Ensure ready for new payment signal
-		completionProcessedRef.current = false; // Ensure ready for new completion attempt
+		paymentProcessedRef.current = false;
+		completionProcessedRef.current = false;
 
 		try {
 			const orderId = state.orderId || useCartStore.getState().orderId;
-			if (!orderId) throw new Error("Order ID missing for credit payment.");
+			if (!orderId) throw new Error("Order ID missing");
 
-			console.log("CREDIT VIEW: Starting customer flow...");
-			const cart = useCartStore.getState().cart;
-			const orderDiscount = useCartStore.getState().orderDiscount;
-			const {
-				subtotal,
-				taxAmount,
-				total: orderTotalFromCart,
-				discountAmount,
-			} = calculateCartTotals(cart, orderDiscount);
+			console.log(
+				"CREDIT VIEW: Starting POS and customer display flow via useCustomerFlow..."
+			);
 
-			const paymentAmountForFlow =
-				state.splitMode && state.nextSplitAmount != null
-					? state.nextSplitAmount
-					: currentRemainingAmount;
-
-			const initialFlowData = {
-				paymentMethod: "credit",
-				currentPaymentAmount: paymentAmountForFlow,
-				totalRemainingAmount: currentRemainingAmount,
-				isSplitPayment: state.splitMode,
-				splitDetails: state.splitDetails,
-				orderId,
-				cartData: {
-					items: cart,
-					orderId,
-					subtotal,
-					taxAmount,
-					total: orderTotalFromCart,
-					orderDiscount,
-					discountAmount,
+			// Prepare payload for customer display views
+			const payloadForDisplay = {
+				orderData: {
+					total: currentPaymentAmountNum,
+					isSplitPayment: state.splitMode,
+					originalTotal: totalAmount,
 				},
 			};
+			// Prepare arguments for useCustomerFlow's startFlow method
+			const startFlowArgs = {
+				orderId: orderId,
+				initialStep: "tip",
+				paymentMethod: "credit",
+				amountDue: currentPaymentAmountNum, // Base amount for step
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitMode ? state.splitDetails : null,
+				payload: payloadForDisplay,
+				amountCharged: amountChargedThisTxnNum, // Pass total charged context if needed
+			};
 
-			// Prepare data specifically for split payments on customer display if needed
-			const splitOrderDataForDisplay = state.splitMode
-				? {
-						total: paymentAmountForFlow,
-						isSplitPayment: true,
-						originalTotal: orderTotalFromCart,
-						// Simplified subtotal/tax for display during split might be okay
-						subtotal:
-							paymentAmountForFlow /
-							(1 + calculateCartTotals([], null).TAX_RATE),
-						tax:
-							(paymentAmountForFlow /
-								(1 + calculateCartTotals([], null).TAX_RATE)) *
-							calculateCartTotals([], null).TAX_RATE,
-						discountAmount: 0,
-						orderDiscount: null,
-				  }
-				: null;
-
-			startFlow(
-				orderId,
-				"credit",
-				paymentAmountForFlow,
-				state.splitMode,
-				state.splitDetails,
-				splitOrderDataForDisplay
+			// *** Call startFlow from the useCustomerFlow hook ***
+			startFlow(startFlowArgs);
+			console.log(
+				"CREDIT VIEW: useCustomerFlow.startFlow called.",
+				startFlowArgs
 			);
-			goToStep("tip", initialFlowData);
-			setFlowStarted(true); // Mark customer flow as active
+
+			setFlowStarted(true); // Update local UI state
 		} catch (err) {
-			console.error("CREDIT VIEW: Error starting credit card flow:", err);
+			console.error("CREDIT VIEW: Error starting customer display flow:", err);
 			setError(err.message || "Failed to start payment process.");
-			setFlowStarted(false); // Ensure flow isn't marked as active on error
+			setFlowStarted(false);
 		} finally {
-			if (isMountedRef.current) setViewProcessingState(false); // Stop processing indicator
+			if (isMountedRef.current) setViewProcessingState(false);
 		}
 	}, [
-		// Dependencies for starting the flow
+		// Dependencies
 		state.orderId,
 		state.splitMode,
 		state.splitDetails,
-		state.nextSplitAmount,
-		currentRemainingAmount,
+		state.amountPaid, // Added amountPaid if needed for context
+		currentPaymentAmountNum,
+		totalAmount,
+		amountChargedThisTxnNum, // Amounts
 		flowStarted,
-		viewProcessingState,
-		startFlow,
-		goToStep,
+		viewProcessingState, // Local state
+		// Add useCustomerFlow actions if needed, e.g. a hypothetical setCustomerFlowStep
 	]);
 
 	// --- Unified Effect: Handle Payment Result and Completion/Split Navigation ---
@@ -430,14 +428,14 @@ export const CreditPaymentView = ({
 						// Reset UI/Flow state for the next split part
 						completeCustomerDisplayFlow();
 						setFlowStarted(false);
-						paymentProcessedRef.current = false; // IMPORTANT: Reset payment ref for the NEXT payment signal
+						// paymentProcessedRef.current = false; // IMPORTANT: Reset payment ref for the NEXT payment signal
 
 						const orderTotalAmount = totalAmount;
-						const amountPaidSoFar = paymentResult.newAmountPaid; // Use accurate amount paid from result
+						const amountPaidSoFar = paymentResult.newAmountPaid;
 						const remainingAfterThisSplit = Math.max(
 							0,
 							orderTotalAmount - amountPaidSoFar
-						); // Ensure not negative
+						);
 
 						resetFlowForSplitContinuation({
 							amountPaid: amountPaidSoFar,
@@ -449,7 +447,7 @@ export const CreditPaymentView = ({
 						setTimeout(() => {
 							if (isMountedRef.current) {
 								handleNavigation("Split", -1);
-								// Reset completion ref AFTER navigation starts, ready for the next action
+								// Reset completion ref AFTER navigation starts
 								completionProcessedRef.current = false;
 							}
 						}, 50); // Delay helps ensure state updates settle before navigation potentially unmounts
@@ -501,49 +499,62 @@ export const CreditPaymentView = ({
 
 	// --- Cancel Payment ---
 	const cancelCardPayment = async () => {
-		if (viewProcessingState) return; // Prevent double cancel
+		if (viewProcessingState) return;
 		setViewProcessingState(true);
 		setError(null);
-		console.log("CREDIT VIEW: Attempting to cancel credit payment flow.");
+		console.log(
+			"CREDIT VIEW: Attempting to cancel credit payment flow via cancelTerminalAction (using reader_id only)."
+		);
 
 		try {
-			const paymentIntentToCancel =
-				stepData?.payment?.transactionId ||
-				state.transactions?.find((t) => t.method === "credit")?.transactionId ||
-				null;
-			if (paymentIntentToCancel) {
+			// *** REMOVED the check for paymentIntentToCancel ***
+
+			// *** Directly call cancelTerminalAction from context ***
+			// This relies on TerminalProvider calling the backend API which uses
+			// stripe.terminal.Reader.cancel_action(reader_id)
+			console.log("CREDIT VIEW: Calling cancelTerminalAction from context...");
+			const cancelResult = await cancelTerminalAction(); // Call without arguments
+
+			// Handle the result from the backend API call
+			if (cancelResult.success) {
 				console.log(
-					`CREDIT VIEW: Attempting to cancel terminal action for PI: ${paymentIntentToCancel}...`
+					"CREDIT VIEW: cancelTerminalAction request sent successfully (check terminal)."
 				);
-				const cancelResult = await cancelTerminalAction();
-				if (cancelResult.success)
-					console.log("CREDIT VIEW: Terminal action cancelled.");
-				else
-					console.warn(
-						"CREDIT VIEW: Could not cancel terminal action.",
-						cancelResult.error
-					);
+				// The backend API using Reader.cancel_action succeeded.
+				// Note: This doesn't guarantee the underlying Payment Intent (if any) was cancelled by Stripe.
 			} else {
-				console.log(
-					"CREDIT VIEW: No active payment intent found to cancel on terminal."
+				console.warn(
+					"CREDIT VIEW: cancelTerminalAction request failed.",
+					cancelResult.error
+				);
+				setError(
+					`Cancellation failed: ${
+						cancelResult.error || "Could not reach cancellation service"
+					}. Please check terminal.`
 				);
 			}
 
+			// --- Reset UI and Navigate Back ---
+			// This part runs regardless of whether the terminal action was confirmed cancelled,
+			// allowing the user to get out of the current view.
+
+			// Reset customer display
 			if (flowActive) {
 				console.log("CREDIT VIEW: Resetting customer display flow.");
-				completeCustomerDisplayFlow();
+				completeCustomerDisplayFlow(); // Resets display to welcome/default
 			}
-			// Navigate back: to 'Split' if splitMode, else 'InitialOptions'
+			// Navigate POS back
 			handleNavigation(state.splitMode ? "Split" : "InitialOptions", -1);
+			customerDisplayManager.showCart();
 		} catch (err) {
-			console.error("CREDIT VIEW: Error during cancellation:", err);
-			setError("Failed to cancel payment cleanly.");
+			// Catch errors from the cancelTerminalAction promise itself
+			console.error("CREDIT VIEW: Error during cancellation process:", err);
+			setError("Failed to execute cancellation cleanly.");
 		} finally {
 			if (isMountedRef.current) {
 				setViewProcessingState(false);
-				setFlowStarted(false); // Ensure flow is marked inactive
-				// Reset refs on cancel
-				paymentProcessedRef.current = false;
+				setFlowStarted(false); // Reset flow started flag
+				paymentProcessedRef.current = false; // Reset processing refs
 				completionProcessedRef.current = false;
 			}
 		}

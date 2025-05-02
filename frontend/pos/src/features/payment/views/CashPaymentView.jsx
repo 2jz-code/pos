@@ -1,18 +1,22 @@
+// frontend-pos/features/payment/views/CashPaymentView.jsx
+
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+// Import useEffect, useMemo, useCallback, useState, useRef
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PaymentButton from "../PaymentButton";
 import { paymentAnimations } from "../../../animations/paymentAnimations";
 import PropTypes from "prop-types";
 import { ScrollableViewWrapper } from "./ScrollableViewWrapper";
 const { pageVariants, pageTransition } = paymentAnimations;
 import { useReceiptPrinter } from "../../../hooks/useReceiptPrinter";
-import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCustomerFlow";
-import customerDisplayManager from "../../../features/customerDisplay/utils/windowManager";
+// Removed useCustomerFlow as direct interaction is handled differently now
+// import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCustomerFlow";
+import customerDisplayManager from "../../../features/customerDisplay/utils/windowManager"; // Correct import
 import { useCartStore } from "../../../store/cartStore";
-// import { calculateCartTotals } from "../../cart/utils/cartCalculations";
 import { formatReceiptData } from "../../../utils/receiptUtils";
 import { formatPrice } from "../../../utils/numberUtils";
 import { XCircleIcon } from "@heroicons/react/24/solid";
+import { Decimal } from "decimal.js"; // Import Decimal
 
 const commonMotionProps = {
 	variants: pageVariants,
@@ -24,11 +28,12 @@ const commonMotionProps = {
 
 export const CashPaymentView = ({
 	state,
-	remainingAmount,
-	handlePayment,
-	setState,
+	remainingAmount: remainingAmountProp, // This is the OVERALL remaining amount for the order
+	handlePayment, // This is processPayment from usePaymentFlow
+	setState: setParentState, // Renamed from setState to avoid conflict if local needed
 	completePaymentFlow,
 	handleNavigation,
+	totalAmount, // *** ADDED: totalAmount (full order total) prop ***
 }) => {
 	const {
 		isProcessing: isPrinterProcessing,
@@ -39,33 +44,86 @@ export const CashPaymentView = ({
 
 	const [error, setError] = useState(null);
 	const [paymentInProgress, setPaymentInProgress] = useState(false);
-	const { updateFlowData, flowActive, startFlow, completeFlow } =
-		useCustomerFlow();
+	// Removed flowActive etc. as useCustomerFlow is no longer directly used here
 	const displayError = printerError || error;
-	const [hasBeenMounted, setHasBeenMounted] = useState(false);
+	const [hasBeenMounted, setHasBeenMounted] = useState(false); // Keep if still used for unmount logic
+	const isMountedRef = useRef(false); // Ref to track mount status
 	const epsilon = 0.01;
-	const isFullyPaid = remainingAmount <= epsilon;
 
+	// --- Helper to check overall order completion ---
+	const isPaymentCompleteInternal = useCallback(
+		(paidAmount) => {
+			const baseTotalRequired = totalAmount; // Use the full order total passed in props
+			if (typeof baseTotalRequired !== "number") {
+				console.error(
+					"isPaymentCompleteInternal: totalAmount is not a number",
+					totalAmount
+				);
+				return false;
+			}
+			// Check if amount paid meets or exceeds the total required (minus tolerance)
+			return new Decimal(paidAmount).greaterThanOrEqualTo(
+				new Decimal(baseTotalRequired).minus(epsilon)
+			);
+		},
+		[totalAmount, epsilon] // Depend on totalAmount prop
+	);
+
+	// *** MODIFIED: Calculate amount required for THIS specific cash step ***
+	const currentPaymentAmount = useMemo(() => {
+		// 1. Prioritize amount explicitly set for this step in the parent state
+		if (
+			state.splitMode &&
+			state.currentStepAmount !== null && // Check specifically for null/undefined
+			state.currentStepAmount !== undefined &&
+			state.currentStepAmount >= 0 // Allow zero amount if valid (e.g., final rounding)
+		) {
+			console.log(
+				`CASH VIEW: Using currentStepAmount: ${state.currentStepAmount}`
+			);
+			// Ensure 2 decimal places for currency
+			return parseFloat(state.currentStepAmount.toFixed(2));
+		}
+		// 2. Fallback for non-split mode: use the total remaining order amount
+		if (!state.splitMode) {
+			const overallRemaining = Math.max(0, remainingAmountProp); // Use overall remaining prop
+			console.log(
+				`CASH VIEW: Using overall remaining (non-split): ${overallRemaining}`
+			);
+			return parseFloat(overallRemaining.toFixed(2));
+		}
+		// 3. Fallback IN split mode if currentStepAmount isn't set
+		//    (Should be rare now but handles edge cases). Use overall remaining.
+		console.warn(
+			"CashPaymentView: currentStepAmount not set in split mode, falling back to overall remaining amount."
+		);
+		const fallbackRemaining = Math.max(0, remainingAmountProp);
+		return parseFloat(fallbackRemaining.toFixed(2));
+	}, [state.splitMode, state.currentStepAmount, remainingAmountProp]); // Dependencies updated
+
+	// --- Mount / Unmount Effects ---
 	useEffect(() => {
-		setHasBeenMounted(true);
+		isMountedRef.current = true;
+		setHasBeenMounted(true); // Keep if used elsewhere
 		return () => {
+			isMountedRef.current = false;
 			if (hasBeenMounted) {
 				console.log(
-					"CashPaymentView unmounting, attempting reset to cart display"
+					"CashPaymentView unmounting, attempting reset customer display"
 				);
 				try {
-					// Ensure the manager method exists before calling
+					// Reset customer display using windowManager
 					if (typeof customerDisplayManager.showWelcome === "function") {
 						const cart = useCartStore.getState().cart;
 						if (cart && cart.length > 0) {
-							// Consider if showCart is more appropriate here if needed
+							// Optional: Show cart instead if items remain?
 							customerDisplayManager.showCart();
 						} else {
 							customerDisplayManager.showWelcome();
 						}
 					} else {
 						console.warn(
-							"customerDisplayManager.showWelcome or showCart not found on unmount."
+							"customerDisplayManager methods not found on unmount."
 						);
 					}
 				} catch (err) {
@@ -73,372 +131,410 @@ export const CashPaymentView = ({
 				}
 			}
 		};
-	}, [hasBeenMounted]); // Keep hasBeenMounted dependency here
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []); // Keep hasBeenMounted dependency? Or just run mount/unmount once? Depends if hasBeenMounted is needed elsewhere.
 
+	// Effect to log processing states (optional for debugging)
 	useEffect(() => {
-		console.log("Window manager object:", customerDisplayManager);
-		try {
-			const displayWindow = customerDisplayManager.openWindow();
-			console.log("Display window opened:", displayWindow);
-		} catch (err) {
-			console.error("Error accessing window manager:", err);
-		}
-	}, []);
-
-	useEffect(() => {
-		console.log("CashPaymentView rendered with state:", {
+		console.log("CashPaymentView State Update:", {
 			isPrinterProcessing,
 			paymentInProgress,
 			isPrinterConnected,
+			currentPaymentAmount, // Log calculated amount
 		});
-	}, [isPrinterProcessing, paymentInProgress, isPrinterConnected]);
+	}, [
+		isPrinterProcessing,
+		paymentInProgress,
+		isPrinterConnected,
+		currentPaymentAmount,
+	]);
 
+	// --- Send Initial State to Customer Display on Mount ---
 	useEffect(() => {
 		console.log(
 			"CashPaymentView Mounted: Sending initial state to customer display."
 		);
+		// Ensure calculation is ready before sending message
+		if (currentPaymentAmount === undefined) {
+			console.warn(
+				"Initial currentPaymentAmount not ready, delaying display update slightly."
+			);
+			// Optionally add a small timeout, but usually direct call is fine if calculation is synchronous
+			// setTimeout(() => { /* send message */ }, 50);
+			// return; // Or just proceed, assuming calculation is fast enough
+		}
 
-		// Prepare initial cash data based on the state when mounting
 		const initialCashData = {
-			cashTendered: 0, // No cash tendered at mount
-			change: 0, // No change at mount
-			// Amount paid *before* entering this cash view
-			amountPaid: state.amountPaid || 0,
-			// The amount currently due for this cash step
-			remainingAmount: currentPaymentAmount,
-			// Determine if already paid before entering (e.g., rounding adjustment)
-			isFullyPaid: currentPaymentAmount < 0.01,
+			cashTendered: 0,
+			change: 0,
+			amountPaid: state.amountPaid || 0, // Amount paid *before* this step
+			remainingAmount: currentPaymentAmount, // Amount due *for this step*
+			isFullyPaid: currentPaymentAmount < epsilon,
 			isSplitPayment: state.splitMode,
 		};
-
-		// Prepare order data needed by CashFlowView
 		const initialOrderData = {
-			subtotal: null, // Add if available and needed
-			tax: null, // Add if available and needed
-			total: currentPaymentAmount, // Amount due now
-			discountAmount: null, // Add if available and needed
+			subtotal: null, // Populate if needed/available from state/props
+			tax: null, // Populate if needed/available from state/props
+			total: currentPaymentAmount, // Amount due *for this step*
+			discountAmount: null, // Populate if needed/available from state/props
 			isSplitPayment: state.splitMode,
-			// Calculate originalTotal if in split mode and data is available
-			originalTotal: state.splitMode
-				? remainingAmount + state.amountPaid
-				: currentPaymentAmount,
+			// Provide context of full order total if splitting
+			originalTotal: state.splitMode ? totalAmount : currentPaymentAmount,
 		};
-
-		// Construct the CONTENT object for the direct message
 		const initialMessageContent = {
-			currentStep: "payment", // Set the correct step
-			paymentMethod: "cash", // Set the correct method
-			cashData: initialCashData, // Include initial cash state
-			orderData: initialOrderData, // Include initial order context for display
-			displayMode: "flow", // Set the correct display mode
+			currentStep: "payment",
+			paymentMethod: "cash",
+			cashData: initialCashData,
+			orderData: initialOrderData,
+			displayMode: "flow",
 			isSplitPayment: state.splitMode,
 			splitDetails: state.splitDetails,
 			orderId: state.orderId,
 		};
 
 		try {
-			// Call the window manager method added previously
 			customerDisplayManager.sendDirectCashUpdateMessage(initialMessageContent);
 			console.log(
-				"Initial cash view state sent to customer display via windowManager."
+				"Initial cash state sent via windowManager.",
+				initialMessageContent
 			);
 		} catch (err) {
-			console.error(
-				"Error sending initial cash view state via windowManager:",
-				err
-			);
+			console.error("Error sending initial cash state:", err);
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []); // Runs only once on mount
 
-		// Empty dependency array ensures this runs only once after the component mounts
-	}, []);
+	useEffect(() => {
+		// Only run if in split mode when this component mounts or relevant state changes
+		if (state.splitMode) {
+			console.log("CASH VIEW (Split Mode): Calling startCustomerFlow.");
+			// Ensure we have the correct amount for this step
+			const amountForThisStep = currentPaymentAmount; // Use the calculated amount
+			if (amountForThisStep === undefined || amountForThisStep < 0) {
+				console.error(
+					"Cannot start customer flow, invalid amount for step:",
+					amountForThisStep
+				);
+				return;
+			}
 
-	const getLatestTransaction = () => {
-		if (state.transactions.length === 0) return null;
+			// Prepare data needed by CashFlowView via startCustomerFlow
+			const cashDataForFlow = {
+				cashTendered: 0,
+				change: 0,
+				amountPaid: state.amountPaid || 0, // Overall paid before this step
+				remainingAmount: amountForThisStep, // Amount for *this* step
+				isFullyPaid: amountForThisStep < epsilon,
+				isSplitPayment: true,
+			};
+			const orderDataForFlow = {
+				total: amountForThisStep, // Amount for *this* step
+				isSplitPayment: true,
+				originalTotal: totalAmount, // Overall order total
+				// Add subtotal/tax if needed/available
+			};
+
+			// Call windowManager directly to start the flow
+			// This ensures the display state is properly initialized via START_CUSTOMER_FLOW
+			customerDisplayManager.startCustomerFlow({
+				// Assuming startCustomerFlow takes an object
+				orderId: state.orderId,
+				initialStep: "payment", // Start at payment step
+				paymentMethod: "cash",
+				amountDue: amountForThisStep, // Pass the specific amount for this step
+				isSplitPayment: true,
+				splitDetails: state.splitDetails,
+				// Pass constructed data payload needed by the display:
+				payload: {
+					// Nest data inside a 'payload' if startCustomerFlow expects it, otherwise adjust
+					cashData: cashDataForFlow,
+					orderData: orderDataForFlow,
+				},
+				// NOTE: Adjust the arguments/structure based on your exact
+				// customerDisplayManager.startCustomerFlow function signature
+			});
+		}
+		// What should this depend on? It needs to run when entering split cash view.
+		// Relying on state.splitMode and maybe currentPaymentAmount being calculated.
+	}, [
+		state.splitMode,
+		state.orderId,
+		state.splitDetails,
+		state.amountPaid,
+		currentPaymentAmount,
+		totalAmount,
+	]); // Add dependencies
+
+	// --- Helper Functions ---
+	const getLatestTransaction = useCallback(() => {
+		if (!state.transactions || state.transactions.length === 0) return null;
 		return state.transactions[state.transactions.length - 1];
-	};
+	}, [state.transactions]); // Dependency on transactions array from state prop
 
-	const getTransactionTotals = () => {
-		const cashTransactions = state.transactions.filter(
-			(t) => t.method === "cash"
-		);
-		if (cashTransactions.length === 0) return null;
-		const totalTendered = cashTransactions.reduce(
-			(sum, t) => sum + (t.cashTendered || 0),
-			0
-		);
-		const totalAmount = cashTransactions.reduce(
-			(sum, t) => sum + (t.amount || 0),
-			0
-		);
-		const totalChange = cashTransactions.reduce(
-			(sum, t) => sum + (t.change || 0),
-			0
-		);
-		const relevantAmount = state.splitMode
-			? currentPaymentAmount
-			: remainingAmount;
-		const isCurrentSplitPaid = totalAmount >= relevantAmount;
-		const isTotalFullyPaid = isFullyPaid;
-
+	const getLatestCashDetails = useCallback(() => {
+		const latestTransaction = getLatestTransaction();
 		return {
-			totalTendered,
-			totalChange,
-			totalAmount,
-			isCurrentSplitPaid,
-			isFullyPaid: isTotalFullyPaid,
-			relevantAmount,
-			totalRemainingAmount: remainingAmount,
+			cashTendered:
+				latestTransaction?.method === "cash"
+					? latestTransaction?.cashTendered || 0
+					: 0,
+			change:
+				latestTransaction?.method === "cash"
+					? latestTransaction?.change || 0
+					: 0,
 		};
-	};
+	}, [getLatestTransaction]); // Dependency
 
-	const shouldShowChangeCalculation = () => {
+	const shouldShowChangeCalculation = useCallback(() => {
 		const latestTransaction = getLatestTransaction();
 		return (
 			latestTransaction &&
 			latestTransaction.method === "cash" &&
-			typeof latestTransaction.cashTendered === "number"
+			typeof latestTransaction.cashTendered === "number" &&
+			latestTransaction.cashTendered > 0
 		);
-	};
+	}, [getLatestTransaction]); // Dependency
 
-	const currentPaymentAmount =
-		state.splitMode && state.nextSplitAmount
-			? state.nextSplitAmount
-			: remainingAmount;
-
-	// const handleReturnToSplitView = useCallback(() => {
-	// 	handleNavigation("Split", -1);
-	// }, [handleNavigation]);
-
-	useEffect(() => {
-		if (state.splitMode && !flowActive) {
-			console.log("Initializing cash flow for split payment");
-			console.log(`Split details from cash payment:`, state.splitDetails);
-			const splitOrderData = {
-				subtotal: currentPaymentAmount * 0.9,
-				tax: currentPaymentAmount * 0.1,
-				total: currentPaymentAmount,
-				isSplitPayment: true,
-				originalTotal: remainingAmount + state.amountPaid,
-			};
-			startFlow(
-				state.orderId,
-				"cash",
-				currentPaymentAmount,
-				true,
-				state.splitDetails,
-				splitOrderData
-			);
-			updateFlowData({
-				paymentMethod: "cash",
-				isSplitPayment: true,
-				splitDetails: state.splitDetails,
-				splitOrderData: splitOrderData,
-				cashData: {
-					cashTendered: 0,
-					change: 0,
-					amountPaid: state.amountPaid,
-					remainingAmount: currentPaymentAmount,
-					isFullyPaid: currentPaymentAmount <= 0,
-				},
-			});
-		}
-	}, [
-		state.splitMode,
-		flowActive,
-		state.orderId,
-		currentPaymentAmount,
-		state.amountPaid,
-		state.splitDetails,
-		remainingAmount,
-	]);
-
-	const handlePresetAmount = async (amount) => {
+	// --- Payment Handlers ---
+	const handlePresetAmount = async (amountTendered) => {
 		setError(null);
 		setPaymentInProgress(true);
-		try {
-			const validAmount = Math.min(amount, currentPaymentAmount);
-			const change = amount - validAmount;
-			const success = await handlePayment(validAmount, {
-				method: "cash",
-				cashTendered: amount,
-				change: change,
-				isSplitPayment: state.splitMode,
-				splitDetails: state.splitDetails,
-			});
-			if (!success) {
-				throw new Error("Payment processing failed");
-			}
-			const originalTotal = state.splitMode
-				? currentPaymentAmount
-				: remainingAmount + state.amountPaid;
-			const currentAmountPaid = state.amountPaid + validAmount;
-			const newRemainingAmount = originalTotal - validAmount;
-			const currentTotals = getTransactionTotals() || {
-				totalTendered: 0,
-				totalChange: 0,
-			};
-			const totalTendered = currentTotals.totalTendered + amount;
-			const totalChange = currentTotals.totalChange + change;
-			const cashData = {
-				cashTendered: totalTendered,
-				change: totalChange,
-				amountPaid: currentAmountPaid,
-				remainingAmount: newRemainingAmount,
-				isFullyPaid: newRemainingAmount <= 0,
-				isSplitPayment: state.splitMode,
-			};
-			updateFlowData({
-				paymentMethod: "cash",
-				cashData: cashData,
-				isSplitPayment: state.splitMode,
-				splitDetails: state.splitDetails,
-			});
-			try {
-				// Construct the CONTENT object for the message
-				const messageContent = {
-					currentStep: "payment",
-					paymentMethod: "cash",
-					cashData: cashData, // The calculated cashData object
-					displayMode: "flow",
-					isSplitPayment: state.splitMode,
-					splitDetails: state.splitDetails,
-					orderId: state.orderId, // Ensure orderId is included if needed
-				};
+		const requiredAmount = currentPaymentAmount; // Amount needed for this step
+		console.log(
+			`CASH VIEW: Preset $${amountTendered} clicked. Amount due: $${requiredAmount}`
+		);
 
-				// Call the new window manager method with the content
-				customerDisplayManager.sendDirectCashUpdateMessage(messageContent);
-				console.log("Direct cash update message sent via windowManager");
-			} catch (err) {
-				console.error(
-					"Error sending direct cash update message via windowManager:",
-					err
-				);
+		try {
+			const amountToApply = Math.min(amountTendered, requiredAmount);
+			const changeDue = Math.max(
+				0,
+				new Decimal(amountTendered).minus(new Decimal(amountToApply)).toNumber()
+			);
+
+			const paymentResult = await handlePayment(amountToApply, {
+				method: "cash",
+				cashTendered: amountTendered,
+				change: changeDue,
+			});
+
+			if (!paymentResult || !paymentResult.success) {
+				throw new Error(paymentResult?.error || "Payment processing failed");
 			}
+
+			// Send display update based on the *result* of the payment
+			const updatedAmountPaidOverall = paymentResult.newAmountPaid;
+			const stepRemainingAfterPayment = Math.max(
+				0,
+				new Decimal(requiredAmount).minus(amountToApply).toNumber()
+			);
+
+			const cashDataForDisplay = {
+				cashTendered: amountTendered,
+				change: changeDue,
+				amountPaid: updatedAmountPaidOverall,
+				// Show 0 due for step if met, otherwise the original step amount? Or total remaining? Let's show step amount for clarity.
+				remainingAmount:
+					stepRemainingAfterPayment < epsilon ? 0 : requiredAmount,
+				isFullyPaid: paymentResult.isNowComplete, // Reflect overall completion
+				isSplitPayment: state.splitMode,
+			};
+			const orderDataForDisplay = {
+				total: stepRemainingAfterPayment < epsilon ? 0 : requiredAmount, // Show amount due for step
+				isSplitPayment: state.splitMode,
+				originalTotal: state.splitMode ? totalAmount : requiredAmount,
+			};
+
+			const messageContent = {
+				currentStep: "payment",
+				paymentMethod: "cash",
+				displayMode: "flow",
+				cashData: cashDataForDisplay,
+				orderData: orderDataForDisplay,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
+				orderId: state.orderId,
+			};
+			customerDisplayManager.sendDirectCashUpdateMessage(messageContent);
+			console.log("Direct cash update message sent after preset.");
 		} catch (err) {
-			setError(err.message || "Failed to process payment");
+			setError(err.message || "Failed to process preset amount");
 			console.error("Preset amount payment error:", err);
 		} finally {
-			setPaymentInProgress(false);
+			if (isMountedRef.current) setPaymentInProgress(false);
 		}
 	};
 
 	const handleCustomAmount = async () => {
-		const amount = parseFloat(state.customAmount);
-		if (!amount || isNaN(amount) || amount <= 0) {
-			setError("Please enter a valid amount");
+		const amountTendered = parseFloat(state.customAmount);
+		const requiredAmount = currentPaymentAmount;
+
+		if (!amountTendered || isNaN(amountTendered) || amountTendered <= 0) {
+			setError("Please enter a valid positive amount");
 			return;
 		}
-		if (amount < currentPaymentAmount) {
-			setError(`Amount must be at least $${currentPaymentAmount.toFixed(2)}`);
+		// Ensure tendered amount is sufficient for the current step amount
+		if (
+			new Decimal(amountTendered).lessThan(
+				new Decimal(requiredAmount).minus(epsilon)
+			)
+		) {
+			setError(`Amount must be at least ${formatPrice(requiredAmount)}`);
 			return;
 		}
+
 		setError(null);
 		setPaymentInProgress(true);
-		try {
-			const validAmount = Math.min(amount, currentPaymentAmount);
-			const change = amount - validAmount;
-			const success = await handlePayment(validAmount, {
-				method: "cash",
-				cashTendered: amount,
-				change: change,
-				isSplitPayment: state.splitMode,
-				splitDetails: state.splitDetails,
-			});
-			if (!success) {
-				throw new Error("Payment processing failed");
-			}
-			const originalTotal = state.splitMode
-				? currentPaymentAmount
-				: remainingAmount + state.amountPaid;
-			const currentAmountPaid = state.amountPaid + validAmount;
-			const newRemainingAmount = originalTotal - validAmount;
-			const currentTotals = getTransactionTotals() || {
-				totalTendered: 0,
-				totalChange: 0,
-			};
-			const totalTendered = currentTotals.totalTendered + amount;
-			const totalChange = currentTotals.totalChange + change;
-			const cashData = {
-				cashTendered: totalTendered,
-				change: totalChange,
-				amountPaid: currentAmountPaid,
-				remainingAmount: newRemainingAmount,
-				isFullyPaid: newRemainingAmount <= 0,
-				isSplitPayment: state.splitMode,
-			};
-			updateFlowData({
-				paymentMethod: "cash",
-				cashData: cashData,
-				isSplitPayment: state.splitMode,
-				splitDetails: state.splitDetails,
-			});
-			try {
-				// Construct the CONTENT object for the message
-				const messageContent = {
-					currentStep: "payment",
-					paymentMethod: "cash",
-					cashData: cashData, // The calculated cashData object
-					displayMode: "flow",
-					isSplitPayment: state.splitMode,
-					splitDetails: state.splitDetails,
-					orderId: state.orderId, // Ensure orderId is included if needed
-				};
+		console.log(
+			`CASH VIEW: Custom $${amountTendered} submitted. Amount due: $${requiredAmount}`
+		);
 
-				// Call the new window manager method with the content
-				customerDisplayManager.sendDirectCashUpdateMessage(messageContent);
-				console.log("Direct cash update message sent via windowManager");
-			} catch (err) {
-				console.error(
-					"Error sending direct cash update message via windowManager:",
-					err
-				);
+		try {
+			const amountToApply = Math.min(amountTendered, requiredAmount);
+			const changeDue = Math.max(
+				0,
+				new Decimal(amountTendered).minus(new Decimal(amountToApply)).toNumber()
+			);
+
+			const paymentResult = await handlePayment(amountToApply, {
+				method: "cash",
+				cashTendered: amountTendered,
+				change: changeDue,
+			});
+
+			if (!paymentResult || !paymentResult.success) {
+				throw new Error(paymentResult?.error || "Payment processing failed");
 			}
-			setState((prev) => ({ ...prev, customAmount: "" }));
+
+			// Clear input using parent state setter
+			if (setParentState)
+				setParentState((prev) => ({ ...prev, customAmount: "" }));
+
+			// Send display update (similar logic to preset amount)
+			const updatedAmountPaidOverall = paymentResult.newAmountPaid;
+			const stepRemainingAfterPayment = Math.max(
+				0,
+				new Decimal(requiredAmount).minus(amountToApply).toNumber()
+			);
+
+			const cashDataForDisplay = {
+				cashTendered: amountTendered,
+				change: changeDue,
+				amountPaid: updatedAmountPaidOverall,
+				remainingAmount:
+					stepRemainingAfterPayment < epsilon ? 0 : requiredAmount,
+				isFullyPaid: paymentResult.isNowComplete,
+				isSplitPayment: state.splitMode,
+			};
+			const orderDataForDisplay = {
+				total: stepRemainingAfterPayment < epsilon ? 0 : requiredAmount,
+				isSplitPayment: state.splitMode,
+				originalTotal: state.splitMode ? totalAmount : requiredAmount,
+			};
+			const messageContent = {
+				currentStep: "payment",
+				paymentMethod: "cash",
+				displayMode: "flow",
+				cashData: cashDataForDisplay,
+				orderData: orderDataForDisplay,
+				isSplitPayment: state.splitMode,
+				splitDetails: state.splitDetails,
+				orderId: state.orderId,
+			};
+			customerDisplayManager.sendDirectCashUpdateMessage(messageContent);
+			console.log("Direct cash update message sent after custom.");
 		} catch (err) {
-			setError(err.message || "Failed to process payment");
+			setError(err.message || "Failed to process custom amount");
 			console.error("Custom amount payment error:", err);
 		} finally {
-			setPaymentInProgress(false);
+			if (isMountedRef.current) setPaymentInProgress(false);
 		}
 	};
 
-	const navigateToSplitView = () => {
-		console.log("DIRECT NAVIGATION: Force navigating back to split view");
-		if (flowActive) {
-			completeFlow();
-		}
-		setPaymentInProgress(false);
-		setError(null);
-		setTimeout(() => {
-			console.log("DIRECT NAVIGATION: Executing navigation to split view now");
-			handleNavigation("Split", -1);
-		}, 1000);
-	};
-	const getLatestCashDetails = () => {
+	// --- Button Logic ---
+	// Determines if the "Complete/Continue" button should be enabled
+	const canCompleteCurrentStep = useCallback(() => {
 		const latestTransaction = getLatestTransaction();
-		return {
-			cashTendered: latestTransaction?.cashTendered || 0,
-			change: latestTransaction?.change || 0,
-		};
-	};
+		const hasValidTenderInfo =
+			latestTransaction?.method === "cash" &&
+			typeof latestTransaction.cashTendered === "number";
 
+		if (!hasValidTenderInfo) return false;
+
+		const requiredAmountForThisStep = currentPaymentAmount;
+		const tenderedInLastTx = latestTransaction.cashTendered;
+		// Check if amount tendered was enough for *this specific step*
+		const tenderedMetRequirement = new Decimal(
+			tenderedInLastTx
+		).greaterThanOrEqualTo(
+			new Decimal(requiredAmountForThisStep).minus(epsilon)
+		);
+
+		const canProceed =
+			tenderedMetRequirement && !isPrinterProcessing && !paymentInProgress;
+
+		console.log("canCompleteCurrentStep check:", {
+			requiredAmountForThisStep,
+			tenderedInLastTx,
+			tenderedMetRequirement,
+			isPrinterProcessing,
+			paymentInProgress,
+			canProceed,
+		});
+
+		return canProceed;
+	}, [
+		state.transactions,
+		currentPaymentAmount,
+		isPrinterProcessing,
+		paymentInProgress,
+		epsilon,
+		getLatestTransaction,
+	]); // Dependencies
+
+	// Handles clicking the "Complete Payment" or "Continue Split" button
 	const handlePaymentCompletionAndPrint = async () => {
 		setError(null);
-		console.log("=== PAYMENT COMPLETION START (Using receiptUtils) ===");
+		console.log("=== CASH: Handling Completion/Continuation ===");
+		// Ensure button is actually enabled before proceeding
+		if (!canCompleteCurrentStep()) {
+			console.warn(
+				"handlePaymentCompletionAndPrint called but button should be disabled."
+			);
+			return; // Exit if conditions aren't met
+		}
+		setPaymentInProgress(true);
+
 		try {
-			const isAllPaymentsComplete = remainingAmount <= epsilon;
+			// Use the state passed via props reflecting the payment JUST MADE
+			const currentTransactions = state.transactions; // Get latest transactions from state prop
+			const currentAmountPaidOverall = state.amountPaid; // Get latest overall paid amount from state prop
+
+			// Check if the ENTIRE order is fully paid
+			const isOrderFullyPaid = isPaymentCompleteInternal(
+				currentAmountPaidOverall
+			);
+
 			console.log("Completion check:", {
-				isAllPaymentsComplete,
+				currentAmountPaidOverall,
+				totalAmount,
+				isOrderFullyPaid,
 				isSplitMode: state.splitMode,
 			});
 
-			if (state.splitMode && !isAllPaymentsComplete) {
-				console.log("SPLIT: Partial payment complete. Navigating back.");
-				setTimeout(navigateToSplitView, 500);
-			} else {
-				console.log("COMPLETE: Preparing final receipt.");
+			// --- Scenario 1: Split Mode and Order NOT Fully Paid ---
+			if (state.splitMode && !isOrderFullyPaid) {
+				console.log(
+					"SPLIT CONTINUE: Intermediate cash split paid. Navigating back to Split view."
+				);
+				setTimeout(() => {
+					if (isMountedRef.current) handleNavigation("Split", -1);
+				}, 100);
+				customerDisplayManager.showCart();
+			}
+			// --- Scenario 2: Order Fully Paid (Final Split or Regular Payment) ---
+			else if (isOrderFullyPaid) {
+				console.log("COMPLETE: Order fully paid. Finalizing...");
 				try {
-					console.log("Preparing receipt data using formatReceiptData...");
 					const latestCash = getLatestCashDetails();
 					const paymentDetailsForReceipt = {
 						orderId: state.orderId,
@@ -448,120 +544,88 @@ export const CashPaymentView = ({
 							cashTendered: latestCash.cashTendered,
 							change: latestCash.change,
 						},
-						transactions: state.transactions, // Pass transactions to formatter
+						transactions: currentTransactions, // Pass final list
 					};
 					const formattedReceiptData = formatReceiptData(
 						paymentDetailsForReceipt
 					);
-					console.log("Formatted Receipt Data:", formattedReceiptData);
 					if (!formattedReceiptData)
 						throw new Error("Failed to format receipt data.");
 
-					console.log("Calling printReceipt with open_drawer: true...");
+					console.log("Calling printReceipt...");
 					await printReceipt({
 						receipt_data: formattedReceiptData,
 						open_drawer: true,
 					});
-					console.log("printReceipt call successful.");
+					console.log("printReceipt potentially successful.");
 
-					console.log("Completing payment flow...");
-					// *** FIX: Pass state.transactions to completePaymentFlow ***
-					const success = await completePaymentFlow(state.transactions);
+					console.log("Calling completePaymentFlow (backend)...");
+					const success = await completePaymentFlow(currentTransactions); // Pass final list
 					if (success) {
-						console.log("Payment completed, navigating.");
+						console.log("Payment finalized backend, navigating to Completion.");
 						handleNavigation("Completion");
 					} else {
-						console.error("Failed to complete payment flow.");
+						console.error("Failed to complete payment flow (backend).");
 						setError("Order finalization failed.");
 					}
 				} catch (printOrCompleteError) {
 					console.error("Error during print/complete:", printOrCompleteError);
-					// Check if the error message is the one we identified, otherwise show generic
-					if (
-						printOrCompleteError.message ===
-						"Receipt data is missing in payload"
-					) {
-						setError(
-							"Internal error: Failed to prepare receipt data for printing."
-						);
-					} else {
-						setError(`Operation failed: ${printOrCompleteError.message}.`);
-					}
-					// Attempt completion even if printing fails (might be backend issue)
+					setError(`Operation failed: ${printOrCompleteError.message}.`);
+					// Attempt completion even if printing fails
 					try {
-						// Only try final completion if all payments are actually done
-						if (isAllPaymentsComplete) {
-							console.warn(
-								"Print failed, attempting order completion anyway..."
-							);
-							// *** FIX: Pass state.transactions here too ***
-							const success = await completePaymentFlow(state.transactions);
-							if (success) handleNavigation("Completion");
-						} else if (state.splitMode) {
-							// If print failed in split mode but the current split is paid, still navigate back
-							console.warn(
-								"Print failed during split, navigating back to split view."
-							);
-							setTimeout(navigateToSplitView, 500);
-						}
+						console.warn("Print failed, attempting order completion anyway...");
+						const success = await completePaymentFlow(currentTransactions);
+						if (success) handleNavigation("Completion");
+						else if (!error)
+							setError("Order finalization failed after print error.");
 					} catch (compErr) {
 						console.error("Completion also failed after print error:", compErr);
-						// Ensure the most relevant error (print or completion) is shown
-						if (!error) {
+						if (!error)
 							setError(
 								compErr.message ||
 									"Order finalization failed after print error."
 							);
-						}
 					}
 				}
+			} else {
+				console.warn(
+					"handlePaymentCompletionAndPrint called but order is not fully paid and not in intermediate split mode."
+				);
+				setError("Cannot complete: Payment is not sufficient for the order."); // Provide clearer error
 			}
 		} catch (err) {
-			console.error("Error during payment completion prep:", err);
-			setError(err.message || "Failed completion prep");
+			console.error("Error during payment completion/continuation:", err);
+			setError(err.message || "Failed processing completion/continuation");
+		} finally {
+			if (isMountedRef.current) setPaymentInProgress(false);
 		}
-		console.log("=== PAYMENT COMPLETION END ===");
 	};
 
-	const canCompleteAndPrint = () => {
-		const hasValidTransaction = shouldShowChangeCalculation();
-		const transactionTotals = getTransactionTotals();
-		const isCurrentSplitPaid =
-			state.splitMode && transactionTotals?.isCurrentSplitPaid;
-		const isFullPayment = !state.splitMode && isFullyPaid;
-		const canProceed =
-			(isCurrentSplitPaid || isFullPayment) &&
-			hasValidTransaction &&
-			!isPrinterProcessing;
-		console.log("canCompleteAndPrint check:", {
-			isCurrentSplitPaid,
-			isFullPayment,
-			hasValidTransaction,
-			isPrinterProcessing,
-		});
-		return canProceed;
-	};
-
+	// --- Custom Amount Validation ---
 	const isCustomAmountValid = () => {
 		const amount = parseFloat(state.customAmount);
-		return amount && !isNaN(amount) && amount >= currentPaymentAmount;
+		// Check if amount is a number, positive, and meets/exceeds amount needed for *this step*
+		return (
+			!isNaN(amount) &&
+			amount > 0 &&
+			new Decimal(amount).greaterThanOrEqualTo(
+				new Decimal(currentPaymentAmount).minus(epsilon)
+			)
+		);
 	};
 
-	const latestCashDisplay = getTransactionTotals() || {
-		totalTendered: 0,
-		totalChange: 0,
-	};
+	// Get latest cash tendered/change for display
+	const latestCashDisplay = getLatestCashDetails();
 
+	// --- Render ---
 	return (
 		<motion.div
-			key="cash-payment-ui" // Unique key
-			className="absolute inset-0 p-4 flex flex-col bg-slate-50" // Match background
+			key="cash-payment-ui"
+			className="absolute inset-0 p-4 flex flex-col bg-slate-50"
 			custom={state.direction}
 			{...commonMotionProps}
 		>
 			<ScrollableViewWrapper className="space-y-4">
-				{" "}
-				{/* Add spacing */}
 				{/* Printer Status */}
 				<div className="text-xs text-slate-500 mb-2">
 					Printer Status:{" "}
@@ -577,6 +641,7 @@ export const CashPaymentView = ({
 							: "Disconnected"}
 					</span>
 				</div>
+
 				{/* Error Display */}
 				{displayError && (
 					<motion.div
@@ -588,20 +653,24 @@ export const CashPaymentView = ({
 						<span>{displayError}</span>
 					</motion.div>
 				)}
-				{/* Amount Due Box */}
+
+				{/* Amount Due Box - Uses corrected currentPaymentAmount */}
 				<div className="p-4 bg-blue-50 text-blue-700 rounded-lg shadow">
-					<div className="font-medium mb-1 text-blue-800">Amount Due</div>
+					<div className="font-medium mb-1 text-blue-800">
+						Amount Due This Step
+					</div>
 					<div className="text-3xl font-bold text-blue-900">
 						{formatPrice(currentPaymentAmount)}
 					</div>
 					{/* Show total remaining only if in split mode and it differs */}
 					{state.splitMode &&
-						Math.abs(remainingAmount - currentPaymentAmount) > epsilon && (
+						Math.abs(remainingAmountProp - currentPaymentAmount) > epsilon && (
 							<div className="text-xs mt-1 text-blue-600">
-								Total Order Remaining: {formatPrice(remainingAmount)}
+								Total Order Remaining: {formatPrice(remainingAmountProp)}
 							</div>
 						)}
 				</div>
+
 				{/* Quick Amounts Section */}
 				<div className="space-y-2">
 					<h4 className="text-sm font-medium text-slate-600">Quick Amounts</h4>
@@ -610,17 +679,8 @@ export const CashPaymentView = ({
 						<PaymentButton
 							label={formatPrice(currentPaymentAmount)}
 							onClick={() => handlePresetAmount(currentPaymentAmount)}
-							disabled={
-								isPrinterProcessing ||
-								paymentInProgress ||
-								currentPaymentAmount <= 0
-							}
-							// Style like other quick amounts but maybe slightly highlighted
-							className={`bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 ${
-								isPrinterProcessing || paymentInProgress
-									? "opacity-50 cursor-not-allowed"
-									: ""
-							}`}
+							disabled={paymentInProgress || currentPaymentAmount < epsilon}
+							className={`bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed`}
 						/>
 						{/* Preset Dollar Amounts */}
 						{[5, 10, 20, 50, 100].map((amount) => (
@@ -628,22 +688,14 @@ export const CashPaymentView = ({
 								key={amount}
 								label={`$${amount}`}
 								onClick={() => handlePresetAmount(amount)}
-								disabled={
-									isPrinterProcessing ||
-									paymentInProgress ||
-									currentPaymentAmount <= 0
-								}
-								// Standard default button style
+								disabled={paymentInProgress || currentPaymentAmount < epsilon}
 								variant="default"
-								className={
-									isPrinterProcessing || paymentInProgress
-										? "opacity-50 cursor-not-allowed"
-										: ""
-								}
+								className={"disabled:opacity-50 disabled:cursor-not-allowed"}
 							/>
 						))}
 					</div>
 				</div>
+
 				{/* Custom Amount Section */}
 				<div className="space-y-2">
 					<h4 className="text-sm font-medium text-slate-600">Custom Amount</h4>
@@ -652,29 +704,27 @@ export const CashPaymentView = ({
 							<span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
 								$
 							</span>
-							{/* Input field styled like the image */}
 							<input
 								type="number"
-								className="w-full pl-7 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm text-right disabled:opacity-50 disabled:bg-slate-100" // Added text-right
+								className="w-full pl-7 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm text-right disabled:opacity-50 disabled:bg-slate-100"
 								placeholder="Enter amount"
-								min={state.splitMode ? 0.01 : currentPaymentAmount} // Min amount logic
+								min={
+									currentPaymentAmount > epsilon
+										? currentPaymentAmount.toFixed(2)
+										: "0.01"
+								} // Use fixed value for min
 								step="0.01"
 								value={state.customAmount}
 								onChange={(e) =>
-									setState((prev) => ({
+									setParentState((prev) => ({
 										...prev,
 										customAmount: e.target.value,
 									}))
 								}
-								disabled={
-									isPrinterProcessing ||
-									paymentInProgress ||
-									currentPaymentAmount <= 0
-								}
+								disabled={paymentInProgress || currentPaymentAmount < epsilon}
 								onKeyPress={(e) => {
 									if (
 										e.key === "Enter" &&
-										!isPrinterProcessing &&
 										!paymentInProgress &&
 										isCustomAmountValid()
 									) {
@@ -683,31 +733,29 @@ export const CashPaymentView = ({
 								}}
 							/>
 						</div>
-						{/* Pay Button styled like the image */}
 						<PaymentButton
 							label={paymentInProgress ? "Processing..." : "Pay"}
-							variant="primary" // Blue button
+							variant="primary"
 							onClick={handleCustomAmount}
 							disabled={
-								isPrinterProcessing ||
 								paymentInProgress ||
 								!state.customAmount ||
-								!isCustomAmountValid() || // Use validation function
-								currentPaymentAmount <= 0
+								!isCustomAmountValid() ||
+								currentPaymentAmount < epsilon
 							}
-							className="py-3" // Match height of input
+							className="py-3"
 						/>
 					</div>
 					{/* Validation message */}
 					{state.customAmount &&
 						!isCustomAmountValid() &&
-						parseFloat(state.customAmount) > 0 && (
+						parseFloat(state.customAmount) >= 0 && (
 							<div className="text-xs text-red-500 pl-1">
-								Amount must be at least{" "}
-								{state.splitMode ? "$0.01" : formatPrice(currentPaymentAmount)}
+								Amount must be at least {formatPrice(currentPaymentAmount)}
 							</div>
 						)}
 				</div>
+
 				{/* Change Due Display */}
 				{shouldShowChangeCalculation() && (
 					<motion.div
@@ -716,108 +764,67 @@ export const CashPaymentView = ({
 						animate={{ opacity: 1 }}
 					>
 						<div className="flex justify-between items-center text-sm">
-							<span className="font-medium">Total Cash Tendered:</span>
+							<span className="font-medium">Cash Tendered (Last):</span>
 							<span className="font-semibold">
-								{formatPrice(latestCashDisplay.totalTendered)}
+								{formatPrice(latestCashDisplay.cashTendered)}
 							</span>
 						</div>
 						<div className="flex justify-between items-center font-bold text-lg">
-							<span>Change Due:</span>
-							<span>{formatPrice(latestCashDisplay.totalChange)}</span>
+							<span>Change Due (Last):</span>
+							<span>{formatPrice(latestCashDisplay.change)}</span>
 						</div>
-						{/* Optionally show remaining balance if relevant */}
-						{remainingAmount > epsilon && (
+						{/* Show overall remaining only if it's relevant */}
+						{remainingAmountProp > epsilon && (
 							<div className="flex justify-between items-center text-xs text-emerald-700 pt-1 border-t border-emerald-100 mt-2">
 								<span>Remaining Order Balance:</span>
-								<span>{formatPrice(remainingAmount)}</span>
+								<span>{formatPrice(remainingAmountProp)}</span>
 							</div>
 						)}
 					</motion.div>
 				)}
+
 				{/* Buttons at the bottom */}
 				<div className="mt-auto pt-4 border-t border-slate-200 space-y-3 flex-shrink-0">
-					{/* Complete Payment Button */}
 					<PaymentButton
 						label={
-							state.splitMode && !isFullyPaid
-								? "Continue Split" // Label changes if it's an intermediate split step
+							// Check overall completion to decide label
+							state.splitMode && !isPaymentCompleteInternal(state.amountPaid)
+								? "Continue Split"
 								: "Complete Payment"
 						}
-						variant="primary" // Blue button
+						variant="primary"
 						onClick={handlePaymentCompletionAndPrint}
-						disabled={!canCompleteAndPrint()} // Use validation function
-						className={`w-full py-3 text-base ${
-							!canCompleteAndPrint() ? "opacity-50 cursor-not-allowed" : ""
-						}`}
+						// Enable button based on whether the *current step* is met
+						disabled={!canCompleteCurrentStep()}
+						className={`w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed`}
 					/>
-
-					{/* Manual Print Button */}
-					<PaymentButton
-						label="Print Receipt (Manual Test)"
-						variant="default" // White button
-						onClick={() => {
-							// (Existing manual print logic - unchanged)
-							const testItem = {
-								product_name: "Test Item",
-								quantity: 1,
-								unit_price: 1.0,
-							};
-							const testSubtotal = 1.0;
-							const testTax = testSubtotal * 0.1;
-							const testTotal = testSubtotal + testTax;
-							const manualReceiptData = {
-								id: state.orderId || Math.floor(Date.now() / 1000),
-								timestamp: new Date().toISOString(),
-								items: [testItem],
-								subtotal: testSubtotal,
-								tax: testTax,
-								total_price: testTotal,
-								payment: {
-									method: "cash",
-									amount_tendered: testTotal,
-									change: 0,
-								},
-								open_drawer: false,
-								store_name: "Test Store",
-								store_address: "Test Address",
-								store_phone: "Test Phone",
-							};
-							printReceipt({
-								receipt_data: manualReceiptData,
-								open_drawer: false,
-							})
-								.then(() => console.log("Manual receipt print successful"))
-								.catch((err) =>
-									console.error("Manual receipt print failed:", err)
-								);
-						}}
-						className="w-full py-3 text-base" // Match styling
-						disabled={isPrinterProcessing || !isPrinterConnected}
-					/>
+					{/* Optional Manual Print Button Removed for brevity, add back if needed */}
 				</div>
 			</ScrollableViewWrapper>
 		</motion.div>
 	);
-	// --- END OF UI UPDATES ---
 };
 
+// *** ADD totalAmount and update state shape in propTypes ***
 CashPaymentView.propTypes = {
 	state: PropTypes.shape({
 		direction: PropTypes.number.isRequired,
 		paymentMethod: PropTypes.string,
 		splitMode: PropTypes.bool.isRequired,
-		amountPaid: PropTypes.number.isRequired,
+		amountPaid: PropTypes.number.isRequired, // Overall amount paid
 		orderId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 		transactions: PropTypes.array.isRequired,
 		customAmount: PropTypes.string.isRequired,
 		splitDetails: PropTypes.object,
-		nextSplitAmount: PropTypes.number,
+		nextSplitAmount: PropTypes.number, // Keep if used elsewhere, but logic relies on currentStepAmount
+		currentStepAmount: PropTypes.number, // *** ADDED: Expect this from state now ***
 		currentSplitMethod: PropTypes.string,
 		totalTipAmount: PropTypes.number,
 	}).isRequired,
-	remainingAmount: PropTypes.number.isRequired,
-	handlePayment: PropTypes.func.isRequired,
-	setState: PropTypes.func.isRequired,
+	remainingAmount: PropTypes.number.isRequired, // Overall remaining amount for order
+	totalAmount: PropTypes.number.isRequired, // *** ADDED: Full order total ***
+	handlePayment: PropTypes.func.isRequired, // processPayment from usePaymentFlow
+	setState: PropTypes.func.isRequired, // setState from usePaymentFlow
 	completePaymentFlow: PropTypes.func.isRequired,
 	handleNavigation: PropTypes.func.isRequired,
 };

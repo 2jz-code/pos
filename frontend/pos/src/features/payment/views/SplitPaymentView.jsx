@@ -92,27 +92,40 @@ export const SplitPaymentView = ({
 
 	// Handle selecting a payment method for the current split
 	const handlePaymentMethodSelect = (method) => {
-		// Calculate the amount for this split
 		let amountForThisSplit;
-
 		if (splitMode === "remaining") {
 			amountForThisSplit = remainingAmount;
 		} else if (splitMode === "equal") {
-			amountForThisSplit = parseFloat(equalSplitAmount);
+			amountForThisSplit = parseFloat(equalSplitAmount.toFixed(2)); // Ensure precision
 		} else {
 			// custom
-			amountForThisSplit = parseFloat(splitAmount);
+			amountForThisSplit = parseFloat(splitAmount || 0); // Ensure fallback if empty
+			// Add validation check here before proceeding if desired
+			const epsilon = 0.01;
+			if (
+				amountForThisSplit < epsilon ||
+				amountForThisSplit > remainingAmount + epsilon
+			) {
+				console.error("SPLIT VIEW: Invalid custom amount selected.");
+				// Optionally set an error state and return
+				return;
+			}
+			amountForThisSplit = parseFloat(amountForThisSplit.toFixed(2)); // Ensure precision
 		}
 
-		// Update state with the split amount
-		setState((prev) => ({
-			...prev,
-			nextSplitAmount: amountForThisSplit,
-			currentSplitMethod: method,
-		}));
+		// No longer need setState here to set nextSplitAmount, handleNavigation will do it.
+		// setState((prev) => ({
+		//     ...prev,
+		//     nextSplitAmount: amountForThisSplit, // REMOVE THIS LINE
+		//     currentSplitMethod: method,          // Keep this if needed, or pass via nav options
+		// }));
 
-		// Navigate to the payment method view
-		handleNavigation(method, 1);
+		console.log(
+			`SPLIT VIEW: Navigating to ${method} with amount: ${amountForThisSplit}`
+		);
+
+		// *** MODIFIED CALL: Pass amount in navigation options ***
+		handleNavigation(method, 1, { nextSplitAmount: amountForThisSplit });
 	};
 
 	return (
