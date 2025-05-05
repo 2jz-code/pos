@@ -994,23 +994,23 @@ class PaymentRefundView(APIView):
                 )
 
                 # *** Open Cash Drawer via ReceiptPrinterController ***
-                if refund_details_dict[
-                    "success"
-                ]:  # Only open if refund logic succeeded
-                    try:
-                        logger.info(
-                            f"Cash refund successful for Txn {txn_to_refund.id}. Sending open drawer command via printer controller."
-                        )
-                        printer_controller = ReceiptPrinterController()
-                        # Call the method, ignore the result as status isn't sent back
-                        printer_controller.open_cash_drawer()
-                        logger.info("Cash drawer open command sent.")
-                    except Exception as drawer_err:
-                        # Log the error but do not fail the overall refund operation
-                        logger.error(
-                            f"Error sending open cash drawer command via printer controller: {drawer_err}",
-                            exc_info=True,
-                        )
+                # if refund_details_dict[
+                #     "success"
+                # ]:  # Only open if refund logic succeeded
+                #     try:
+                #         logger.info(
+                #             f"Cash refund successful for Txn {txn_to_refund.id}. Sending open drawer command via printer controller."
+                #         )
+                #         printer_controller = ReceiptPrinterController()
+                #         # Call the method, ignore the result as status isn't sent back
+                #         printer_controller.open_cash_drawer()
+                #         logger.info("Cash drawer open command sent.")
+                #     except Exception as drawer_err:
+                #         # Log the error but do not fail the overall refund operation
+                #         logger.error(
+                #             f"Error sending open cash drawer command via printer controller: {drawer_err}",
+                #             exc_info=True,
+                #         )
                 # *** End Cash Drawer Logic ***
                 # --- End Cash Logic ---
 

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/config/axiosConfig"; // Original import
 import { authService } from "../../api/services/authService"; // Original import
 import { resumeOrder, updateOnlineOrderStatus } from "../../utils/orderActions"; // Original import
-import { orderService } from "../../api/services/orderService"; // Original import
+// import { orderService } from "../../api/services/orderService"; // Original import
 import { printReceiptWithAgent } from "../../api/services/localHardwareService";
 import { toast } from "react-toastify";
 // Icons for UI

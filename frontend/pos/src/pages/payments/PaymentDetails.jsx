@@ -27,6 +27,7 @@ import {
 	ClockIcon as ClockSolidIcon, // Use solid for status indicators
 	ExclamationTriangleIcon, // Use solid for status indicators
 } from "@heroicons/react/24/solid"; // Use solid for status/alerts
+import { openDrawerWithAgent } from "../../api/services/localHardwareService";
 
 // --- Helper Functions ---
 
@@ -266,16 +267,33 @@ export default function PaymentDetails() {
 
 			// Check if the backend indicated success
 			if (response.success) {
-				// Refetch payment data to show updated status/transactions
+				// Refetch payment data (keep existing logic)
 				const updatedPaymentData = await paymentService.getPaymentById(
 					paymentId
 				);
-				setPayment(updatedPaymentData); // Update state with fresh data
-				setIsRefundModalOpen(false); // Close the confirmation modal
-				setRefundSuccessData(response); // Set data for the success modal
-				setTransactionToRefund(null); // Clear the selected transaction
+
+				// --- MODIFIED: Conditional Drawer Open ---
+				// Check if the original transaction being refunded was cash
+				const originalMethod =
+					transactionToRefund.payment_method?.toLowerCase(); // Safely access and lowercase
+				console.log(
+					`Refund successful. Original transaction method: ${originalMethod}`
+				);
+				if (originalMethod === "cash") {
+					console.log("Original transaction was cash, opening drawer...");
+					await openDrawerWithAgent(); // Open drawer only for cash refund
+				} else {
+					console.log(
+						"Original transaction was not cash, skipping drawer open."
+					);
+				}
+				// -----------------------------------------
+
+				setPayment(updatedPaymentData);
+				setIsRefundModalOpen(false);
+				setRefundSuccessData(response);
+				setTransactionToRefund(null);
 			} else {
-				// If backend responds with success: false or an error message
 				throw new Error(
 					response.message || "Refund processing failed on the backend."
 				);

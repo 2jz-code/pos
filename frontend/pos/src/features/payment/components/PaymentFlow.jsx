@@ -134,17 +134,25 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 				>
 					<CurrentView
 						key={state.currentView}
-						state={state}
-						setState={setState} // Pass down if needed by views (e.g., CashPaymentView for customAmount)
+						state={state} // Pass the whole state
+						setState={setState}
 						remainingAmount={remainingAmount}
 						handleNavigation={handleNavigation}
 						handlePayment={processPayment}
 						isPaymentComplete={isPaymentComplete}
-						completePaymentFlow={completePaymentFlow} // Pass the hook's function
-						onStartNewOrder={handleStartNewOrder} // Pass the hook's function
+						completePaymentFlow={completePaymentFlow}
+						onStartNewOrder={handleStartNewOrder}
 						totalAmount={totalAmount}
-						// Pass isCompleting for disabling buttons in views
 						isCompleting={isCompleting}
+						// --- ADDED/MODIFIED PROP for CompletionView ---
+						// Pass the specific data needed by CompletionView
+						paymentResult={
+							state.currentView === "Completion"
+								? state.completionResultData
+								: undefined
+						}
+						// Optionally pass the full result if needed
+						// paymentResult={state.currentView === 'Completion' ? state.completionResultData : undefined}
 					/>
 				</AnimatePresence>
 				{/* Use error/isCompleting from the hook */}

@@ -17,7 +17,7 @@ import { formatPrice } from "../../../utils/numberUtils";
 import { XCircleIcon } from "@heroicons/react/24/solid";
 import { Decimal } from "decimal.js"; // Import Decimal
 import { toast } from "react-toastify";
-import { printReceiptWithAgent } from "../../../api/services/localHardwareService";
+import { openDrawerWithAgent } from "../../../api/services/localHardwareService";
 
 const commonMotionProps = {
 	variants: pageVariants,
@@ -505,6 +505,7 @@ export const CashPaymentView = ({
 		try {
 			const currentTransactions = state.transactions;
 			const currentAmountPaidOverall = state.amountPaid;
+			// Check if the *entire order* is fully paid
 			const isOrderFullyPaid = isPaymentCompleteInternal(
 				currentAmountPaidOverall
 			);
@@ -519,62 +520,48 @@ export const CashPaymentView = ({
 			if (state.splitMode && !isOrderFullyPaid) {
 				// --- Scenario 1: Split Mode and Order NOT Fully Paid ---
 				console.log("SPLIT CONTINUE: Navigating back to Split view.");
-				customerDisplayManager.showCart();
+				customerDisplayManager.showCart(); // Reset customer display
 				setTimeout(() => {
-					if (isMountedRef.current) handleNavigation("Split", -1);
+					if (isMountedRef.current) handleNavigation("Split", -1); // Navigate POS back
 				}, 100);
 			} else if (isOrderFullyPaid) {
 				// --- Scenario 2: Order Fully Paid ---
 				console.log(
-					"COMPLETE: Order fully paid. Calling onComplete (via completePaymentFlow)..."
+					"COMPLETE: Order fully paid. Calling completePaymentFlow..."
 				);
-				// Call the hook's function, which now calls the onComplete prop
+				// Call the hook's function to finalize with backend
 				const completedOrderData = await completePaymentFlow(
 					currentTransactions
 				);
 
 				if (completedOrderData) {
-					// Check if backend call was successful
+					// Backend successful
+					console.log("COMPLETE: Backend successful.");
+					// *** MODIFICATION START: Navigate, pass payload ***
+					const receiptPayload = completedOrderData.receipt_payload || null;
 					console.log(
-						"COMPLETE: Backend successful. Triggering print via agent..."
+						`COMPLETE: Navigating to Completion. Receipt payload ${
+							receiptPayload ? "exists" : "missing"
+						}.`
 					);
-					if (completedOrderData.receipt_payload) {
-						// Call the agent service (async)
-						printReceiptWithAgent(completedOrderData.receipt_payload, true) // true = open drawer for cash
-							.then((printResult) => {
-								if (!printResult.success) {
-									console.warn(
-										"COMPLETE: Print command to agent failed:",
-										printResult.message
-									);
-									toast.warn("Failed to send receipt to printer.");
-								} else {
-									console.log(
-										"COMPLETE: Print command sent to agent successfully."
-									);
-								}
-							});
-					} else {
-						console.warn(
-							"COMPLETE: Backend response missing receipt_payload. Cannot print."
-						);
-						toast.warn("Could not retrieve receipt data for printing.");
-					}
-					// Navigate to completion view
-					handleNavigation("Completion");
+					// Navigate to completion view, passing the payload
+					openDrawerWithAgent();
+					handleNavigation("Completion", 1, { receiptPayload: receiptPayload });
+					// *** DO NOT PRINT HERE ANYMORE ***
+					// if (receiptPayload) {
+					//    printReceiptWithAgent(receiptPayload, true) ...
+					// } else { ... }
+					// *** MODIFICATION END ***
 				} else {
-					// Backend failed (completePaymentFlow returned null)
-					console.error(
-						"COMPLETE: Backend finalization failed (onComplete returned null/false)."
-					);
-					toast.error(
-						"Failed to finalize order. Please check details or try again."
-					);
-					// Error state should be set within completePaymentFlow hook, no need to set here unless providing more context
+					// Backend failed
+					console.error("COMPLETE: Backend finalization failed.");
+					toast.error("Failed to finalize order. Please check details.");
+					// Error state likely set within completePaymentFlow hook
 				}
 			} else {
+				// Should not happen if button logic is correct
 				console.warn(
-					"handlePaymentCompletionAndPrint called but order is not fully paid and not in intermediate split mode."
+					"Complete button pressed but order not fully paid and not intermediate split."
 				);
 				setError("Cannot complete: Payment is not sufficient for the order.");
 			}
