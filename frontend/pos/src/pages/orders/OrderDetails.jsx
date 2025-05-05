@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react"; // Added React import
+import { useState, useEffect, useCallback } from "react"; // Added React import
 import { useParams, useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/config/axiosConfig"; // Original import
 import { authService } from "../../api/services/authService"; // Original import
 import { resumeOrder, updateOnlineOrderStatus } from "../../utils/orderActions"; // Original import
 import { orderService } from "../../api/services/orderService"; // Original import
+import { printReceiptWithAgent } from "../../api/services/localHardwareService";
 import { toast } from "react-toastify";
 // Icons for UI
 import {
@@ -105,26 +106,47 @@ export default function OrderDetails() {
 		}
 	};
 
-	const handleReprintReceipt = async () => {
+	const handleReprintReceipt = useCallback(async () => {
 		if (!order || isReprinting) return;
+
+		// Check if receipt_payload exists
+		if (!order.receipt_payload) {
+			toast.error("Receipt data not available for this order. Cannot reprint.");
+			console.error(
+				"Reprint failed: Missing receipt_payload in order data",
+				order
+			);
+			return;
+		}
+
 		setIsReprinting(true);
-		const toastId = toast.loading("Sending reprint request...");
+		const toastId = toast.loading("Sending reprint request to agent...");
+
 		try {
-			await orderService.reprintReceipt(order.id);
-			toast.update(toastId, {
-				render: "Reprint request sent successfully!",
-				type: "success",
-				isLoading: false,
-				autoClose: 3000,
-			});
+			// Call the local hardware agent service
+			const result = await printReceiptWithAgent(order.receipt_payload, false); // false = don't open drawer
+
+			if (result.success) {
+				toast.update(toastId, {
+					render: "Reprint sent to printer successfully!",
+					type: "success",
+					isLoading: false,
+					autoClose: 3000,
+				});
+			} else {
+				// Error message comes from printReceiptWithAgent
+				toast.update(toastId, {
+					render: `Reprint Failed: ${result.message}`,
+					type: "error",
+					isLoading: false,
+					autoClose: 5000,
+				});
+			}
 		} catch (error) {
-			console.error("Error reprinting receipt:", error);
-			const errorMessage =
-				error.response?.data?.error ||
-				error.message ||
-				"Failed to send reprint request.";
+			// Catch unexpected errors during the agent call
+			console.error("Error calling hardware agent for reprint:", error);
 			toast.update(toastId, {
-				render: `Reprint Failed: ${errorMessage}`,
+				render: `Reprint Failed: ${error.message || "Unknown error"}`,
 				type: "error",
 				isLoading: false,
 				autoClose: 5000,
@@ -132,7 +154,7 @@ export default function OrderDetails() {
 		} finally {
 			setIsReprinting(false);
 		}
-	};
+	}, [order, isReprinting]); // Dependencies
 
 	// Function to generate action buttons based on order state (Original logic)
 	const getOrderActions = () => {
