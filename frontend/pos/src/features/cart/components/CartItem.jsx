@@ -190,7 +190,7 @@ export const CartItem = memo(
 								{/* Discount Preview - Conditionally rendered based on original logic/value */}
 								{ensureNumber(item.discount) > 0 && (
 									<div className="mt-2 text-xs text-emerald-600">
-										Discount Amount: -{formatPrice(getFormattedDiscount())}
+										Discount Amount: {getFormattedDiscount()}%
 									</div>
 								)}
 							</div>

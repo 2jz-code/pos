@@ -1,6 +1,6 @@
 // combined-project/frontend-pos/pages/payments/RefundSuccessModal.jsx
 
-import React, { Fragment } from "react"; // Import React
+import { Fragment } from "react"; // Import React
 import PropTypes from "prop-types";
 import { Dialog, Transition } from "@headlessui/react";
 import {
