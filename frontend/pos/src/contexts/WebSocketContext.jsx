@@ -12,8 +12,8 @@ import PropTypes from "prop-types";
 // Define initial WebSocket endpoints by category
 const WS_ENDPOINTS = {
 	HARDWARE: {
-		CASH_DRAWER: "hardware/cash-drawer",
-		CARD_PAYMENT: "hardware/card-payment",
+		// CASH_DRAWER: "hardware/cash-drawer",
+		// CARD_PAYMENT: "hardware/card-payment",
 		RECEIPT_PRINTER: "hardware/receipt-printer",
 	},
 	BUSINESS: {

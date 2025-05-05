@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Django settings for ajeenPOS project.
 
@@ -11,6 +12,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os  # <-- Import the os module
+from urllib.parse import urlparse  # <-- Import urlparse for Redis URL
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +23,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-p(z*7*h-%edr6kgk(l_8fhju&@r$y+l&q7b6&7*8g*ugku5nob'
+# Use environment variable DJANGO_SECRET_KEY, provide a default for development
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-p(z*7*h-%edr6kgk(l_8fhju&@r$y+l&q7b6&7*8g*ugku5nob",
+)  # Use a secure, unique key in production!
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Use environment variable DJANGO_DEBUG, default to False for production safety
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '3d60-74-33-197-86.ngrok-free.app', '192.168.5.144']
+# Use environment variable DJANGO_ALLOWED_HOSTS (comma-separated string)
+# Default allows localhost for development
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 
 # Application definition
@@ -45,159 +55,239 @@ INSTALLED_APPS = [
     "users",
     "products",
     "orders",
-    'payments',
+    "payments",
     "reports",
-    'channels',
+    "channels",
     "rewards",
-    'discounts',
-    'hardware.apps.HardwareConfig',
-    'settings.apps.SettingsConfig',
+    "discounts",
+    "hardware.apps.HardwareConfig",  # Note: Parts of this will be refactored later
+    "settings.apps.SettingsConfig",
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",  # Keep near the top
+    "django.middleware.security.SecurityMiddleware",  # Keep near the top
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    # 'corsheaders.middleware.CorsMiddleware', # Redundant, remove this one
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "users.middleware.JWTMiddleware",
-    'hardware.middleware.HardwareDebugMiddleware',
+    "hardware.middleware.HardwareDebugMiddleware",  # This might be removed later depending on hardware refactor
 ]
 
-ROOT_URLCONF = 'ajeenPOS.urls'
+ROOT_URLCONF = "ajeenPOS.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-
+# --- Hardware Configuration ---
+# NOTE: This section will be largely superseded by the Local Hardware Agent in Phase 1.
+# For now, keep it for reference or potential configuration settings management via the 'settings' app.
 HARDWARE_CONFIG = {
-    'USE_REAL_HARDWARE': {
-        # Define which hardware types should use real implementations
-        # Set these to True if you want to use the real hardware even when DEBUG=True
-        'RECEIPT_PRINTER': True,
-        'CASH_DRAWER': False,
-        'CARD_READER': False,
-        # Add flags for specific printers if needed, otherwise the global flag applies
+    "USE_REAL_HARDWARE": {
+        "RECEIPT_PRINTER": True,
+        "CASH_DRAWER": False,
+        "CARD_READER": False,
     },
-    # Define individual printers
-    'PRINTERS': {
-        'TRANSACTION': {  # Default/cashier printer
-            'ip': '192.168.2.196',  # Keep your existing main printer IP here
-            'port': 9100,
-            'type': 'network',  # Assuming network printer, adjust if USB/Serial
-            'enabled': True,    # Enable/disable this printer
-            'role': 'transaction', # Identifies its purpose
+    "PRINTERS": {
+        "TRANSACTION": {
+            "ip": os.environ.get("HW_PRINTER_TRANSACTION_IP", "192.168.2.196"),
+            "port": int(os.environ.get("HW_PRINTER_TRANSACTION_PORT", 9100)),
+            "type": "network",
+            "enabled": os.environ.get("HW_PRINTER_TRANSACTION_ENABLED", "True")
+            == "True",
+            "role": "transaction",
         },
-        'MANAEESH': {
-            'ip': '192.168.2.197',  # <--- SET IP FOR MANA'EESH PRINTER
-            'port': 9100,
-            'type': 'network',
-            'enabled': False,
-            'categories': ['Mana\'eesh'], # <--- IMPORTANT: Match exact Category name(s)
-            'role': 'station',
+        "MANAEESH": {
+            "ip": os.environ.get("HW_PRINTER_MANAEESH_IP", "192.168.2.197"),
+            "port": int(os.environ.get("HW_PRINTER_MANAEESH_PORT", 9100)),
+            "type": "network",
+            "enabled": os.environ.get("HW_PRINTER_MANAEESH_ENABLED", "False") == "True",
+            "categories": ["Mana'eesh"],
+            "role": "station",
         },
-        'DRINKS_SOUP': {
-            'ip': '192.168.2.198',  # <--- SET IP FOR DRINKS/SOUP PRINTER
-            'port': 9100,
-            'type': 'network',
-            'enabled': False,
-            'categories': ['Drinks', 'Soups'], # <--- IMPORTANT: Match exact Category names
-            'role': 'station',
+        "DRINKS_SOUP": {
+            "ip": os.environ.get("HW_PRINTER_DRINKS_SOUP_IP", "192.168.2.198"),
+            "port": int(os.environ.get("HW_PRINTER_DRINKS_SOUP_PORT", 9100)),
+            "type": "network",
+            "enabled": os.environ.get("HW_PRINTER_DRINKS_SOUP_ENABLED", "False")
+            == "True",
+            "categories": ["Drinks", "Soups"],
+            "role": "station",
         },
-        'QC': {
-            'ip': '192.168.2.199',  # <--- SET IP FOR QC PRINTER
-            'port': 9100,
-            'type': 'network',
-            'enabled': False,
-            'role': 'quality_control',
-        }
-        # Add more printers as needed
+        "QC": {
+            "ip": os.environ.get("HW_PRINTER_QC_IP", "192.168.2.199"),
+            "port": int(os.environ.get("HW_PRINTER_QC_PORT", 9100)),
+            "type": "network",
+            "enabled": os.environ.get("HW_PRINTER_QC_ENABLED", "False") == "True",
+            "role": "quality_control",
+        },
     },
-    # Optional: Keep the old single config for reference or specific single-printer tasks
-    # 'RECEIPT_PRINTER': {
-    #     'ip': '192.168.2.196',
-    #     'port': 9100,
-    #     'timeout': 5,
-    # }
 }
 
-WSGI_APPLICATION = 'ajeenPOS.wsgi.application'
-ASGI_APPLICATION = 'ajeenPOS.asgi.application'
+WSGI_APPLICATION = "ajeenPOS.wsgi.application"
+ASGI_APPLICATION = "ajeenPOS.asgi.application"
+
+# --- Channels (WebSockets) ---
+# Use REDIS_URL environment variable (e.g., redis://localhost:6379/0)
+REDIS_URL = os.environ.get(
+    "REDIS_URL", "redis://127.0.0.1:6379/0"
+)  # Default for local dev
+redis_parsed = urlparse(REDIS_URL)
 
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)]
-        }
+            # Use redis_parsed.hostname, redis_parsed.port, and redis_parsed.path (for db number)
+            "hosts": [
+                (redis_parsed.hostname or "127.0.0.1", redis_parsed.port or 6379)
+            ],
+            # Add password if needed from redis_parsed.password
+            # Add db number if needed, derived from redis_parsed.path
+        },
     }
 }
+if redis_parsed.password:
+    CHANNEL_LAYERS["default"]["CONFIG"]["hosts"][0] = (
+        redis_parsed.hostname or "127.0.0.1",
+        redis_parsed.port or 6379,
+        {"password": redis_parsed.password},
+    )
+if redis_parsed.path and redis_parsed.path != "/":
+    # Extract DB number, assuming path is like /0, /1 etc.
+    try:
+        db_num = int(redis_parsed.path.lstrip("/"))
+        CHANNEL_LAYERS["default"]["CONFIG"]["hosts"] = (
+            [
+                f"redis://:{redis_parsed.password}@{redis_parsed.hostname}:{redis_parsed.port}/{db_num}"
+            ]
+            if redis_parsed.password
+            else [f"redis://{redis_parsed.hostname}:{redis_parsed.port}/{db_num}"]
+        )
+    except ValueError:
+        pass  # Ignore if path is not a valid integer
 
-AUTH_USER_MODEL = 'users.CustomUser'
-CORS_ALLOW_ALL_ORIGINS = True  # Enable for development only
-CORS_ALLOW_CREDENTIALS = True
-CSRF_COOKIE_HTTPONLY = False
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://3d60-74-33-197-86.ngrok-free.app"
-]
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://3d60-74-33-197-86.ngrok-free.app"
-]
+# --- Authentication & Authorization ---
+AUTH_USER_MODEL = "users.CustomUser"
+
+# --- CORS & CSRF ---
+# In production, set CORS_ALLOW_ALL_ORIGINS to False
+CORS_ALLOW_ALL_ORIGINS = False  # Set explicitly to False
+
+# Use environment variable DJANGO_CORS_ALLOWED_ORIGINS (comma-separated string)
+# Default allows typical local development servers
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    "DJANGO_CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
+).split(",")
+
+CORS_ALLOW_CREDENTIALS = True  # Usually needed for cookie/session auth
+
+# Use environment variable DJANGO_CSRF_TRUSTED_ORIGINS (comma-separated string)
+# Default allows typical local development servers
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
+).split(",")
+
+CSRF_COOKIE_HTTPONLY = (
+    False  # Required if frontend needs to read CSRF token (common in SPAs)
+)
+SESSION_COOKIE_SAMESITE = "Lax"  # Consider 'Strict' if applicable
+CSRF_COOKIE_SAMESITE = "Lax"  # Consider 'Strict' if applicable
+
+
+# --- REST Framework & JWT ---
 from datetime import timedelta
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        # "rest_framework.authentication.SessionAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-        'users.authentication.WebsiteCookieJWTAuthentication',
+        "users.authentication.WebsiteCookieJWTAuthentication",
+        # Consider adding SessionAuthentication back if needed for admin or specific views
+        # "rest_framework.authentication.SessionAuthentication",
     ),
+    "DEFAULT_PERMISSION_CLASSES": [  # Good practice to set a default
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    ],
+    "DEFAULT_RENDERER_CLASSES": [  # Enable browsable API only in DEBUG
+        "rest_framework.renderers.JSONRenderer",
+    ]
+    + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=int(os.environ.get("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", 15))
+    ),  # Increase for production?
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=int(os.environ.get("JWT_REFRESH_TOKEN_LIFETIME_DAYS", 7))
+    ),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,  # Uses the main SECRET_KEY
+    "VERIFYING_KEY": None,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
 }
 
-# Database
+# --- Database ---
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Use DATABASE_URL environment variable (e.g., postgres://user:password@host:port/dbname)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    db_config = urlparse(DATABASE_URL)
+    DATABASES = {
+        "default": {
+            "ENGINE": (
+                "django.db.backends.postgresql"
+                if db_config.scheme == "postgres"
+                else "django.db.backends.mysql"
+            ),  # Adjust as needed
+            "NAME": db_config.path[1:],  # Remove leading '/'
+            "USER": db_config.username,
+            "PASSWORD": db_config.password,
+            "HOST": db_config.hostname,
+            "PORT": db_config.port,
+            # Add SSL require option for production databases
+            "OPTIONS": {
+                "sslmode": os.environ.get(
+                    "DB_SSLMODE", "prefer"
+                )  # 'require' for RDS/production
+            },
+        }
     }
-}
+else:
+    # Default to SQLite for local development if DATABASE_URL is not set
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation
@@ -205,95 +295,262 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
-
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = os.environ.get("DJANGO_TIME_ZONE", "UTC")  # Set via env var if needed
 USE_I18N = True
-
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
+# --- Static files (CSS, JavaScript, Images) ---
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
+STATIC_URL = "/static/"  # URL prefix for static files
 
-# Static files
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / "static"
+# Directory where manage.py collectstatic will copy files for deployment
+STATIC_ROOT = BASE_DIR / "staticfiles"  # <--- This is the crucial setting
 
-# Media files
-MEDIA_URL = '/media/'
+# --- Media files (User-uploaded content) ---
+MEDIA_URL = "/media/"
+# For local storage (development or simple deployments):
 MEDIA_ROOT = BASE_DIR / "media"
+# For S3 (requires django-storages):
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+# AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+# AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+# AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME')
+# AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com' # Or your CloudFront domain
+# AWS_S3_OBJECT_PARAMETERS = { 'CacheControl': 'max-age=86400', }
+# MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+# MEDIA_ROOT needs to be set but isn't directly used by S3Boto3Storage
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# settings.py
+# --- Logging ---
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            # Include timestamp, level, logger name, message
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
         },
+        "simple": {"format": "[%(levelname)s] %(message)s"},
     },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose'
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",  # Logs to stdout/stderr
+            "formatter": "verbose",  # Use detailed format for console
         },
+        # Add file handler for production if needed (commented out for now)
+        # 'file': { ... },
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
+    "root": {
+        # Default handler for all loggers if not specified otherwise
+        "handlers": ["console"],  # Log to console by default
+        "level": os.environ.get(
+            "DJANGO_LOG_LEVEL", "INFO"
+        ),  # Control root level via env var (INFO default)
     },
-    'loggers': {
-        '': {  # Root logger
-            'handlers': ['console'],
-            'level': 'INFO',
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": os.environ.get(
+                "DJANGO_DJANGO_LOG_LEVEL", "INFO"
+            ),  # Django specific logs (INFO default)
+            "propagate": False,  # Don't send to root logger too
         },
-        'ajeenPOS': {  # Replace with your project name
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
+        "django.db.backends": {  # Silence noisy SQL logs unless DEBUG
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "WARNING",  # WARNING in production
+            "propagate": False,
         },
-        'ajeenPOS.hardware': {  # Replace with your actual path
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
+        # Your app's loggers (INFO default in production, DEBUG if DEBUG=True)
+        "ajeenPOS": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "users": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "products": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "orders": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "payments": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "reports": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "hardware": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "settings": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "rewards": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "discounts": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        # Add delivery logger if needed
+        "delivery": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
         },
     },
 }
 
 
+# --- Payment Configs ---
+STRIPE_PUBLISHABLE_KEY = os.environ.get(
+    "STRIPE_PUBLISHABLE_KEY"
+)  # pk_live_... or pk_test_...
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")  # sk_live_... or sk_test_...
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")  # whsec_...
 
-## payment configs
-STRIPE_PUBLISHABLE_KEY = 'pk_test_51QwDbDGG2WaWxpBvik8mLyk1eddCCU706eL4oq3HH1fGY7rTbtqD42ixuMo7bbeht7ixp3X8H7h1Qd3j2mZF7pEi0006NR8YVR'
-STRIPE_SECRET_KEY = 'sk_test_51QwDbDGG2WaWxpBvDWzQT1lfmoz4rOICsqF7Gs7TOtanbAKEUIoWMNfvJYIy82D3aCsTApADim38GL5UpXpUxA1p00W8tbQ5bi'
-STRIPE_WEBHOOK_SECRET = 'whsec_1192047b9069f0c07fea922217324a87f1651a27fda96947940e7d2588754ce0'
-
+# CSP settings might need adjustment based on final deployment and other scripts
 CSP_DEFAULT_SRC = ("'self'", "*.stripe.com")
 CSP_SCRIPT_SRC = ("'self'", "*.stripe.com", "https://js.stripe.com")
 CSP_FRAME_SRC = ("'self'", "*.stripe.com")
 CSP_CONNECT_SRC = ("'self'", "*.stripe.com", "api.stripe.com")
+# MIDDLEWARE += ['csp.middleware.CSPMiddleware'] # Add if using django-csp
 
-FRONTEND_URL = 'http://localhost:3000'
+# --- Frontend URL ---
+# Use for things like password reset emails, etc.
+FRONTEND_URL = os.environ.get(
+    "FRONTEND_URL", "http://localhost:3000"
+)  # URL of your customer website frontend
+
+# --- Production Security Settings ---
+# These settings are typically enabled only when DEBUG is False
+if not DEBUG:
+    SECURE_SSL_REDIRECT = os.environ.get("SECURE_SSL_REDIRECT", "True") == "True"
+    SECURE_HSTS_SECONDS = int(
+        os.environ.get("SECURE_HSTS_SECONDS", 31536000)
+    )  # 1 year default
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = (
+        os.environ.get("SECURE_HSTS_INCLUDE_SUBDOMAINS", "True") == "True"
+    )
+    SECURE_HSTS_PRELOAD = os.environ.get("SECURE_HSTS_PRELOAD", "True") == "True"
+    SESSION_COOKIE_SECURE = (
+        os.environ.get("SESSION_COOKIE_SECURE", "True") == "True"
+    )  # Send session cookie only over HTTPS
+    CSRF_COOKIE_SECURE = (
+        os.environ.get("CSRF_COOKIE_SECURE", "True") == "True"
+    )  # Send CSRF cookie only over HTTPS
+    SECURE_BROWSER_XSS_FILTER = True  # Add X-XSS-Protection header
+    SECURE_CONTENT_TYPE_NOSNIFF = True  # Add X-Content-Type-Options: nosniff header
+    # Consider X_FRAME_OPTIONS = 'DENY' unless you need parts of your site to be embeddable in iframes
+
+
+# --- Jazzmin Admin Theme Settings ---
+JAZZMIN_SETTINGS = {
+    # title of the window (Will default to current_admin_site.site_title if absent or None)
+    "site_title": "Ajeen POS Admin",
+    # Title on the login screen (19 chars max) (defaults to current_admin_site.site_header if absent or None)
+    "site_header": "Ajeen POS",
+    # Title on the brand (19 chars max) (defaults to current_admin_site.site_header if absent or None)
+    "site_brand": "Ajeen POS",
+    # Logo to use for your site, must be present in static files, used for brand on top left
+    # "site_logo": "path/to/logo.png",
+    # Logo to use for your site, must be present in static files, used for login form logo (defaults to site_logo)
+    # "login_logo": None,
+    # Logo to use for login form in dark themes (defaults to login_logo)
+    # "login_logo_dark": None,
+    # CSS classes that are applied to the logo above
+    # "site_logo_classes": "img-circle",
+    # Relative path to a favicon for your site, will default to site_logo if absent (ideally 32x32 px)
+    # "site_icon": None,
+    # Welcome text on the login screen
+    "welcome_sign": "Welcome to Ajeen POS Admin",
+    # Copyright on the footer
+    "copyright": "Ajeen Restaurant Ltd",
+    # Whether to show the UI customizer on the sidebar
+    "show_ui_builder": True,
+    ###############
+    # Change view #
+    ###############
+    # Render out the change view as a single form, or in tabs, current options are
+    # - single
+    # - horizontal_tabs (default)
+    # - vertical_tabs
+    # - collapsible
+    # - carousel
+    "changeform_format": "horizontal_tabs",
+    # override change forms on a per modeladmin basis
+    # "changeform_format_overrides": {"auth.user": "collapsible", "auth.group": "vertical_tabs"},
+}
+JAZZMIN_UI_TWEAKS = {
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": False,
+    "brand_small_text": False,
+    "brand_colour": "navbar-dark",  # e.g., "navbar-light", "navbar-warning", "navbar-danger" etc.
+    "accent": "accent-primary",  # e.g., "accent-secondary", "accent-success" etc.
+    "navbar": "navbar-dark navbar-primary",  # Combine background and accent
+    "no_navbar_border": False,
+    "navbar_fixed": True,
+    "layout_boxed": False,
+    "footer_fixed": False,
+    "sidebar_fixed": True,
+    "sidebar": "sidebar-dark-primary",  # Background color
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_child_indent": False,
+    "sidebar_nav_compact_style": False,
+    "sidebar_nav_legacy_style": False,
+    "sidebar_nav_flat_style": False,
+    "theme": "default",  # Options: "default", "cerulean", "cosmo", "cyborg", "darkly", "flatly", "journal", "litera", "lumen", "lux", "materia", "minty", "pulse", "sandstone", "simplex", "sketchy", "slate", "solar", "spacelab", "superhero", "united", "yeti"
+    "dark_mode_theme": "darkly",  # Theme to use in dark mode
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success",
+    },
+}

@@ -6,78 +6,82 @@ import { PaymentHeader } from "./PaymentHeader";
 import { PaymentSummary } from "./PaymentSummary";
 import { PaymentStatus } from "./PaymentStatus";
 import { usePaymentFlow } from "../hooks/usePaymentFlow";
-// remove usePaymentValidation as it's not used directly here anymore
-import { calculatePaymentTotals } from "../utils/paymentCalculations";
+import { calculatePaymentTotals as calculateDisplayTotals } from "../utils/paymentCalculations"; // Renamed import for clarity
 import { PaymentViews } from "../views";
 import { useCartActions } from "../../cart/hooks/useCartActions";
-import { useCartStore } from "../../../store/cartStore"; // Import cart store
-import { calculateCartTotals } from "../../cart/utils/cartCalculations";
+import { useCartStore } from "../../../store/cartStore";
 
 export const PaymentFlow = ({ totalAmount, onBack }) => {
-	const cartActions = useCartActions(); // Use cart actions hook
+	const cartActions = useCartActions();
 
 	// Wrapper for onComplete to pass to usePaymentFlow
 	// This function now receives the already structured payload from usePaymentFlow.completePaymentFlow
 	const handleBackendComplete = useCallback(
-		async (paymentPayload) => {
+		async (orderId, paymentPayload) => {
+			// <<< Receive orderId and paymentPayload from usePaymentFlow
 			try {
-				const orderId =
-					paymentPayload.orderId || useCartStore.getState().orderId; // Ensure orderId is present
-				const orderDiscount = useCartStore.getState().orderDiscount; // Get discount from store
-
 				if (!orderId) {
 					console.error(
 						"PAYMENT FLOW: Missing orderId when completing payment!"
 					);
-					return false;
+					return null; // Return null on failure
+				}
+				if (!paymentPayload) {
+					console.error(
+						"PAYMENT FLOW: Missing paymentPayload when completing payment!"
+					);
+					return null; // Return null on failure
 				}
 
-				console.log("PAYMENT FLOW: Calling cartActions.completeOrder with:", {
+				console.log("PAYMENT FLOW: handleBackendComplete received:", {
 					orderId,
 					paymentPayload,
 				});
 
-				// Add discount details to the payload before sending
+				// Add/Confirm discount details in the payload before sending to cartActions.completeOrder
+				// Note: usePaymentFlow already includes discountId/Amount in its payload
 				const finalPayload = {
-					...paymentPayload,
-					discount_id: orderDiscount?.id,
-					discount_amount: orderDiscount
-						? calculateCartTotals(
-								useCartStore.getState().cart,
-								orderDiscount
-						  ).discountAmount.toFixed(2)
-						: "0.00",
+					...paymentPayload, // Spread the payload received from usePaymentFlow
+					// Ensure discount details are up-to-date from store state if necessary,
+					// although usePaymentFlow should already have the correct ones in paymentPayload.
+					// If recalculation based on cart is absolutely needed here (less ideal):
+					// discount_id: orderDiscount?.id,
+					// discount_amount: orderDiscount
+					// 	? calculateCartTotals(currentCartItems, orderDiscount).discountAmount.toFixed(2)
+					// 	: "0.00",
 				};
 
+				// *** Call cartActions.completeOrder (which handles backend API) ***
 				const result = await cartActions.completeOrder(
 					orderId,
-					finalPayload // Pass the already structured payload
+					finalPayload // Pass the correct, detailed payload
 				);
-				console.log("PAYMENT FLOW: cartActions.completeOrder result:", result);
+				console.log(
+					"PAYMENT FLOW: cartActions.completeOrder result:",
+					result ? "Order Data Received" : result
+				);
 
-				// Reset discount only AFTER successful completion
-				if (result) {
-					useCartStore.getState().clearLocalOrderDiscountState();
-				}
-
-				return result; // Return success/failure
+				// *** MODIFIED: Return the result (order data or null) ***
+				return result;
 			} catch (error) {
 				console.error(
 					"PAYMENT FLOW: Error calling cartActions.completeOrder:",
 					error
 				);
-				return false; // Indicate failure
+				return null; // Indicate failure by returning null
 			}
 		},
 		[cartActions] // Dependency array
 	);
 
-	// Wrapper for onNewOrder to pass to usePaymentFlow
+	// Wrapper for onNewOrder
 	const handleNewOrderRequest = useCallback(async () => {
 		try {
-			useCartStore.getState().clearCart(); // Clear cart state
-			await cartActions.startOrder(); // Start a new order via backend
-			onBack(); // Call original onBack (likely closes modal)
+			useCartStore.getState().clearCart();
+			useCartStore.getState().clearLocalOrderDiscountState();
+			useCartStore.getState().setRewardsProfile(null);
+			await cartActions.startOrder();
+			onBack();
 		} catch (error) {
 			console.error("Error handling new order request:", error);
 		}
@@ -86,79 +90,74 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 	// Initialize the payment flow hook
 	const {
 		state,
-		setState, // Expose setState if needed by child views
+		setState,
 		error,
-		isProcessing,
+		isCompleting, // Use isCompleting from the hook
 		handleNavigation,
 		handleBack,
-		processPayment, // This now updates the transactions array in state
-		completePaymentFlow, // This now calls handleBackendComplete internally
+		processPayment,
+		completePaymentFlow, // This calls handleBackendComplete internally
 		isPaymentComplete,
-		handleStartNewOrder, // Use the hook's start new order handler
+		handleStartNewOrder,
 	} = usePaymentFlow({
 		totalAmount,
 		onComplete: handleBackendComplete, // Pass the wrapper
-		onNewOrder: handleNewOrderRequest, // Pass the wrapper
+		onNewOrder: handleNewOrderRequest,
 	});
 
-	// Handle back navigation, falling back to the parent onBack if at the start
+	// Handle back navigation
 	const handleBackNavigation = () => {
 		const handledByHook = handleBack();
 		if (!handledByHook) {
-			onBack(); // Call original onBack if the hook didn't handle it
+			onBack();
 		}
 	};
 
-	// Calculate display totals based on the initial total and amount paid from state
+	// Calculate display totals
 	const { subtotal, taxAmount, payableAmount, remainingAmount } =
-		calculatePaymentTotals(totalAmount, state.amountPaid);
+		calculateDisplayTotals(totalAmount, state.amountPaid);
 
 	// Get the current view component
 	const CurrentView = PaymentViews[state.currentView];
 
 	return (
 		<div className="w-full h-full flex flex-col bg-slate-50">
-			{" "}
-			{/* Changed background */}
 			<PaymentHeader
 				onBack={handleBackNavigation}
 				title={`Payment - Order #${state.orderId || "..."}`}
-			/>{" "}
-			{/* Added Order ID */}
+			/>
 			<div className="flex-1 relative overflow-hidden p-4">
-				{/* Moved PaymentStatus inside the animated div parent for context */}
 				<AnimatePresence
 					initial={false}
 					custom={state.direction}
 					mode="wait"
 				>
-					{/* Pass relevant props down to the current view */}
 					<CurrentView
-						key={state.currentView} // Key for animation
-						state={state} // Pass the whole state object
-						setState={setState} // Pass setState for direct manipulation if needed
-						remainingAmount={remainingAmount} // Pass calculated remaining amount
-						handleNavigation={handleNavigation} // Pass navigation handler
-						handlePayment={processPayment} // Pass the updated payment processor
-						isPaymentComplete={isPaymentComplete} // Pass completion check function
-						completePaymentFlow={completePaymentFlow} // Pass the flow completion trigger
-						onStartNewOrder={handleStartNewOrder} // Pass the new order handler
-						// Pass totalAmount too, as some views might need it
+						key={state.currentView}
+						state={state}
+						setState={setState} // Pass down if needed by views (e.g., CashPaymentView for customAmount)
+						remainingAmount={remainingAmount}
+						handleNavigation={handleNavigation}
+						handlePayment={processPayment}
+						isPaymentComplete={isPaymentComplete}
+						completePaymentFlow={completePaymentFlow} // Pass the hook's function
+						onStartNewOrder={handleStartNewOrder} // Pass the hook's function
 						totalAmount={totalAmount}
+						// Pass isCompleting for disabling buttons in views
+						isCompleting={isCompleting}
 					/>
 				</AnimatePresence>
-				{/* Display global errors and processing status here */}
+				{/* Use error/isCompleting from the hook */}
 				<PaymentStatus
 					error={error}
-					isProcessing={isProcessing}
+					isProcessing={isCompleting}
 				/>
 			</div>
-			{/* Only show summary if not on the completion screen */}
 			{state.currentView !== "Completion" && (
 				<PaymentSummary
-					totalAmount={subtotal} // Use calculated subtotal
+					totalAmount={subtotal}
 					taxAmount={taxAmount}
-					payableAmount={payableAmount} // Use calculated payable amount
+					payableAmount={payableAmount}
 					amountPaid={state.amountPaid}
 				/>
 			)}
@@ -169,7 +168,6 @@ export const PaymentFlow = ({ totalAmount, onBack }) => {
 PaymentFlow.propTypes = {
 	totalAmount: PropTypes.number.isRequired,
 	onBack: PropTypes.func.isRequired,
-	// onComplete prop is handled internally by usePaymentFlow now
 };
 
 export default PaymentFlow;

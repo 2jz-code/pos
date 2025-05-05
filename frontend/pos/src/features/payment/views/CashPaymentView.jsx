@@ -13,10 +13,11 @@ import { useReceiptPrinter } from "../../../hooks/useReceiptPrinter";
 // import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCustomerFlow";
 import customerDisplayManager from "../../../features/customerDisplay/utils/windowManager"; // Correct import
 import { useCartStore } from "../../../store/cartStore";
-import { formatReceiptData } from "../../../utils/receiptUtils";
 import { formatPrice } from "../../../utils/numberUtils";
 import { XCircleIcon } from "@heroicons/react/24/solid";
 import { Decimal } from "decimal.js"; // Import Decimal
+import { toast } from "react-toastify";
+import { printReceiptWithAgent } from "../../../api/services/localHardwareService";
 
 const commonMotionProps = {
 	variants: pageVariants,
@@ -39,7 +40,7 @@ export const CashPaymentView = ({
 		isProcessing: isPrinterProcessing,
 		error: printerError,
 		isConnected: isPrinterConnected,
-		printReceipt,
+		// printReceipt,
 	} = useReceiptPrinter();
 
 	const [error, setError] = useState(null);
@@ -495,21 +496,15 @@ export const CashPaymentView = ({
 	const handlePaymentCompletionAndPrint = async () => {
 		setError(null);
 		console.log("=== CASH: Handling Completion/Continuation ===");
-		// Ensure button is actually enabled before proceeding
 		if (!canCompleteCurrentStep()) {
-			console.warn(
-				"handlePaymentCompletionAndPrint called but button should be disabled."
-			);
-			return; // Exit if conditions aren't met
+			console.warn("Complete button clicked but shouldn't be enabled.");
+			return;
 		}
 		setPaymentInProgress(true);
 
 		try {
-			// Use the state passed via props reflecting the payment JUST MADE
-			const currentTransactions = state.transactions; // Get latest transactions from state prop
-			const currentAmountPaidOverall = state.amountPaid; // Get latest overall paid amount from state prop
-
-			// Check if the ENTIRE order is fully paid
+			const currentTransactions = state.transactions;
+			const currentAmountPaidOverall = state.amountPaid;
 			const isOrderFullyPaid = isPaymentCompleteInternal(
 				currentAmountPaidOverall
 			);
@@ -521,81 +516,72 @@ export const CashPaymentView = ({
 				isSplitMode: state.splitMode,
 			});
 
-			// --- Scenario 1: Split Mode and Order NOT Fully Paid ---
 			if (state.splitMode && !isOrderFullyPaid) {
-				console.log(
-					"SPLIT CONTINUE: Intermediate cash split paid. Navigating back to Split view."
-				);
+				// --- Scenario 1: Split Mode and Order NOT Fully Paid ---
+				console.log("SPLIT CONTINUE: Navigating back to Split view.");
+				customerDisplayManager.showCart();
 				setTimeout(() => {
 					if (isMountedRef.current) handleNavigation("Split", -1);
 				}, 100);
-				customerDisplayManager.showCart();
-			}
-			// --- Scenario 2: Order Fully Paid (Final Split or Regular Payment) ---
-			else if (isOrderFullyPaid) {
-				console.log("COMPLETE: Order fully paid. Finalizing...");
-				try {
-					const latestCash = getLatestCashDetails();
-					const paymentDetailsForReceipt = {
-						orderId: state.orderId,
-						paymentMethod: "cash",
-						isSplitPayment: state.splitMode,
-						cashData: {
-							cashTendered: latestCash.cashTendered,
-							change: latestCash.change,
-						},
-						transactions: currentTransactions, // Pass final list
-					};
-					const formattedReceiptData = formatReceiptData(
-						paymentDetailsForReceipt
+			} else if (isOrderFullyPaid) {
+				// --- Scenario 2: Order Fully Paid ---
+				console.log(
+					"COMPLETE: Order fully paid. Calling onComplete (via completePaymentFlow)..."
+				);
+				// Call the hook's function, which now calls the onComplete prop
+				const completedOrderData = await completePaymentFlow(
+					currentTransactions
+				);
+
+				if (completedOrderData) {
+					// Check if backend call was successful
+					console.log(
+						"COMPLETE: Backend successful. Triggering print via agent..."
 					);
-					if (!formattedReceiptData)
-						throw new Error("Failed to format receipt data.");
-
-					console.log("Calling printReceipt...");
-					await printReceipt({
-						receipt_data: formattedReceiptData,
-						open_drawer: true,
-					});
-					console.log("printReceipt potentially successful.");
-
-					console.log("Calling completePaymentFlow (backend)...");
-					const success = await completePaymentFlow(currentTransactions); // Pass final list
-					if (success) {
-						console.log("Payment finalized backend, navigating to Completion.");
-						handleNavigation("Completion");
+					if (completedOrderData.receipt_payload) {
+						// Call the agent service (async)
+						printReceiptWithAgent(completedOrderData.receipt_payload, true) // true = open drawer for cash
+							.then((printResult) => {
+								if (!printResult.success) {
+									console.warn(
+										"COMPLETE: Print command to agent failed:",
+										printResult.message
+									);
+									toast.warn("Failed to send receipt to printer.");
+								} else {
+									console.log(
+										"COMPLETE: Print command sent to agent successfully."
+									);
+								}
+							});
 					} else {
-						console.error("Failed to complete payment flow (backend).");
-						setError("Order finalization failed.");
+						console.warn(
+							"COMPLETE: Backend response missing receipt_payload. Cannot print."
+						);
+						toast.warn("Could not retrieve receipt data for printing.");
 					}
-				} catch (printOrCompleteError) {
-					console.error("Error during print/complete:", printOrCompleteError);
-					setError(`Operation failed: ${printOrCompleteError.message}.`);
-					// Attempt completion even if printing fails
-					try {
-						console.warn("Print failed, attempting order completion anyway...");
-						const success = await completePaymentFlow(currentTransactions);
-						if (success) handleNavigation("Completion");
-						else if (!error)
-							setError("Order finalization failed after print error.");
-					} catch (compErr) {
-						console.error("Completion also failed after print error:", compErr);
-						if (!error)
-							setError(
-								compErr.message ||
-									"Order finalization failed after print error."
-							);
-					}
+					// Navigate to completion view
+					handleNavigation("Completion");
+				} else {
+					// Backend failed (completePaymentFlow returned null)
+					console.error(
+						"COMPLETE: Backend finalization failed (onComplete returned null/false)."
+					);
+					toast.error(
+						"Failed to finalize order. Please check details or try again."
+					);
+					// Error state should be set within completePaymentFlow hook, no need to set here unless providing more context
 				}
 			} else {
 				console.warn(
 					"handlePaymentCompletionAndPrint called but order is not fully paid and not in intermediate split mode."
 				);
-				setError("Cannot complete: Payment is not sufficient for the order."); // Provide clearer error
+				setError("Cannot complete: Payment is not sufficient for the order.");
 			}
 		} catch (err) {
 			console.error("Error during payment completion/continuation:", err);
 			setError(err.message || "Failed processing completion/continuation");
+			toast.error(`Error: ${err.message || "Completion failed"}`);
 		} finally {
 			if (isMountedRef.current) setPaymentInProgress(false);
 		}

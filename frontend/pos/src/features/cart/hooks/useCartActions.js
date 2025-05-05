@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { useCartStore } from "../../../store/cartStore";
 import axiosInstance from "../../../api/config/axiosConfig";
 import { toast } from "react-toastify";
-import { calculateCartTotals } from "../utils/cartCalculations"; // Make sure this import exists
+// import { calculateCartTotals } from "../utils/cartCalculations"; // Make sure this import exists
 
 export const useCartActions = () => {
 	// Add item to cart (assuming this exists in your store)
@@ -68,106 +68,78 @@ export const useCartActions = () => {
 	}, []);
 
 	const completeOrder = useCallback(async (orderId, paymentInfo) => {
-		// paymentInfo contains { transactions, totalPaid, baseAmountPaid, totalTipAmount, ... }
+		// paymentInfo is the object passed from usePaymentFlow.completePaymentFlow
 		try {
 			const storeState = useCartStore.getState();
-			const currentOrderId = orderId || storeState.orderId;
+			const currentOrderId = orderId || storeState.orderId; // Use passed orderId first
 			const rewardsProfile = storeState.rewardsProfile;
-			const orderDiscount = storeState.orderDiscount;
-			const cart = storeState.cart;
+			// Get discount from paymentInfo if passed, otherwise from store (ensure consistency)
+			const orderDiscountId =
+				paymentInfo.discount_id || storeState.orderDiscount?.id;
+			const orderDiscountAmount =
+				paymentInfo.discount_amount ||
+				(storeState.orderDiscount ? storeState.discountAmount : "0.00");
 
 			if (!currentOrderId) {
 				throw new Error("Order ID is missing for completing order.");
 			}
+			if (!paymentInfo || typeof paymentInfo !== "object") {
+				throw new Error("Payment information is missing or invalid.");
+			}
+			if (!Array.isArray(paymentInfo.transactions)) {
+				console.warn(
+					"completeOrder received paymentInfo without a valid transactions array:",
+					paymentInfo
+				);
+				// Decide if this is an error or if an empty array is acceptable
+				// For now, let it proceed but log warning. Backend expects it.
+				// throw new Error("Payment transaction details are missing.");
+			}
 
 			console.log(
-				`COMPLETE ORDER (Action): Starting completion for Order ID: ${currentOrderId}`
+				`COMPLETE ORDER (Action - Step 1): Starting completion for Order ID: ${currentOrderId}`
 			);
 			console.log(
-				"COMPLETE ORDER (Action): Received paymentInfo:",
+				"COMPLETE ORDER (Action - Step 1): Received paymentInfo:",
 				JSON.stringify(paymentInfo, null, 2)
 			);
 
-			// Calculate base subtotal, tax, and discount from cart context
-			const { subtotal, taxAmount, discountAmount } = calculateCartTotals(
-				cart,
-				orderDiscount
-			);
-
-			// Extract ACCURATE totals from paymentInfo
-			const baseAmountPaid = paymentInfo.baseAmountPaid || 0;
-			const totalTipAmount = paymentInfo.totalTipAmount || 0;
-			const totalPaid =
-				paymentInfo.totalPaid || baseAmountPaid + totalTipAmount;
-
-			console.log(
-				`COMPLETE ORDER (Action): Base Paid: ${baseAmountPaid}, Total Tip: ${totalTipAmount}, Total Paid: ${totalPaid}`
-			);
-
-			// Extract Payment Details
-			const primaryMethod = paymentInfo.paymentMethod || "unknown";
-			const isSplit =
-				paymentInfo.splitPayment || paymentInfo.transactions?.length > 1;
-			const lastCreditTxn = paymentInfo.transactions
-				?.slice()
-				.reverse()
-				.find((t) => t.method === "credit");
-			const stripeTransactionId =
-				lastCreditTxn?.transactionId || paymentInfo?.transactionId || null;
-			const stripeCardBrand =
-				lastCreditTxn?.cardInfo?.brand || paymentInfo?.cardBrand || null;
-			const stripeCardLast4 =
-				lastCreditTxn?.cardInfo?.last4 || paymentInfo?.cardLast4 || null;
-			const stripePaymentStatus =
-				lastCreditTxn?.flowData?.payment?.status ||
-				lastCreditTxn?.status ||
-				paymentInfo?.status ||
-				"completed";
-			console.log("COMPLETE ORDER (Action): Extracted Stripe Details:", {
-				stripeTransactionId,
-				stripeCardBrand,
-				stripeCardLast4,
-				stripePaymentStatus,
-			});
-
-			// Construct the Backend Payload
+			// --- Construct Backend Payload DIRECTLY from paymentInfo ---
 			const payload = {
-				payment_status: "paid",
-				payment_method: primaryMethod,
-				subtotal: parseFloat(subtotal.toFixed(2)),
-				tax_amount: parseFloat(taxAmount.toFixed(2)),
-				// Send current discount ID (or null) - backend will handle application/removal
-				discount_id: orderDiscount?.id || null,
-				discount_amount:
-					parseFloat(discountAmount.toFixed(2)).toFixed(2) || "0.00",
-				tip_amount: parseFloat(totalTipAmount.toFixed(2)),
-				total_amount: parseFloat(totalPaid.toFixed(2)),
+				payment_status: "paid", // Assume paid if reaching here
+				payment_method: paymentInfo.paymentMethod || "unknown", // Get from paymentInfo
+				// Subtotal/Tax might not be needed if backend recalculates, but send if available
+				// If not in paymentInfo, maybe calculate from cart state as fallback? Risky.
+				// Best if backend calculates final totals based on items + discount + tip.
+				// Let's remove subtotal/tax from frontend payload to rely on backend calculation.
+				// subtotal: parseFloat(subtotal.toFixed(2)),
+				// tax_amount: parseFloat(taxAmount.toFixed(2)),
+				discount_id: orderDiscountId, // Use resolved discount ID
+				discount_amount: orderDiscountAmount, // Use resolved discount amount
+				tip_amount: parseFloat(paymentInfo.totalTipAmount || 0).toFixed(2),
+				total_amount: parseFloat(paymentInfo.totalPaid || 0).toFixed(2), // Use totalPaid from paymentInfo
 				payment_details: {
-					transactions: paymentInfo?.transactions || [],
-					totalPaid: parseFloat(totalPaid.toFixed(2)),
-					baseAmountPaid: parseFloat(baseAmountPaid.toFixed(2)),
-					totalTipAmount: parseFloat(totalTipAmount.toFixed(2)),
-					paymentMethod: primaryMethod,
-					splitPayment: isSplit,
-					splitDetails: paymentInfo?.splitDetails || null,
+					// Pass the relevant parts of paymentInfo
+					transactions: paymentInfo.transactions || [], // Pass received transactions
+					totalPaid: parseFloat(paymentInfo.totalPaid || 0).toFixed(2),
+					baseAmountPaid: parseFloat(paymentInfo.baseAmountPaid || 0).toFixed(
+						2
+					),
+					totalTipAmount: parseFloat(paymentInfo.totalTipAmount || 0).toFixed(
+						2
+					),
+					paymentMethod: paymentInfo.paymentMethod || "unknown",
+					splitPayment: paymentInfo.splitPayment || false,
+					splitDetails: paymentInfo.splitDetails || null,
 					completed_at: paymentInfo.completed_at || new Date().toISOString(),
 				},
-				transaction_id: stripeTransactionId,
-				card_brand: stripeCardBrand,
-				card_last4: stripeCardLast4,
-				metadata: JSON.stringify({
-					card_brand: stripeCardBrand,
-					card_last4: stripeCardLast4,
-					stripe_payment_status: stripePaymentStatus,
-					num_transactions: paymentInfo?.transactions?.length || 0,
-					split_payment: isSplit,
-					total_tip_amount: parseFloat(totalTipAmount.toFixed(2)),
-				}),
 				rewards_profile_id: rewardsProfile?.id || null,
+				// Remove redundant fields if backend doesn't need them directly in top level
+				// transaction_id: ..., card_brand: ..., card_last4: ..., metadata: ...,
 			};
 
 			console.log(
-				"COMPLETE ORDER (Action): Sending final payload to backend:",
+				"COMPLETE ORDER (Action - Step 2): Sending final payload to backend:",
 				JSON.stringify(payload, null, 2)
 			);
 
@@ -176,19 +148,25 @@ export const useCartActions = () => {
 				`orders/${currentOrderId}/complete/`,
 				payload
 			);
-			console.log("COMPLETE ORDER (Action): Backend response:", response.data);
+			console.log(
+				"COMPLETE ORDER (Action - Step 3): Backend response:",
+				response.data
+			);
 
-			if (response.status === 200 && response.data?.status === "success") {
+			if (
+				response.status === 200 &&
+				response.data?.status === "success" &&
+				response.data?.order
+			) {
 				console.log(
 					"COMPLETE ORDER (Action): Order completed successfully in backend."
 				);
-				// --- FIX: REMOVE 불필요한 DISCOUNT REMOVAL CALL ---
-				// storeState.removeOrderDiscount(); // REMOVED - Backend handles this now
-				// -------------------------------------------------
-				storeState.setRewardsProfile(null); // Still clear local rewards profile
-				return true; // Indicate frontend success
+				storeState.setRewardsProfile(null);
+				// Clear cart/discount state AFTER successful completion & potential printing
+				storeState.clearCart();
+				storeState.clearLocalOrderDiscountState();
+				return response.data.order; // Return the order object
 			} else {
-				// Handle backend reporting success=false or unexpected status
 				console.warn(
 					"COMPLETE ORDER (Action): Backend success=false or status mismatch:",
 					response.data
@@ -198,10 +176,9 @@ export const useCartActions = () => {
 					response.data?.error ||
 					JSON.stringify(response.data);
 				toast.error(`Order completion issue: ${backendError}`);
-				return false; // Indicate failure
+				return null; // Indicate failure
 			}
 		} catch (error) {
-			// Handle network/request errors
 			const errorResponseData = error?.response?.data;
 			const errorStatus = error?.response?.status;
 			const errorMessage =
@@ -220,7 +197,7 @@ export const useCartActions = () => {
 			toast.error(
 				`Failed to complete order: ${errorMessage.substring(0, 100)}`
 			);
-			return false; // Indicate failure
+			return null; // Indicate failure
 		}
 	}, []);
 

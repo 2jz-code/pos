@@ -11,11 +11,13 @@ import { useCustomerFlow } from "../../../features/customerDisplay/hooks/useCust
 import { formatPrice } from "../../../utils/numberUtils";
 import TerminalStatusIndicator from "../components/TerminalStatusIndicator";
 import { useCartStore } from "../../../store/cartStore";
-import { useReceiptPrinter } from "../../../hooks/useReceiptPrinter";
-import { calculateCartTotals } from "../../cart/utils/cartCalculations";
+// import { useReceiptPrinter } from "../../../hooks/useReceiptPrinter";
+// import { calculateCartTotals } from "../../cart/utils/cartCalculations";
 import { useTerminal } from "../hooks/useTerminal";
 import { Decimal } from "decimal.js";
 import customerDisplayManager from "../../customerDisplay/utils/windowManager";
+import { toast } from "react-toastify";
+import { printReceiptWithAgent } from "../../../api/services/localHardwareService";
 
 const { pageVariants, pageTransition } = paymentAnimations;
 
@@ -59,7 +61,7 @@ export const CreditPaymentView = ({
 	const [error, setError] = useState(null);
 	const [viewProcessingState, setViewProcessingState] = useState(false); // For UI feedback (e.g., disabling buttons)
 	const [flowStarted, setFlowStarted] = useState(false); // Tracks if customer display flow is active
-	const { printReceipt } = useReceiptPrinter();
+	// const { printReceipt } = useReceiptPrinter();
 	const { cancelTerminalAction } = useTerminal();
 	const {
 		flowActive,
@@ -210,23 +212,23 @@ export const CreditPaymentView = ({
 			`CREDIT_VIEW_EFFECT_MAIN: Step=${customerFlowStep}, ReceiptDone=${receiptStepSignalledComplete}, PaymentOK=${paymentSuccess}, PaymentProcessedRef=${paymentProcessedRef.current}, CompletionProcessedRef=${completionProcessedRef.current}`
 		);
 
-		// Condition to initially process the payment signal from customer display
+		// --- Condition Check: Only proceed if conditions met AND payment hasn't been processed for this signal yet ---
 		if (
 			customerFlowStep === "receipt" &&
 			receiptStepSignalledComplete &&
 			paymentSuccess &&
-			!paymentProcessedRef.current // Check if handlePayment call was already made for this signal
+			!paymentProcessedRef.current // <<<--- Use payment ref to prevent processing same signal twice
 		) {
-			// Mark that we've initiated processing for this specific payment signal
+			// --- Set payment ref IMMEDIATELY ---
 			paymentProcessedRef.current = true;
 			console.log(
-				"CREDIT_VIEW_EFFECT_MAIN: Conditions MET. Setting PaymentProcessedRef=true. Processing payment..."
+				"CREDIT_VIEW_EFFECT_MAIN: Conditions MET & Payment NOT processed. Setting paymentRef=true. Processing payment state update..."
 			);
+			setViewProcessingState(true); // Indicate processing
 
-			// Prepare details for handlePayment
 			const paymentInfo = stepData.payment;
 			const nestedPaymentObject = {
-				status: "success",
+				/* ... */ status: "success",
 				transactionId: paymentInfo.transactionId,
 				amount: amountChargedThisTxnNum,
 				timestamp: paymentInfo.timestamp || new Date().toISOString(),
@@ -245,235 +247,163 @@ export const CreditPaymentView = ({
 				flowData: { ...stepData, payment: nestedPaymentObject },
 			};
 
-			// Call handlePayment (processPayment from usePaymentFlow hook)
+			// Call handlePayment to update the parent state
 			handlePayment(amountChargedThisTxnNum, transactionDetails)
 				.then((paymentResult) => {
-					if (!isMountedRef.current) return; // Check mount status after async
+					// This block runs AFTER handlePayment updates the state in usePaymentFlow
+					if (!isMountedRef.current) return;
 
-					// Handle failure from handlePayment (e.g., state update error)
 					if (!paymentResult || !paymentResult.success) {
-						console.error(
-							"CREDIT_VIEW_EFFECT_MAIN: handlePayment failed:",
-							paymentResult?.error || "Unknown handlePayment error"
-						);
-						setError(
+						throw new Error(
 							paymentResult?.error || "Failed to record payment transaction."
 						);
-						paymentProcessedRef.current = false; // Allow retry ONLY if handlePayment itself failed
-						completionProcessedRef.current = false; // Ensure completion ref is also reset
-						completeCustomerDisplayFlow(); // Attempt to reset customer display
-						setFlowStarted(false); // Update UI state
-						return; // Stop further processing in this .then() block
 					}
 
-					// --- Payment was successfully processed by usePaymentFlow, now decide course of action ---
 					console.log(
 						"CREDIT_VIEW_EFFECT_MAIN: handlePayment succeeded. Result:",
 						paymentResult
 					);
-					const { isNowComplete, updatedTransactions } = paymentResult; // Get completion status and final TX list
+					const { isNowComplete, updatedTransactions } = paymentResult;
 
-					// Double-check if completion/navigation hasn't already started from a rapid re-run
-					if (completionProcessedRef.current) {
-						console.log(
-							"CREDIT_VIEW_EFFECT_MAIN: Completion/Navigation already in progress, skipping."
-						);
-						return;
-					}
-
-					console.log(
-						`CREDIT_VIEW_EFFECT_MAIN: Checking completion status. isNowComplete=${isNowComplete}, state.splitMode=${state.splitMode}`
-					);
-
-					// ---- FINAL COMPLETION LOGIC ----
-					if (isNowComplete) {
-						// Mark that final completion logic is starting
+					// --- Now check completion status and if finalization hasn't started ---
+					if (isNowComplete && !completionProcessedRef.current) {
+						// --- Set completion ref ---
 						completionProcessedRef.current = true;
-						paymentProcessedRef.current = true; // Ensure this remains true during finalization
-
 						console.log(
-							"CREDIT_VIEW_EFFECT_MAIN: Total payment complete according to handlePayment result. Finalizing..."
+							"CREDIT_VIEW_EFFECT_MAIN: Order complete & finalization NOT processed. Setting completionRef=true. Finalizing..."
 						);
 
-						const finalizeOrder = async (transactionsToComplete) => {
-							if (!isMountedRef.current) return; // Final check before async ops
-							setViewProcessingState(true); // Indicate finalization processing
-
+						// Use IIAFE for finalization + print + navigation
+						(async () => {
+							let finalizationErrorOccurred = false;
 							try {
-								// --- Print Receipt (Run asynchronously) ---
-								try {
-									const cartForReceipt = useCartStore.getState().cart;
-									const discountForReceipt =
-										useCartStore.getState().orderDiscount;
-									const { subtotal, taxAmount } = calculateCartTotals(
-										cartForReceipt,
-										discountForReceipt
-									);
-									const latestTransaction =
-										transactionsToComplete[transactionsToComplete.length - 1];
-									const finalPaymentInfo =
-										latestTransaction?.flowData?.payment || {};
-									const finalTipTotal = transactionsToComplete.reduce(
-										(sum, tx) => sum + Number(tx.tipAmount || 0),
-										0
-									);
-									const finalGrandTotal = parseFloat(
-										new Decimal(totalAmount)
-											.plus(new Decimal(finalTipTotal))
-											.toFixed(2)
-									);
+								const completedOrderData = await completePaymentFlow(
+									updatedTransactions
+								);
+								if (!isMountedRef.current) return;
 
-									const receiptData = {
-										id: state.orderId || Math.floor(Date.now() / 1000),
-										timestamp: new Date().toISOString(),
-										items: cartForReceipt.map((item) => ({
-											product_name: item.name,
-											quantity: item.quantity,
-											unit_price: item.price,
-										})),
-										total_price: finalGrandTotal,
-										subtotal: subtotal,
-										tax: taxAmount,
-										tip: finalTipTotal,
-										payment: {
-											method: state.splitMode ? "Split" : "Credit",
-											card_type: finalPaymentInfo.cardInfo?.brand || "Card",
-											last_four: finalPaymentInfo.cardInfo?.last4 || "****",
-										},
-										is_split_payment: state.splitMode,
-										// Add store details from config/context if available
-										store_name: "Ajeen Restaurant",
-										store_address: "123 Main Street",
-										store_phone: "(123) 456-7890",
-										receipt_footer: "Thank you for your purchase!",
-									};
-									console.log(
-										"CREDIT_VIEW_EFFECT_MAIN: >>> Calling printReceipt <<<",
-										receiptData
-									);
-									printReceipt({
-										receipt_data: receiptData,
-										open_drawer: false,
-									})
-										.then(() =>
-											console.log(
-												"CREDIT_VIEW_EFFECT_MAIN: Receipt print call initiated (async)."
-											)
-										)
-										.catch((e) =>
-											console.error(
-												"CREDIT_VIEW_EFFECT_MAIN: Receipt printing failed (non-blocking):",
-												e
-											)
+								if (completedOrderData) {
+									console.log("CREDIT_VIEW_EFFECT_MAIN: Backend successful.");
+									if (completedOrderData.receipt_payload) {
+										console.log(
+											"CREDIT_VIEW_EFFECT_MAIN: Triggering print via agent..."
 										);
-								} catch (printPrepError) {
-									console.error(
-										"CREDIT_VIEW_EFFECT_MAIN: Error preparing receipt data (non-blocking):",
-										printPrepError
-									);
-								}
-
-								// --- Complete Backend Flow ---
-								console.log(
-									"CREDIT_VIEW_EFFECT_MAIN: Calling completePaymentFlow..."
-								);
-								const backendSuccess = await completePaymentFlow(
-									transactionsToComplete
-								); // Pass the correct transactions
-								console.log(
-									"CREDIT_VIEW_EFFECT_MAIN: completePaymentFlow result:",
-									backendSuccess
-								);
-
-								if (!isMountedRef.current) return; // Check mount status again
-
-								if (backendSuccess) {
+										printReceiptWithAgent(
+											completedOrderData.receipt_payload,
+											false
+										).then((printResult) => {
+											if (!printResult.success) {
+												console.warn(
+													"CREDIT_VIEW_EFFECT_MAIN: Print command to agent failed:",
+													printResult.message
+												);
+												toast.warn("Failed to send receipt to printer.");
+											} else {
+												console.log(
+													"CREDIT_VIEW_EFFECT_MAIN: Print command sent to agent successfully."
+												);
+											}
+										});
+									} else {
+										/* log missing payload */
+									}
 									console.log(
-										"CREDIT_VIEW_EFFECT_MAIN: Backend successful. Navigating..."
+										"CREDIT_VIEW_EFFECT_MAIN: Navigating to completion view..."
 									);
-									handleNavigation("Completion"); // Navigate on success
+									handleNavigation("Completion");
 								} else {
 									console.error("CREDIT_VIEW_EFFECT_MAIN: Backend failed.");
-									setError("Failed to finalize order backend.");
-									completionProcessedRef.current = false; // Allow potential retry? Reset completion ref
-									paymentProcessedRef.current = false; // Also reset payment ref? Might allow full retry
+									toast.error("Failed to finalize order.");
+									finalizationErrorOccurred = true;
 								}
 							} catch (finalizationError) {
 								if (!isMountedRef.current) return;
 								console.error(
-									"CREDIT_VIEW_EFFECT_MAIN: Error during finalizeOrder:",
+									"CREDIT_VIEW_EFFECT_MAIN: Error during finalizeOrderAndPrint:",
 									finalizationError
 								);
 								setError(
 									finalizationError.message || "Error finalizing order."
 								);
-								completionProcessedRef.current = false; // Allow potential retry? Reset completion ref
-								paymentProcessedRef.current = false; // Reset payment ref too?
+								toast.error(
+									`Error: ${finalizationError.message || "Finalization failed"}`
+								);
+								finalizationErrorOccurred = true;
 							} finally {
-								if (isMountedRef.current) setViewProcessingState(false); // Stop processing indicator
+								if (isMountedRef.current) {
+									setViewProcessingState(false); // Stop loading indicator
+									// Reset completion ref only if an error occurred during finalization
+									if (finalizationErrorOccurred) {
+										completionProcessedRef.current = false;
+										// Should we reset paymentProcessedRef too on error? Maybe not, signal was processed.
+									}
+								}
 							}
-						}; // --- End finalizeOrder ---
-
-						finalizeOrder(updatedTransactions); // Pass the fresh transactions from paymentResult
-					}
-					// ---- INTERMEDIATE SPLIT LOGIC ----
-					// This runs if payment was processed successfully, but the total order is NOT complete, and it's split mode.
-					else if (state.splitMode && !isNowComplete) {
-						// Mark that we are starting the intermediate navigation process
-						completionProcessedRef.current = true;
+						})(); // End IIAFE for finalization
+					} else if (
+						state.splitMode &&
+						!isNowComplete &&
+						!completionProcessedRef.current
+					) {
+						// --- Intermediate Split Logic ---
+						completionProcessedRef.current = true; // Mark this navigation as started
 						console.log(
-							"CREDIT_VIEW_EFFECT_MAIN: Intermediate split part complete (isNowComplete=false). Resetting for next split."
+							"CREDIT_VIEW_EFFECT_MAIN: Intermediate split part complete. Resetting for next split."
 						);
-
-						// Reset UI/Flow state for the next split part
 						completeCustomerDisplayFlow();
 						setFlowStarted(false);
-						// paymentProcessedRef.current = false; // IMPORTANT: Reset payment ref for the NEXT payment signal
-
 						const orderTotalAmount = totalAmount;
 						const amountPaidSoFar = paymentResult.newAmountPaid;
 						const remainingAfterThisSplit = Math.max(
 							0,
 							orderTotalAmount - amountPaidSoFar
 						);
-
 						resetFlowForSplitContinuation({
 							amountPaid: amountPaidSoFar,
 							remainingAmount: remainingAfterThisSplit,
-							currentPaymentAmount: amountChargedThisTxnNum, // Amount of the split part just paid
+							currentPaymentAmount: amountChargedThisTxnNum,
 						});
-
-						// Navigate back to Split view after a short delay
 						setTimeout(() => {
 							if (isMountedRef.current) {
 								handleNavigation("Split", -1);
-								// Reset completion ref AFTER navigation starts
+								// Reset refs AFTER navigation starts for the *next* step
 								completionProcessedRef.current = false;
+								paymentProcessedRef.current = false; // Reset for next payment signal
 							}
-						}, 50); // Delay helps ensure state updates settle before navigation potentially unmounts
-					} else if (!state.splitMode && !isNowComplete) {
-						// This case should ideally not happen if totalAmount is correct
+						}, 50);
+					} else if (completionProcessedRef.current) {
+						console.log(
+							"CREDIT_VIEW_EFFECT_MAIN: Completion/Navigation already processed for this event. Skipping duplicate action."
+						);
+					} else {
+						// Should not happen if !isNowComplete and !state.splitMode
 						console.error(
-							"CREDIT_VIEW_EFFECT_MAIN: Payment processed but not complete and not split mode. Unexpected state."
+							"CREDIT_VIEW_EFFECT_MAIN: Unexpected state - payment processed but not complete and not split mode."
 						);
 						setError("Unexpected payment state after processing.");
-						completionProcessedRef.current = false; // Reset refs to allow potential recovery/cancel
+						completionProcessedRef.current = false; // Reset refs on unexpected error
 						paymentProcessedRef.current = false;
+						setViewProcessingState(false); // Ensure loading stops
 					}
 				})
 				.catch((err) => {
-					// Catch errors from the handlePayment promise itself
+					// Catch errors from handlePayment promise itself
 					if (!isMountedRef.current) return;
 					console.error(
 						"CREDIT_VIEW_EFFECT_MAIN: Error in handlePayment promise chain:",
 						err
 					);
 					setError(err.message || "Error processing payment.");
-					paymentProcessedRef.current = false; // Allow retry
-					completionProcessedRef.current = false; // Ensure completion ref is reset
+					paymentProcessedRef.current = false; // Allow retry of payment processing for this signal
+					completionProcessedRef.current = false; // Ensure completion ref is also reset
 					completeCustomerDisplayFlow();
 					setFlowStarted(false);
+					setViewProcessingState(false); // Ensure loading stops
 				});
+		} else {
+			console.log(
+				"CREDIT_VIEW_EFFECT_MAIN: Conditions NOT met or payment already processed for this signal. Skipping."
+			);
 		}
 	}, [
 		// Dependencies
@@ -489,12 +419,12 @@ export const CreditPaymentView = ({
 		currentPaymentAmountNum,
 		tipForThisPaymentNum,
 		completeCustomerDisplayFlow,
-		printReceipt,
 		completePaymentFlow,
 		handleNavigation,
 		resetFlowForSplitContinuation,
-		flowStarted, // Added flowStarted
-		// state.amountPaid removed as primary trigger, completion decided by handlePayment result
+		flowStarted,
+		state.transactions,
+		// isFinalizing // Removed state dependency
 	]);
 
 	// --- Cancel Payment ---
