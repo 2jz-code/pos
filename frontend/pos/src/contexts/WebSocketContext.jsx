@@ -11,11 +11,11 @@ import PropTypes from "prop-types";
 
 // Define initial WebSocket endpoints by category
 const WS_ENDPOINTS = {
-	HARDWARE: {
-		// CASH_DRAWER: "hardware/cash-drawer",
-		// CARD_PAYMENT: "hardware/card-payment",
-		RECEIPT_PRINTER: "hardware/receipt-printer",
-	},
+	// HARDWARE: {
+	// 	// CASH_DRAWER: "hardware/cash-drawer",
+	// 	// CARD_PAYMENT: "hardware/card-payment",
+	// 	RECEIPT_PRINTER: "hardware/receipt-printer",
+	// },
 	BUSINESS: {
 		KITCHEN: "kitchen/orders", // Add kitchen endpoint
 	},
@@ -85,16 +85,33 @@ export const WebSocketProvider = ({ children }) => {
 
 	// Get WebSocket URL based on category and endpoint
 	const getWebSocketUrl = useCallback((category, endpointName) => {
-		const path = WS_ENDPOINTS[category][endpointName];
-
-		// Different base URL handling for different categories
-		if (category === "HARDWARE") {
-			return `ws://localhost:8001/ws/${path}/`;
-		} else if (category === "BUSINESS") {
-			return `ws://localhost:8001/ws/${path}/`;
+		const path = WS_ENDPOINTS[category]?.[endpointName]; // Use optional chaining
+		if (!path) {
+			throw new Error(
+				`Unknown WebSocket path for: ${category}.${endpointName}`
+			);
 		}
 
-		throw new Error(`Unknown WebSocket category: ${category}`);
+		// +++ Define the base URL using environment variables +++
+		// Default to localhost for development if the variable isn't set
+		const baseWsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:8001/ws";
+
+		// --- BEFORE --- (Example for BUSINESS)
+		// if (category === "BUSINESS") {
+		// 	return `ws://localhost:8001/ws/${path}/`;
+		// }
+
+		// +++ AFTER +++
+		// Construct the full URL
+		// Ensure the base URL doesn't end with '/' and the path doesn't start with '/'
+		const cleanBase = baseWsUrl.endsWith("/")
+			? baseWsUrl.slice(0, -1)
+			: baseWsUrl;
+		const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+		return `${cleanBase}/${cleanPath}/`; // Add trailing slash as expected by Django Channels
+
+		// Remove or comment out old logic
+		// throw new Error(`Unknown WebSocket category: ${category}`);
 	}, []);
 
 	// Connect to a specific endpoint
