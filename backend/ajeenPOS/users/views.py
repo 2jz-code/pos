@@ -5,7 +5,7 @@ from rest_framework.response import Response
 
 # Import AllowAny permission class
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework import (
     status,
@@ -117,41 +117,75 @@ class CustomTokenRefreshView(APIView):
 
 
 class CheckAuthView(APIView):
-    # Allow anyone to check auth (validation happens inside)
     permission_classes = [AllowAny]
 
     def get(self, request):
         access_token = request.COOKIES.get("pos_access_token")
 
         if not access_token:
+            # Return 401 if token is missing
             return Response(
-                {"authenticated": False, "is_admin": False}, status=status.HTTP_200_OK
-            )  # Return 200, just not authenticated
+                {
+                    "authenticated": False,
+                    "is_admin": False,
+                    "detail": "Access token missing.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
         try:
+            # AccessToken itself doesn't raise error on expired token during init
+            # We need to manually check or rely on subsequent operations failing
             token = AccessToken(access_token)
-            # Ensure token hasn't expired (AccessToken doesn't raise error on init for expired)
-            # token.verify() # This would raise TokenError if expired, but might be too strict for just checking
+            # You could optionally add token.verify() here if strict validation is needed,
+            # but it might interfere if you just want to check existence/basic format.
+            # A User.DoesNotExist or TokenError below usually suffices.
+
             user = User.objects.get(id=token["user_id"])
+            # User exists and token was valid enough to get user_id
             return Response(
                 {
                     "authenticated": True,
                     "username": user.username,
-                    # Check role field directly - safer than relying on is_staff/is_superuser
                     "is_admin": user.role in ["admin", "owner"],
                 },
                 status=status.HTTP_200_OK,
             )
         except User.DoesNotExist:
-            # User associated with token doesn't exist anymore
+            # Return 401 if user doesn't exist
             return Response(
-                {"authenticated": False, "is_admin": False}, status=status.HTTP_200_OK
+                {
+                    "authenticated": False,
+                    "is_admin": False,
+                    "detail": "User not found for token.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
             )
-        except Exception:  # Catches TokenError (invalid/expired) and others
-            # Consider logging the exception
-            # If token is invalid/expired, they are not authenticated
+        except TokenError as e:  # Catch specific token errors (e.g., invalid format)
+            # Return 401 if token is invalid
             return Response(
-                {"authenticated": False, "is_admin": False}, status=status.HTTP_200_OK
+                {
+                    "authenticated": False,
+                    "is_admin": False,
+                    "detail": f"Invalid token: {e}",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except (
+            Exception
+        ) as e:  # Catch unexpected errors like expired tokens during lookup?
+            # Log the error for debugging
+            print(
+                f"Unexpected error during auth check: {e}"
+            )  # Replace with proper logging
+            # Return 401 for generic token issues (like potentially expired)
+            return Response(
+                {
+                    "authenticated": False,
+                    "is_admin": False,
+                    "detail": "Token validation failed.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
             )
 
 

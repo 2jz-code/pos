@@ -229,7 +229,7 @@ export const CompletionView = ({
 								/>
 								<PaymentButton
 									label="Skip"
-									variant="secondary" // Or "default" if "secondary" is not defined
+									variant="default" // Or "default" if "secondary" is not defined
 									icon={XMarkIcon}
 									onClick={handleSkip}
 									disabled={isPrinting}
